@@ -493,21 +493,17 @@
           <div class="department-task-list" id="departmentTaskList"></div>
         </section>
 
-        <section class="create-task-section">
-          <div class="section-title-row">
-            <div>
-              <span class="eyebrow">جدول النشر والميزانية</span>
-              <h4>نتيجة جدول النشر وحساب الميزانية</h4>
+        <section class="create-task-section publish-budget-section">
+          <div class="schedule-builder-card">
+            <div class="section-title-row compact-title-row">
+              <div>
+                <span class="eyebrow">إنشاء جدول النشر</span>
+                <h4>جدول النشر</h4>
+                <p>اضغط إضافة يوم، اختار اليوم والتاريخ، واكتب ما سيتم نشره في التاريخ ده.</p>
+              </div>
+              <button class="soft-btn" type="button" id="addPublishScheduleRow">+ إضافة يوم نشر</button>
             </div>
-            <a class="soft-btn" href="platforms.html">إدارة منصات الميزانية</a>
-          </div>
-
-          <div class="optional-create-grid schedule-budget-grid">
-            <label class="mzj-field full-width-field">
-              <span>نتيجة جدول النشر</span>
-              <textarea id="publishScheduleResult" name="publishScheduleResult" rows="4" placeholder="اكتب نتيجة جدول النشر هنا أو ملخص الجدول بعد تجهيزه"></textarea>
-              <small>جدول النشر مش Template هنا؛ دي نتيجة يتم حفظها مع الحملة أو الأجندة.</small>
-            </label>
+            <div id="publishScheduleRows" class="publish-schedule-rows"></div>
           </div>
 
           <div class="budget-builder-card">
@@ -515,26 +511,29 @@
               <div>
                 <span class="eyebrow">الميزانية</span>
                 <h4>بيانات إعلان الميزانية</h4>
-                <p>مدير التسويق يكتب البيانات، وإجمالي الميزانية يتحسب من مجموع المنصات المختارة.</p>
+                <p>اكتب عدد الميزانيات الأول، وبعدها هتظهر ميزانية المنصات بحجم أصغر. الإجمالي = مجموع المنصات × عدد الميزانيات.</p>
               </div>
             </div>
             <div class="create-task-grid budget-fields-grid">
-              <label class="mzj-field"><span>نوع الإعلان</span><select id="budgetAdType" name="budgetAdType"><option value="">اختار</option><option value="بيعي">بيعي</option><option value="كاش">كاش</option></select></label>
+              <label class="mzj-field"><span>نوع الإعلان</span><input type="text" id="budgetAdType" name="budgetAdType" placeholder="اكتب نوع الإعلان"></label>
               <label class="mzj-field"><span>اسم الإعلان</span><input type="text" id="budgetAdName" name="budgetAdName" placeholder="اسم الإعلان"></label>
               <label class="mzj-field"><span>تاريخ النشر</span><input type="date" id="budgetPublishDate" name="budgetPublishDate"></label>
               <label class="mzj-field"><span>مدة الإعلان</span><input type="text" id="budgetDuration" name="budgetDuration" placeholder="مثال: 7 أيام"></label>
               <label class="mzj-field"><span>عدد الإعلانات</span><input type="number" min="0" id="budgetAdsCount" name="budgetAdsCount" placeholder="0"></label>
+              <label class="mzj-field"><span>عدد الميزانيات</span><input type="number" min="0" id="budgetQuantity" name="budgetQuantity" placeholder="اكتب عدد الميزانيات"></label>
               <label class="mzj-field"><span>هدف المحتوى</span><input type="text" id="budgetContentGoal" name="budgetContentGoal" placeholder="اكتب هدف المحتوى"></label>
               <label class="mzj-field"><span>الهدف المتوقع</span><input type="text" id="budgetExpectedGoal" name="budgetExpectedGoal" placeholder="اكتب الهدف المتوقع"></label>
             </div>
-            <div class="platform-budget-head">
-              <strong>ميزانية المنصات</strong>
-              <small>المنصات بتتقرأ من صفحة منصات الميزانية ومسار Firebase: marketing_platforms</small>
-            </div>
-            <div id="budgetPlatformsList" class="budget-platforms-list"></div>
-            <div class="budget-total-box">
-              <span>إجمالي الميزانية</span>
-              <strong id="budgetTotalValue">0</strong>
+            <div class="platform-budget-area is-hidden" id="budgetPlatformsArea">
+              <div class="platform-budget-head">
+                <strong>ميزانية المنصات</strong>
+                <small>تظهر بعد كتابة عدد الميزانيات. المنصات بتتقرأ من صفحة منصات الميزانية.</small>
+              </div>
+              <div id="budgetPlatformsList" class="budget-platforms-list compact-budget-platforms"></div>
+              <div class="budget-total-box">
+                <span>إجمالي الميزانية</span>
+                <strong id="budgetTotalValue">0</strong>
+              </div>
             </div>
           </div>
         </section>

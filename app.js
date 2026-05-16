@@ -585,6 +585,10 @@ function initCreateTaskFromTemplate() {
   const note = document.getElementById('createTaskFormNote');
   const budgetPlatformsList = document.getElementById('budgetPlatformsList');
   const budgetTotalValue = document.getElementById('budgetTotalValue');
+  const budgetPlatformsArea = document.getElementById('budgetPlatformsArea');
+  const budgetQuantityInput = document.getElementById('budgetQuantity');
+  const publishScheduleRows = document.getElementById('publishScheduleRows');
+  const addPublishScheduleRowBtn = document.getElementById('addPublishScheduleRow');
 
   if (!modal || !form || !typeSelect || !templateSelect || !departmentsList) return;
 
@@ -712,13 +716,27 @@ function initCreateTaskFromTemplate() {
     departmentsCache.forEach((dept) => createDepartmentRow(dept));
   }
 
+  function getBudgetQuantity() {
+    const raw = Number(budgetQuantityInput?.value || 0);
+    return Number.isFinite(raw) && raw > 0 ? raw : 0;
+  }
+
+  function syncBudgetPlatformsVisibility() {
+    if (!budgetPlatformsArea) return;
+    const quantity = getBudgetQuantity();
+    budgetPlatformsArea.classList.toggle('is-hidden', quantity <= 0);
+  }
+
   function updateBudgetTotal() {
     if (!budgetPlatformsList || !budgetTotalValue) return;
-    const total = Array.from(budgetPlatformsList.querySelectorAll('[data-platform-amount]')).reduce((sum, input) => {
+    const platformsTotal = Array.from(budgetPlatformsList.querySelectorAll('[data-platform-amount]')).reduce((sum, input) => {
       const row = input.closest('[data-platform-budget-row]');
       const checked = row?.querySelector('[data-platform-check]')?.checked;
       return sum + (checked ? Number(input.value || 0) : 0);
     }, 0);
+    const quantity = getBudgetQuantity();
+    const total = platformsTotal * quantity;
+    syncBudgetPlatformsVisibility();
     budgetTotalValue.textContent = total.toLocaleString('ar-EG');
   }
 
@@ -735,10 +753,37 @@ function initCreateTaskFromTemplate() {
           <input type="checkbox" data-platform-check>
           <strong>${escapeHTML(platform.name)}</strong>
         </label>
-        <input type="number" min="0" step="1" data-platform-amount placeholder="0">
+        <input type="number" min="0" step="1" data-platform-amount placeholder="قيمة المنصة">
       </article>
     `).join('');
     updateBudgetTotal();
+  }
+
+  function createPublishScheduleRow(data = {}) {
+    if (!publishScheduleRows) return;
+    const row = document.createElement('article');
+    row.className = 'publish-schedule-row';
+    row.innerHTML = `
+      <label class="mzj-field"><span>اليوم</span>
+        <select data-schedule-day>
+          <option value="">اختار اليوم</option>
+          ${['السبت','الأحد','الاثنين','الثلاثاء','الأربعاء','الخميس','الجمعة'].map(day => `<option value="${day}" ${data.day === day ? 'selected' : ''}>${day}</option>`).join('')}
+        </select>
+      </label>
+      <label class="mzj-field"><span>التاريخ</span><input type="date" data-schedule-date value="${escapeHTML(data.date || '')}"></label>
+      <label class="mzj-field schedule-content-field"><span>ماذا سيتم نشره؟</span><input type="text" data-schedule-content placeholder="اكتب المحتوى أو النشاط" value="${escapeHTML(data.content || '')}"></label>
+      <button class="soft-danger-btn schedule-remove-btn" type="button" data-remove-schedule-row>مسح</button>
+    `;
+    publishScheduleRows.appendChild(row);
+  }
+
+  function collectPublishScheduleDetails() {
+    if (!publishScheduleRows) return [];
+    return Array.from(publishScheduleRows.querySelectorAll('.publish-schedule-row')).map((row) => ({
+      day: row.querySelector('[data-schedule-day]')?.value || '',
+      date: row.querySelector('[data-schedule-date]')?.value || '',
+      content: row.querySelector('[data-schedule-content]')?.value.trim() || ''
+    })).filter((item) => item.day || item.date || item.content);
   }
 
   function collectBudgetDetails() {
@@ -752,16 +797,20 @@ function initCreateTaskFromTemplate() {
         selected: Boolean(checked)
       };
     }).filter((platform) => platform.selected || platform.amount > 0) : [];
-    const total = selectedPlatforms.reduce((sum, platform) => sum + Number(platform.amount || 0), 0);
+    const platformsTotal = selectedPlatforms.reduce((sum, platform) => sum + Number(platform.amount || 0), 0);
+    const quantity = getBudgetQuantity();
+    const total = platformsTotal * quantity;
     return {
       adType: document.getElementById('budgetAdType')?.value || '',
       adName: document.getElementById('budgetAdName')?.value || '',
       publishDate: document.getElementById('budgetPublishDate')?.value || '',
       duration: document.getElementById('budgetDuration')?.value || '',
       adsCount: document.getElementById('budgetAdsCount')?.value || '',
+      quantity,
       contentGoal: document.getElementById('budgetContentGoal')?.value || '',
       expectedGoal: document.getElementById('budgetExpectedGoal')?.value || '',
       platforms: selectedPlatforms,
+      platformsTotal,
       totalBudget: total
     };
   }
@@ -838,6 +887,23 @@ function initCreateTaskFromTemplate() {
     budgetPlatformsList.addEventListener('change', updateBudgetTotal);
   }
 
+  if (budgetQuantityInput) {
+    budgetQuantityInput.addEventListener('input', updateBudgetTotal);
+    budgetQuantityInput.addEventListener('change', updateBudgetTotal);
+  }
+
+  if (addPublishScheduleRowBtn) {
+    addPublishScheduleRowBtn.addEventListener('click', () => createPublishScheduleRow());
+  }
+
+  if (publishScheduleRows) {
+    publishScheduleRows.addEventListener('click', (event) => {
+      const removeBtn = event.target.closest('[data-remove-schedule-row]');
+      if (!removeBtn) return;
+      removeBtn.closest('.publish-schedule-row')?.remove();
+    });
+  }
+
 
   document.addEventListener('click', (event) => {
     if (event.target.closest('[data-close-create-task]') || event.target === modal) {
@@ -883,7 +949,8 @@ function initCreateTaskFromTemplate() {
       campaignGoal: formData.get('campaignGoal') || '',
       launchDate: formData.get('launchDate') || '',
       departmentTasks,
-      publishScheduleResult: document.getElementById('publishScheduleResult')?.value || '',
+      publishScheduleEntries: collectPublishScheduleDetails(),
+      publishScheduleResult: collectPublishScheduleDetails().map((item) => [item.day, item.date, item.content].filter(Boolean).join(' - ')).join(' | '),
       budgetDetails: collectBudgetDetails(),
       sourceCollection: 'workspace_tasks',
       createdAt: new Date().toISOString(),

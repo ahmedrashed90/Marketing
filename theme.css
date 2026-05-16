@@ -1590,3 +1590,34 @@ body.sidebar-collapsed .main-shell {
 /* Auth + fullscreen create task update */
 .login-page{min-height:100vh;display:grid;place-items:center;background:var(--cream);padding:24px}.login-shell{width:min(680px,100%)}.login-card{padding:34px}.login-card h1{margin:8px 0 8px;font-size:38px}.login-card p{color:var(--muted);font-weight:800;line-height:1.8}.login-form{display:grid;gap:14px;margin-top:22px}.login-test-grid{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}.login-credentials{display:grid;gap:8px;margin-top:18px;padding:16px;border-radius:18px;background:rgba(62,36,32,.06);font-weight:800}.auth-user-badge{position:fixed;left:18px;bottom:18px;z-index:99999;background:var(--brown-900);color:var(--cream);border-radius:20px;padding:12px 14px;display:flex;align-items:center;gap:10px;box-shadow:0 18px 42px rgba(62,36,32,.22)}.auth-user-badge span{opacity:.8;font-weight:800}.auth-user-badge button{border:0;border-radius:12px;padding:7px 10px;font:inherit;font-weight:900;cursor:pointer;background:var(--cream);color:var(--brown-900)}
 .fullscreen-task-modal{position:fixed!important;inset:0!important;width:100vw!important;height:100vh!important;z-index:9999!important;padding:18px!important;align-items:stretch!important;justify-content:stretch!important;background:rgba(33,18,15,.72)!important}.fullscreen-task-modal .create-task-panel{width:100%!important;max-width:none!important;height:100%!important;max-height:none!important;border-radius:28px!important;overflow:auto!important}.fullscreen-task-modal .create-task-form{max-width:1500px;margin:auto}.department-task-row-selectable{border:1px solid rgba(62,36,32,.11)}.department-check-line{display:flex;align-items:center;gap:10px}.department-check-line input{width:20px;height:20px;accent-color:var(--brown-900)}.department-source-label{font-weight:900;color:var(--muted);font-size:12px}.file-template-field small{color:var(--muted);font-weight:800;margin-top:6px;display:block}body[data-user-role="user"] [data-role-panel="admin"]{display:none!important}body[data-user-role="admin"] [data-role-panel="user"]{display:none!important}@media(max-width:760px){.fullscreen-task-modal{padding:0!important}.fullscreen-task-modal .create-task-panel{border-radius:0!important}.auth-user-badge{left:10px;bottom:10px;right:10px;justify-content:center}}
+
+/* MZJ dashboard task workflow fixes */
+#createTaskModal.is-open{
+  position:fixed!important;
+  inset:0!important;
+  width:100vw!important;
+  height:100vh!important;
+  z-index:99999!important;
+  display:grid!important;
+  place-items:stretch!important;
+  padding:18px!important;
+  background:rgba(33,18,15,.72)!important;
+}
+#createTaskModal .create-task-dialog{
+  width:100%!important;
+  max-width:none!important;
+  height:100%!important;
+  max-height:none!important;
+  border-radius:28px!important;
+  overflow:auto!important;
+  box-sizing:border-box!important;
+}
+#createTaskModal .create-task-form{max-width:1500px;margin-inline:auto;}
+body[data-user-role="user"] [data-admin-only]{display:none!important;}
+.dynamic-dashboard-card{animation:fadeInTask .18s ease-out;}
+.dashboard-empty-card{opacity:.72;}
+.publish-actions-grid{display:grid;grid-template-columns:repeat(5,minmax(120px,1fr));gap:10px;margin-top:14px;}
+.publish-actions-grid .task-step-btn{min-height:74px;}
+.readiness-dynamic-grid{margin-top:12px;}
+@keyframes fadeInTask{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+@media(max-width:900px){.publish-actions-grid{grid-template-columns:1fr 1fr}#createTaskModal.is-open{padding:0!important}#createTaskModal .create-task-dialog{border-radius:0!important}}

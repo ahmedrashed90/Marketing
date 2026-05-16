@@ -52,7 +52,7 @@
       </div>
       <div class="topbar-actions">
         <button class="ghost-btn">⟳ تحديث</button>
-        <button class="primary-btn" id="createTaskOpen" type="button">➕ إنشاء تاسك</button>
+        <button class="primary-btn" id="createTaskOpen" type="button" data-admin-only>➕ إنشاء تاسك</button>
       </div>
     </header>
 
@@ -85,10 +85,10 @@
         <article class="board-column workspace-card">
           <div class="board-head">
             <h3>TASK - المطلوب</h3>
-            <button class="soft-btn board-mini-btn" id="createTaskOpenMini" type="button">إنشاء تاسك</button>
+            <button class="soft-btn board-mini-btn" id="createTaskOpenMini" type="button" data-admin-only>إنشاء تاسك</button>
           </div>
-          <div class="board-list">
-            <article class="task-template-card">
+          <div class="board-list" id="adminRequiredTasks">
+            <article class="task-template-card dashboard-placeholder">
               <div class="task-template-top">
                 <strong>بيانات الحملة</strong>
                 <span>نوع الحملة — كود الحملة — تاريخ نزول الحملة</span>
@@ -110,8 +110,8 @@
             <h3>جاهزية المطلوب</h3>
             <span class="column-hint">متابعة نسب الجاهزية</span>
           </div>
-          <div class="board-list">
-            <article class="readiness-card">
+          <div class="board-list" id="adminReadinessTasks">
+            <article class="readiness-card dashboard-placeholder">
               <div class="task-template-top">
                 <strong>بيانات الحملة</strong>
                 <span>نوع الحملة — كود الحملة — تاريخ نزول الحملة — نسبة الجاهزية</span>
@@ -159,8 +159,8 @@
             <h3>قسم النشر</h3>
             <span class="column-hint">متابعة تجهيزات النشر</span>
           </div>
-          <div class="board-list">
-            <article class="dept-card-template">
+          <div class="board-list" id="adminPublishingTasks">
+            <article class="dept-card-template dashboard-placeholder">
               <div class="task-template-top">
                 <strong>بيانات الحملة</strong>
                 <span>نوع الحملة — كود الحملة — تاريخ نزول الحملة</span>
@@ -172,13 +172,7 @@
                 <span>تاريخ التسليم</span>
                 <span>وقت التأخير</span>
               </div>
-              <div class="steps-strip">
-                <span>التجهيز 1</span>
-                <span>التجهيز 2</span>
-                <span>التجهيز 3</span>
-                <span>الاعتماد</span>
-                <span>النشر</span>
-              </div>
+              <div class="task-empty-note">ستظهر هنا الحملات الجاهزة للنشر ومعها أزرار النشر داخل الكارت.</div>
             </article>
           </div>
         </article>
@@ -188,8 +182,8 @@
             <h3>قسم الأرشيف</h3>
             <span class="column-hint">متابعة الأرشفة</span>
           </div>
-          <div class="board-list">
-            <article class="dept-card-template">
+          <div class="board-list" id="adminArchiveTasks">
+            <article class="dept-card-template dashboard-placeholder">
               <div class="task-template-top">
                 <strong>بيانات الحملة</strong>
                 <span>نوع الحملة — كود الحملة — تاريخ نزول الحملة</span>
@@ -201,13 +195,7 @@
                 <span>تاريخ التسليم</span>
                 <span>وقت التأخير</span>
               </div>
-              <div class="steps-strip">
-                <span>التجهيز 1</span>
-                <span>التجهيز 2</span>
-                <span>التجهيز 3</span>
-                <span>الاعتماد</span>
-                <span>الأرشفة</span>
-              </div>
+              <div class="task-empty-note">ستظهر هنا الحملات المؤرشفة بعد انتهاء النشر.</div>
             </article>
           </div>
         </article>
@@ -221,7 +209,7 @@
             <h3>قسم التصوير</h3>
             <span class="column-hint">مهام اليوزر الحالية</span>
           </div>
-          <div class="board-list department-task-list">
+          <div class="board-list department-task-list" id="userShootingTasks">
             <article class="department-task-card" data-dept-task-card data-completed-steps="">
               <div class="task-template-top">
                 <strong>بيانات الحملة</strong>
@@ -263,7 +251,7 @@
             <h3>قسم المحتوى</h3>
             <span class="column-hint">مهام اليوزر الحالية</span>
           </div>
-          <div class="board-list department-task-list">
+          <div class="board-list department-task-list" id="userContentTasks">
             <article class="department-task-card" data-dept-task-card data-completed-steps="">
               <div class="task-template-top">
                 <strong>بيانات الحملة</strong>
@@ -305,7 +293,7 @@
             <h3>قسم التصميم</h3>
             <span class="column-hint">مهام اليوزر الحالية</span>
           </div>
-          <div class="board-list department-task-list">
+          <div class="board-list department-task-list" id="userDesignTasks">
             <article class="department-task-card" data-dept-task-card data-completed-steps="">
               <div class="task-template-top">
                 <strong>بيانات الحملة</strong>
@@ -347,7 +335,7 @@
             <h3>قسم المونتاج</h3>
             <span class="column-hint">مهام اليوزر الحالية</span>
           </div>
-          <div class="board-list department-task-list">
+          <div class="board-list department-task-list" id="userMontageTasks">
             <article class="department-task-card" data-dept-task-card data-completed-steps="">
               <div class="task-template-top">
                 <strong>بيانات الحملة</strong>
@@ -532,6 +520,8 @@
   </div>
 
 
+  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
   <script src="firebase-config.js"></script>
   <script src="routes.js"></script>
   <script src="auth.js"></script>

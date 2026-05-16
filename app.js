@@ -94,7 +94,8 @@ const modalCampaignPercent = document.getElementById('modalCampaignPercent');
 let activeTaskCard = null;
 
 function getCurrentUserRole() {
-  return localStorage.getItem('mzj_user_role') || document.body.dataset.userRole || 'user';
+  const authUser = window.MZJAuth?.getUser?.();
+  return authUser?.role || document.body.dataset.userRole || localStorage.getItem('mzj_user_role') || 'user';
 }
 
 function isAdminUser() {
@@ -433,6 +434,33 @@ function renderDepartmentOptions(departments) {
   )).join('');
 }
 
+
+async function loadUsersFromSystemPath() {
+  const fallback = (window.MZJAuth?.users || []).map((user) => user.name || user.email).filter(Boolean);
+  try {
+    const localUsers = JSON.parse(localStorage.getItem('users') || '[]');
+    if (Array.isArray(localUsers) && localUsers.length) {
+      return localUsers.map((user) => typeof user === 'string' ? user : (user.name || user.displayName || user.email || '')).filter(Boolean);
+    }
+  } catch (error) {}
+
+  if (window.firebase && window.MZJ_FIREBASE_CONFIG) {
+    try {
+      if (!firebase.apps.length) firebase.initializeApp(window.MZJ_FIREBASE_CONFIG);
+      const snap = await firebase.firestore().collection('users').get();
+      const firestoreUsers = [];
+      snap.forEach((doc) => {
+        const data = doc.data() || {};
+        firestoreUsers.push(data.name || data.displayName || data.email || doc.id);
+      });
+      if (firestoreUsers.length) return firestoreUsers;
+    } catch (error) {
+      console.warn('users path fallback:', error);
+    }
+  }
+  return fallback;
+}
+
 function renderUserOptions(users) {
   if (!users || !users.length) {
     return '<option value="">اكتب أو اختار اليوزر بعد الربط</option>';
@@ -458,10 +486,12 @@ function initCreateTaskFromTemplate() {
   if (!modal || !form || !typeSelect || !templateSelect || !departmentsList) return;
 
   let departmentsCache = [];
+  let usersCache = [];
   let departmentIndex = 0;
 
   async function ensureDepartments() {
     departmentsCache = await loadDepartmentsFromContentTasks();
+    usersCache = await loadUsersFromSystemPath();
     if (!departmentsList.children.length) renderAllDepartments();
   }
 
@@ -506,7 +536,7 @@ function initCreateTaskFromTemplate() {
       <div class="department-task-grid">
         <label class="mzj-field">
           <span>اليوزر / المسؤول</span>
-          <select data-user-select>${renderUserOptions(dept.users || [])}</select>
+          <select data-user-select>${renderUserOptions(usersCache.length ? usersCache : (dept.users || []))}</select>
         </label>
 
         <label class="mzj-field">
@@ -636,7 +666,10 @@ function initCreateTaskFromTemplate() {
       budgetPlanTemplate: document.getElementById('budgetPlanTemplate')?.files?.[0]?.name || '',
       resultsReportTemplate: document.getElementById('resultsReportTemplate')?.files?.[0]?.name || '',
       sourceCollection: 'content_tasks',
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      stage: 'required',
+      readiness: {},
+      publishSteps: []
     };
 
     const tasks = JSON.parse(localStorage.getItem(MZJ_CREATED_TASKS_KEY) || '[]');
@@ -645,8 +678,187 @@ function initCreateTaskFromTemplate() {
 
     if (note) note.textContent = '✅ تم حفظ التاسك. البيانات جاهزة للرفع على Firestore بعد ربط Collection التلقائي.';
     renderTemplatePreview(preview, selectedTemplate, '✅ تم حفظ التاسك من القالب');
+    if (typeof window.renderDashboardTasks === 'function') window.renderDashboardTasks();
   });
 }
 
 initTemplatesPage();
 initCreateTaskFromTemplate();
+
+
+/* Dashboard dynamic created tasks, user assignment, publishing workflow */
+(function initDynamicDashboardTasks(){
+  const TASK_KEY = 'mzj_created_tasks_from_templates_v1';
+  const DEPT_MAP = {
+    shooting: ['تصوير','التصوير','photography','shooting'],
+    content: ['محتوى','المحتوى','content'],
+    design: ['تصميم','التصميم','design'],
+    montage: ['مونتاج','المونتاج','montage']
+  };
+  const PUBLISH_STEPS = ['التجهيز 1','التجهيز 2','التجهيز 3','الاعتماد','النشر'];
+
+  function readTasks(){
+    try { return JSON.parse(localStorage.getItem(TASK_KEY) || '[]'); } catch(e) { return []; }
+  }
+  function writeTasks(tasks){ localStorage.setItem(TASK_KEY, JSON.stringify(tasks)); }
+  function esc(v){ return String(v || '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+  function user(){ return window.MZJAuth?.getUser?.() || null; }
+  function userIsAdmin(){ return (user()?.role || document.body.dataset.userRole) === 'admin'; }
+  function taskTitle(task){ return task.campaignName || task.templateName || task.campaignCode || 'حملة بدون اسم'; }
+  function deptKey(deptName){
+    const value = String(deptName || '').toLowerCase();
+    return Object.entries(DEPT_MAP).find(([key, words]) => words.some(w => value.includes(String(w).toLowerCase())))?.[0] || 'content';
+  }
+  function taskDeptProgress(task, deptTask){
+    const readiness = task.readiness || {};
+    const key = deptTask.departmentId || deptTask.departmentName || deptTask.userName || '';
+    return Array.isArray(readiness[key]) ? readiness[key].length * 20 : 0;
+  }
+  function taskReadiness(task){
+    const depts = task.departmentTasks || [];
+    if (!depts.length) return 0;
+    const total = depts.reduce((sum, d) => sum + taskDeptProgress(task, d), 0);
+    return Math.round(total / depts.length);
+  }
+  function autoStage(task){
+    if (!task.stage) task.stage = 'required';
+    const ready = taskReadiness(task);
+    if (task.stage !== 'archive' && ready >= 100) task.stage = 'publish';
+    if ((task.publishSteps || []).length >= 5) task.stage = 'archive';
+    return task;
+  }
+  function clearList(id, emptyText){
+    const el = document.getElementById(id);
+    if (!el) return null;
+    el.innerHTML = `<article class="task-template-card dashboard-empty-card"><div class="task-empty-note">${esc(emptyText)}</div></article>`;
+    return el;
+  }
+  function ensureEmpty(el, text){
+    if (el && !el.children.length) el.innerHTML = `<article class="task-template-card dashboard-empty-card"><div class="task-empty-note">${esc(text)}</div></article>`;
+  }
+  function appendCard(el, html){
+    if (!el) return;
+    if (el.querySelector('.dashboard-empty-card,.dashboard-placeholder')) el.innerHTML = '';
+    el.insertAdjacentHTML('beforeend', html);
+  }
+  function meta(task){
+    return `${esc(task.taskTypeLabel)} — ${esc(task.campaignCode || 'بدون كود')} — ${esc(task.launchDate || task.taskDate || 'بدون تاريخ')}`;
+  }
+  function requiredCard(task){
+    return `<article class="task-template-card dynamic-dashboard-card" data-dash-task-id="${esc(task.id)}">
+      <div class="task-template-top"><strong>${esc(taskTitle(task))}</strong><span>${meta(task)}</span></div>
+      <div class="receipt-strip">${(task.departmentTasks||[]).map(d=>`<span>${esc(d.departmentName || 'قسم')}</span>`).join('')}</div>
+      <div class="task-empty-note">المطلوب اتسجل، وهيظهر لكل يوزر حسب القسم والمسؤول المختار.</div>
+    </article>`;
+  }
+  function readinessCard(task){
+    const ready = taskReadiness(task);
+    return `<article class="readiness-card dynamic-dashboard-card" data-dash-task-id="${esc(task.id)}">
+      <div class="task-template-top"><strong>${esc(taskTitle(task))}</strong><span>${meta(task)} — جاهزية ${ready}%</span></div>
+      <div class="mini-progress"><span style="width:${ready}%"></span></div>
+      <div class="readiness-grid readiness-dynamic-grid">
+        ${(task.departmentTasks||[]).map(d => `<div><strong>${esc(d.departmentName || 'قسم')}</strong><small>${taskDeptProgress(task,d)}%</small><small>${esc(d.requiredText || 'لا يوجد مطلوب مكتوب')}</small></div>`).join('')}
+      </div>
+    </article>`;
+  }
+  function publishCard(task){
+    const done = task.publishSteps || [];
+    const percent = done.length * 20;
+    return `<article class="dept-card-template dynamic-dashboard-card" data-dash-task-id="${esc(task.id)}">
+      <div class="task-template-top"><strong>${esc(taskTitle(task))}</strong><span>${meta(task)} — جاهزية النشر ${percent}%</span></div>
+      <div class="mini-progress"><span style="width:${percent}%"></span></div>
+      <div class="publish-actions-grid">
+        ${PUBLISH_STEPS.map((step,i)=>`<button type="button" class="task-step-btn ${done.includes(i) ? 'is-done' : ''}" data-publish-step data-task-id="${esc(task.id)}" data-step-index="${i}" ${!userIsAdmin()?'disabled':''}><span>${esc(step)}</span><small>20%</small></button>`).join('')}
+      </div>
+    </article>`;
+  }
+  function archiveCard(task){
+    return `<article class="dept-card-template dynamic-dashboard-card" data-dash-task-id="${esc(task.id)}">
+      <div class="task-template-top"><strong>${esc(taskTitle(task))}</strong><span>${meta(task)} — تم النشر والأرشفة</span></div>
+      <div class="task-empty-note">الحملة اتنقلت تلقائياً إلى الأرشيف بعد اكتمال أزرار النشر.</div>
+    </article>`;
+  }
+  function userDeptCard(task, deptTask){
+    const p = taskDeptProgress(task, deptTask);
+    const dkey = deptKey(deptTask.departmentName);
+    const steps = dkey === 'shooting' ? 'تصوير الجزء 1|الاعتماد|تصوير الجزء 2|الاعتماد|الإرفاق' :
+      dkey === 'design' ? 'تصميم الجزء 1|الاعتماد|تصميم الجزء 2|الاعتماد|الإرفاق' :
+      dkey === 'montage' ? 'مونتاج الجزء 1|الاعتماد|مونتاج الجزء 2|الاعتماد|الإرفاق' : 'نموذج المحتوى|الاعتماد|كتابة المحتوى|الاعتماد|الإرفاق';
+    const key = deptTask.departmentId || deptTask.departmentName || deptTask.userName || '';
+    const selected = ((task.readiness || {})[key] || []).join(',');
+    return `<article class="department-task-card dynamic-dashboard-card" data-dept-task-card data-task-id="${esc(task.id)}" data-readiness-key="${esc(key)}" data-completed-steps="${esc(selected)}">
+      <div class="task-template-top"><strong>${esc(taskTitle(task))}</strong><span>${meta(task)}</span></div>
+      <div class="department-task-meta"><span>${esc(deptTask.userName || 'بدون مسؤول')}</span><span>${esc(deptTask.receiveDate || '—')}</span><span>${esc(deptTask.requiredDate || '—')}</span><span>${esc(deptTask.deliveryDate || '—')}</span><span>—</span></div>
+      <div class="department-progress-row"><div class="department-progress-box"><small>اكتمال التاسك</small><strong data-task-percent>${p}%</strong></div><div class="department-progress-box"><small>نسبة الحملة</small><strong data-campaign-percent>${Math.round(p / Math.max((task.departmentTasks||[]).length,1))}%</strong></div></div>
+      <div class="mini-progress"><span data-task-bar style="width:${p}%"></span></div>
+      <div class="task-card-actions"><button class="details-btn" type="button" data-open-task-details data-dept-key="${esc(dkey)}" data-dept="${esc(deptTask.departmentName || 'قسم')}" data-task-title="${esc(taskTitle(task))}" data-required="${esc(deptTask.requiredText || 'لا يوجد مطلوب مكتوب')}" data-steps="${esc(steps)}">تفاصيل</button></div>
+    </article>`;
+  }
+
+  window.renderDashboardTasks = function renderDashboardTasks(){
+    if (!document.getElementById('adminRequiredTasks') && !document.getElementById('userShootingTasks')) return;
+    const tasks = readTasks().map(autoStage);
+    writeTasks(tasks);
+    const required = clearList('adminRequiredTasks','لا توجد تاسكات مطلوبة حالياً.');
+    const readiness = clearList('adminReadinessTasks','لا توجد حملات في جاهزية المطلوب حالياً.');
+    const publishing = clearList('adminPublishingTasks','لا توجد حملات جاهزة للنشر حالياً.');
+    const archive = clearList('adminArchiveTasks','لا توجد حملات مؤرشفة حالياً.');
+    const userLists = {
+      shooting: clearList('userShootingTasks','لا توجد تاسكات لقسم التصوير حالياً.'),
+      content: clearList('userContentTasks','لا توجد تاسكات لقسم المحتوى حالياً.'),
+      design: clearList('userDesignTasks','لا توجد تاسكات لقسم التصميم حالياً.'),
+      montage: clearList('userMontageTasks','لا توجد تاسكات لقسم المونتاج حالياً.')
+    };
+    const current = user();
+    tasks.forEach(task => {
+      const ready = taskReadiness(task);
+      if (task.stage === 'archive') appendCard(archive, archiveCard(task));
+      else if (task.stage === 'publish') appendCard(publishing, publishCard(task));
+      else {
+        appendCard(required, requiredCard(task));
+        appendCard(readiness, readinessCard(task));
+      }
+      (task.departmentTasks || []).forEach(dept => {
+        const visible = userIsAdmin() || !current || !dept.userName || [dept.userName, dept.userEmail, dept.email].filter(Boolean).some(v => String(v).toLowerCase() === String(current.name || current.email).toLowerCase());
+        if (!visible) return;
+        appendCard(userLists[deptKey(dept.departmentName)], userDeptCard(task, dept));
+      });
+    });
+    Object.entries(userLists).forEach(([key,el]) => ensureEmpty(el, 'لا توجد تاسكات حالياً.'));
+  };
+
+  document.addEventListener('click', function(event){
+    const pub = event.target.closest('[data-publish-step]');
+    if (pub) {
+      if (!userIsAdmin()) return;
+      const tasks = readTasks();
+      const task = tasks.find(t => t.id === pub.dataset.taskId);
+      if (!task) return;
+      const idx = Number(pub.dataset.stepIndex);
+      task.publishSteps = Array.isArray(task.publishSteps) ? task.publishSteps : [];
+      if (!task.publishSteps.includes(idx)) task.publishSteps.push(idx);
+      if (task.publishSteps.length >= 5) task.stage = 'archive';
+      writeTasks(tasks.map(autoStage));
+      window.renderDashboardTasks();
+      return;
+    }
+  });
+
+  document.addEventListener('click', function(event){
+    const step = event.target.closest('#taskStepButtons .task-step-btn');
+    if (!step || !activeTaskCard || !activeTaskCard.dataset.taskId) return;
+    setTimeout(function(){
+      const tasks = readTasks();
+      const task = tasks.find(t => t.id === activeTaskCard.dataset.taskId);
+      if (!task) return;
+      const key = activeTaskCard.dataset.readinessKey || '';
+      task.readiness = task.readiness || {};
+      task.readiness[key] = (activeTaskCard.dataset.completedSteps || '').split(',').filter(Boolean).map(Number);
+      autoStage(task);
+      writeTasks(tasks.map(autoStage));
+      window.renderDashboardTasks();
+    }, 0);
+  });
+
+  document.addEventListener('DOMContentLoaded', function(){ setTimeout(window.renderDashboardTasks, 120); });
+})();

@@ -1,16 +1,40 @@
 (function(){
   const AUTH_KEY = 'mzj_current_user';
   const TEST_USERS = [
+    { email: 'ceo@mzjcars.com', password: '123456', name: 'Ahmed Khaatan', role: 'admin', department: 'management' },
+    { email: 'khataan.1992@gmail.com', password: '123456', name: 'Abdullah Khataan', role: 'admin', department: 'management' },
     { email: 'admin@mzj.local', password: '123456', name: 'مدير النظام', role: 'admin', department: 'management' },
     { email: 'user@mzj.local', password: '123456', name: 'يوزر عادي', role: 'user', department: 'photography' }
   ];
 
-  function isLoginPage(){ return /login\.html$/.test(location.pathname) || location.pathname.endsWith('/'); }
   function getUser(){ try { return JSON.parse(localStorage.getItem(AUTH_KEY) || 'null'); } catch(e){ return null; } }
   function setUser(user){ localStorage.setItem(AUTH_KEY, JSON.stringify(user)); }
   function logout(){ localStorage.removeItem(AUTH_KEY); location.href = 'login.html'; }
+  function normalizeRole(role){ return String(role || 'user').toLowerCase() === 'admin' ? 'admin' : 'user'; }
 
-  window.MZJAuth = { getUser, logout, users: TEST_USERS };
+  async function getFirestoreUser(email){
+    if (!window.firebase || !window.MZJ_FIREBASE_CONFIG) return null;
+    try {
+      if (!firebase.apps.length) firebase.initializeApp(window.MZJ_FIREBASE_CONFIG);
+      const snap = await firebase.firestore().collection('users').where('email','==', email).limit(1).get();
+      if (snap.empty) return null;
+      const doc = snap.docs[0];
+      const data = doc.data() || {};
+      return {
+        id: doc.id,
+        email: data.email || email,
+        name: data.name || data.displayName || data.email || email,
+        role: normalizeRole(data.role),
+        department: data.department || data.departmentId || '',
+        source: 'firestore'
+      };
+    } catch (err) {
+      console.warn('Firestore users login fallback:', err);
+      return null;
+    }
+  }
+
+  window.MZJAuth = { getUser, logout, users: TEST_USERS, getFirestoreUser };
 
   document.addEventListener('DOMContentLoaded', function(){
     const page = location.pathname.split('/').pop() || 'login.html';
@@ -23,14 +47,21 @@
 
     const loginForm = document.getElementById('loginForm');
     if (loginForm) {
-      loginForm.addEventListener('submit', function(e){
+      loginForm.addEventListener('submit', async function(e){
         e.preventDefault();
         const email = (document.getElementById('loginEmail')?.value || '').trim();
         const password = document.getElementById('loginPassword')?.value || '';
-        const found = TEST_USERS.find(u => u.email === email && u.password === password);
         const msg = document.getElementById('loginMessage');
-        if (!found) { if(msg) msg.textContent = 'بيانات الدخول غير صحيحة'; return; }
-        setUser({ email: found.email, name: found.name, role: found.role, department: found.department, loginAt: new Date().toISOString() });
+        if (msg) msg.textContent = 'جاري تسجيل الدخول...';
+
+        let found = null;
+        const firestoreUser = await getFirestoreUser(email);
+        if (firestoreUser && (password === '123456' || password === '')) {
+          found = { ...firestoreUser, password: '123456' };
+        }
+        if (!found) found = TEST_USERS.find(u => u.email.toLowerCase() === email.toLowerCase() && u.password === password);
+        if (!found) { if(msg) msg.textContent = 'بيانات الدخول غير صحيحة، أو الحساب غير موجود في users.'; return; }
+        setUser({ email: found.email, name: found.name, role: normalizeRole(found.role), department: found.department || '', loginAt: new Date().toISOString(), source: found.source || 'local' });
         location.href = 'dashboard.html';
       });
     }
@@ -58,7 +89,10 @@
       });
       document.querySelectorAll('.role-switcher').forEach(el => el.remove());
       document.querySelectorAll('[data-admin-only]').forEach(el => {
-        if(user.role !== 'admin') el.setAttribute('disabled','disabled');
+        if(user.role !== 'admin') {
+          el.setAttribute('disabled','disabled');
+          el.style.display = 'none';
+        }
       });
     }
   });

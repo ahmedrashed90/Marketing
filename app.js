@@ -583,10 +583,9 @@ function initCreateTaskFromTemplate() {
   const departmentsList = document.getElementById('departmentTaskList');
   const addDepartmentBtn = null;
   const note = document.getElementById('createTaskFormNote');
-  const budgetPlatformsList = document.getElementById('budgetPlatformsList');
-  const budgetTotalValue = document.getElementById('budgetTotalValue');
-  const budgetPlatformsArea = document.getElementById('budgetPlatformsArea');
-  const budgetQuantityInput = document.getElementById('budgetQuantity');
+  const budgetItemsList = document.getElementById('budgetItemsList');
+  const addBudgetItemBtn = document.getElementById('addBudgetItem');
+  const budgetGrandTotalValue = document.getElementById('budgetGrandTotalValue');
   const publishScheduleRows = document.getElementById('publishScheduleRows');
   const addPublishScheduleRowBtn = document.getElementById('addPublishScheduleRow');
 
@@ -602,7 +601,8 @@ function initCreateTaskFromTemplate() {
     usersCache = await loadUsersFromSystemPath();
     platformsCache = await loadMarketingPlatforms();
     if (!departmentsList.children.length) renderAllDepartments();
-    renderBudgetPlatforms();
+    if (budgetItemsList && !budgetItemsList.children.length) createBudgetItem();
+    updateBudgetTotal();
   }
 
   function fillTemplateOptions() {
@@ -716,47 +716,105 @@ function initCreateTaskFromTemplate() {
     departmentsCache.forEach((dept) => createDepartmentRow(dept));
   }
 
-  function getBudgetQuantity() {
-    const raw = Number(budgetQuantityInput?.value || 0);
-    return Number.isFinite(raw) && raw > 0 ? raw : 0;
-  }
-
-  function syncBudgetPlatformsVisibility() {
-    if (!budgetPlatformsArea) return;
-    const quantity = getBudgetQuantity();
-    budgetPlatformsArea.classList.toggle('is-hidden', quantity <= 0);
-  }
-
-  function updateBudgetTotal() {
-    if (!budgetPlatformsList || !budgetTotalValue) return;
-    const platformsTotal = Array.from(budgetPlatformsList.querySelectorAll('[data-platform-amount]')).reduce((sum, input) => {
-      const row = input.closest('[data-platform-budget-row]');
-      const checked = row?.querySelector('[data-platform-check]')?.checked;
-      return sum + (checked ? Number(input.value || 0) : 0);
-    }, 0);
-    const quantity = getBudgetQuantity();
-    const total = platformsTotal * quantity;
-    syncBudgetPlatformsVisibility();
-    budgetTotalValue.textContent = total.toLocaleString('ar-EG');
-  }
-
-  function renderBudgetPlatforms() {
-    if (!budgetPlatformsList) return;
+  function createBudgetPlatformRows(itemIndex) {
     if (!platformsCache.length) {
-      budgetPlatformsList.innerHTML = '<p class="template-empty">لا توجد منصات. أضفها من صفحة منصات الميزانية.</p>';
-      updateBudgetTotal();
-      return;
+      return '<p class="template-empty">لا توجد منصات. أضفها من صفحة منصات الميزانية.</p>';
     }
-    budgetPlatformsList.innerHTML = platformsCache.map((platform) => `
-      <article class="platform-budget-row" data-platform-budget-row data-platform-id="${escapeHTML(platform.id)}" data-platform-name="${escapeHTML(platform.name)}">
+    return platformsCache.map((platform) => `
+      <article class="platform-budget-row budget-item-platform-row" data-platform-budget-row data-platform-id="${escapeHTML(platform.id)}" data-platform-name="${escapeHTML(platform.name)}">
         <label class="platform-budget-check">
           <input type="checkbox" data-platform-check>
           <strong>${escapeHTML(platform.name)}</strong>
         </label>
-        <input type="number" min="0" step="1" data-platform-amount placeholder="قيمة المنصة">
+        <input type="number" min="0" step="1" data-platform-amount placeholder="ميزانية ${escapeHTML(platform.name)} لهذا الإعلان">
       </article>
     `).join('');
+  }
+
+  function createBudgetItem(data = {}) {
+    if (!budgetItemsList) return;
+    const itemIndex = budgetItemsList.querySelectorAll('[data-budget-item]').length + 1;
+    const item = document.createElement('article');
+    item.className = 'budget-item-accordion is-open';
+    item.dataset.budgetItem = String(itemIndex);
+    item.innerHTML = `
+      <div class="budget-item-head">
+        <button class="budget-item-toggle" type="button" data-budget-toggle>
+          <strong>إعلان / ميزانية ${itemIndex}</strong>
+          <small data-budget-item-summary>اضغط للفتح والإغلاق</small>
+        </button>
+        <button class="soft-danger-btn" type="button" data-remove-budget-item>مسح</button>
+      </div>
+
+      <div class="budget-item-body" data-budget-body>
+        <div class="create-task-grid budget-fields-grid">
+          <label class="mzj-field"><span>نوع الإعلان</span><input type="text" data-budget-ad-type placeholder="مثال: بيعي / كاش / توعوي" value="${escapeHTML(data.adType || '')}"></label>
+          <label class="mzj-field"><span>اسم الإعلان</span><input type="text" data-budget-ad-name placeholder="مثال: سيارة هيونداي / النترا" value="${escapeHTML(data.adName || '')}"></label>
+          <label class="mzj-field"><span>تاريخ النشر</span><input type="date" data-budget-publish-date value="${escapeHTML(data.publishDate || '')}"></label>
+          <label class="mzj-field"><span>مدة الإعلان</span><input type="text" data-budget-duration placeholder="مثال: 7 أيام" value="${escapeHTML(data.duration || '')}"></label>
+          <label class="mzj-field"><span>عدد الإعلانات</span><input type="number" min="0" data-budget-ads-count placeholder="0" value="${escapeHTML(data.adsCount || '')}"></label>
+          <label class="mzj-field"><span>هدف المحتوى</span><input type="text" data-budget-content-goal placeholder="اكتب هدف المحتوى" value="${escapeHTML(data.contentGoal || '')}"></label>
+          <label class="mzj-field"><span>الهدف المتوقع</span><input type="text" data-budget-expected-goal placeholder="اكتب الهدف المتوقع" value="${escapeHTML(data.expectedGoal || '')}"></label>
+        </div>
+
+        <div class="platform-budget-area budget-item-platforms-area">
+          <div class="platform-budget-head">
+            <strong>ميزانية المنصات لهذا الإعلان</strong>
+            <small>اختار المنصات المطلوبة واكتب ميزانية كل منصة للإعلان الحالي فقط.</small>
+          </div>
+          <div class="budget-platforms-list compact-budget-platforms" data-budget-platforms-list>
+            ${createBudgetPlatformRows(itemIndex)}
+          </div>
+          <div class="budget-total-box budget-item-total-box">
+            <span>إجمالي هذا الإعلان</span>
+            <strong data-budget-item-total>0</strong>
+          </div>
+        </div>
+      </div>
+    `;
+    budgetItemsList.appendChild(item);
     updateBudgetTotal();
+  }
+
+  function collectBudgetItem(item) {
+    const platforms = Array.from(item.querySelectorAll('[data-platform-budget-row]')).map((row) => {
+      const checked = row.querySelector('[data-platform-check]')?.checked;
+      const amount = Number(row.querySelector('[data-platform-amount]')?.value || 0);
+      return {
+        id: row.dataset.platformId || '',
+        name: row.dataset.platformName || '',
+        amount,
+        selected: Boolean(checked)
+      };
+    }).filter((platform) => platform.selected || platform.amount > 0);
+    const itemTotal = platforms.reduce((sum, platform) => sum + Number(platform.amount || 0), 0);
+    return {
+      adType: item.querySelector('[data-budget-ad-type]')?.value.trim() || '',
+      adName: item.querySelector('[data-budget-ad-name]')?.value.trim() || '',
+      publishDate: item.querySelector('[data-budget-publish-date]')?.value || '',
+      duration: item.querySelector('[data-budget-duration]')?.value.trim() || '',
+      adsCount: item.querySelector('[data-budget-ads-count]')?.value || '',
+      contentGoal: item.querySelector('[data-budget-content-goal]')?.value.trim() || '',
+      expectedGoal: item.querySelector('[data-budget-expected-goal]')?.value.trim() || '',
+      platforms,
+      itemTotal
+    };
+  }
+
+  function updateBudgetTotal() {
+    if (!budgetItemsList || !budgetGrandTotalValue) return;
+    let grandTotal = 0;
+    Array.from(budgetItemsList.querySelectorAll('[data-budget-item]')).forEach((item, index) => {
+      const details = collectBudgetItem(item);
+      grandTotal += details.itemTotal;
+      const totalEl = item.querySelector('[data-budget-item-total]');
+      if (totalEl) totalEl.textContent = details.itemTotal.toLocaleString('ar-EG');
+      const summary = item.querySelector('[data-budget-item-summary]');
+      if (summary) summary.textContent = `${details.adName || 'إعلان بدون اسم'} — الإجمالي ${details.itemTotal.toLocaleString('ar-EG')}`;
+      const title = item.querySelector('.budget-item-toggle strong');
+      if (title) title.textContent = `إعلان / ميزانية ${index + 1}`;
+    });
+    budgetGrandTotalValue.textContent = grandTotal.toLocaleString('ar-EG');
   }
 
   function createPublishScheduleRow(data = {}) {
@@ -787,31 +845,16 @@ function initCreateTaskFromTemplate() {
   }
 
   function collectBudgetDetails() {
-    const selectedPlatforms = budgetPlatformsList ? Array.from(budgetPlatformsList.querySelectorAll('[data-platform-budget-row]')).map((row) => {
-      const checked = row.querySelector('[data-platform-check]')?.checked;
-      const amount = Number(row.querySelector('[data-platform-amount]')?.value || 0);
-      return {
-        id: row.dataset.platformId || '',
-        name: row.dataset.platformName || '',
-        amount,
-        selected: Boolean(checked)
-      };
-    }).filter((platform) => platform.selected || platform.amount > 0) : [];
-    const platformsTotal = selectedPlatforms.reduce((sum, platform) => sum + Number(platform.amount || 0), 0);
-    const quantity = getBudgetQuantity();
-    const total = platformsTotal * quantity;
+    const items = budgetItemsList ? Array.from(budgetItemsList.querySelectorAll('[data-budget-item]')).map(collectBudgetItem).filter((item) => {
+      return item.adType || item.adName || item.publishDate || item.duration || item.adsCount || item.contentGoal || item.expectedGoal || item.platforms.length;
+    }) : [];
+    const totalBudget = items.reduce((sum, item) => sum + Number(item.itemTotal || 0), 0);
     return {
-      adType: document.getElementById('budgetAdType')?.value || '',
-      adName: document.getElementById('budgetAdName')?.value || '',
-      publishDate: document.getElementById('budgetPublishDate')?.value || '',
-      duration: document.getElementById('budgetDuration')?.value || '',
-      adsCount: document.getElementById('budgetAdsCount')?.value || '',
-      quantity,
-      contentGoal: document.getElementById('budgetContentGoal')?.value || '',
-      expectedGoal: document.getElementById('budgetExpectedGoal')?.value || '',
-      platforms: selectedPlatforms,
-      platformsTotal,
-      totalBudget: total
+      items,
+      totalBudget,
+      adsCount: items.length,
+      platformsTotal: totalBudget,
+      mode: 'items_by_ad'
     };
   }
 
@@ -882,14 +925,25 @@ function initCreateTaskFromTemplate() {
     row.classList.toggle('is-selected', checkbox.checked);
   });
 
-  if (budgetPlatformsList) {
-    budgetPlatformsList.addEventListener('input', updateBudgetTotal);
-    budgetPlatformsList.addEventListener('change', updateBudgetTotal);
+  if (budgetItemsList) {
+    budgetItemsList.addEventListener('input', updateBudgetTotal);
+    budgetItemsList.addEventListener('change', updateBudgetTotal);
+    budgetItemsList.addEventListener('click', (event) => {
+      const toggle = event.target.closest('[data-budget-toggle]');
+      if (toggle) {
+        const item = toggle.closest('[data-budget-item]');
+        item?.classList.toggle('is-open');
+      }
+      const remove = event.target.closest('[data-remove-budget-item]');
+      if (remove) {
+        remove.closest('[data-budget-item]')?.remove();
+        updateBudgetTotal();
+      }
+    });
   }
 
-  if (budgetQuantityInput) {
-    budgetQuantityInput.addEventListener('input', updateBudgetTotal);
-    budgetQuantityInput.addEventListener('change', updateBudgetTotal);
+  if (addBudgetItemBtn) {
+    addBudgetItemBtn.addEventListener('click', () => createBudgetItem());
   }
 
   if (addPublishScheduleRowBtn) {

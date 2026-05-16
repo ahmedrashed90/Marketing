@@ -2880,3 +2880,58 @@ body.sidebar-collapsed .database-main {
 .department-hint{margin:10px 0 0;color:var(--muted);font-weight:800;font-size:13px;line-height:1.8;background:rgba(73,36,30,.05);border-radius:14px;padding:10px 12px}
 .department-receive-note{margin-top:12px!important}
 @media(max-width:900px){.campaign-type-add-row,.department-task-core-grid,.photo-item-row{grid-template-columns:1fr!important}.code-inline-row{flex-direction:column;align-items:stretch}}
+
+/* Multi-select requirements for design and montage departments */
+.department-hint-inline{
+  display:inline-flex;
+  align-items:center;
+  padding:7px 12px;
+  border-radius:999px;
+  background:rgba(73,36,30,.06);
+  color:var(--muted);
+  font-size:12px;
+  font-weight:800;
+}
+.multi-choice-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
+  gap:10px;
+  margin:10px 0 14px;
+}
+.multi-choice-card{
+  display:grid;
+  grid-template-columns:auto 1fr;
+  gap:6px 10px;
+  align-items:start;
+  padding:12px;
+  border-radius:16px;
+  background:rgba(255,255,255,.66);
+  border:1px solid rgba(73,36,30,.10);
+  cursor:pointer;
+  transition:.18s ease;
+}
+.multi-choice-card:hover,
+.multi-choice-card.is-checked{
+  border-color:rgba(73,36,30,.32);
+  background:rgba(238,222,207,.72);
+  box-shadow:0 10px 22px rgba(73,36,30,.08);
+}
+.multi-choice-card input{
+  margin-top:5px;
+  accent-color:var(--brown);
+}
+.multi-choice-title{
+  color:var(--brown);
+  font-weight:900;
+  line-height:1.5;
+}
+.multi-choice-card small{
+  grid-column:2;
+  color:var(--muted);
+  font-weight:800;
+  line-height:1.6;
+}
+@media(max-width:760px){
+  .multi-choice-grid{grid-template-columns:1fr}
+  .dept-special-head{align-items:flex-start;flex-direction:column}
+}

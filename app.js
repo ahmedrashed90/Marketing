@@ -682,6 +682,16 @@ function renderOptionPairs(pairs) {
   return '<option value="">اختار المطلوب</option>' + pairs.map(([title, desc]) => `<option value="${escapeHTML(title)}" data-desc="${escapeHTML(desc)}">${escapeHTML(title)} — ${escapeHTML(desc)}</option>`).join('');
 }
 
+function renderMultiChoicePairs(pairs, groupName, attrName) {
+  return pairs.map(([title, desc], index) => `
+    <label class="multi-choice-card">
+      <input type="checkbox" ${attrName} value="${escapeHTML(title)}" data-desc="${escapeHTML(desc)}" data-title="${escapeHTML(title)}">
+      <span class="multi-choice-title">${escapeHTML(title)}</span>
+      <small>${escapeHTML(desc)}</small>
+    </label>
+  `).join('');
+}
+
 function attachmentLabelForKind(kind) {
   if (kind === 'photography') return 'إرفاق ملف التصوير';
   if (kind === 'content' || kind === 'publish') return 'إرفاق ملف اسكريبت';
@@ -709,16 +719,26 @@ function buildSpecialDepartmentFields(kind) {
   if (kind === 'design') {
     return `
       <div class="dept-special-fields" data-special-kind="design">
-        <label class="mzj-field full-width-field"><span>المطلوب</span><select data-design-deliverable>${renderOptionPairs(DESIGN_DELIVERABLES)}</select></label>
-        <p class="department-hint" data-design-hint>اختار نوع التصميم ليظهر الاستخدام المطلوب.</p>
+        <div class="dept-special-head">
+          <strong>المطلوب</strong>
+          <span class="department-hint-inline">اختار مطلوب واحد أو أكتر من التصميم</span>
+        </div>
+        <div class="multi-choice-grid" data-design-choices>
+          ${renderMultiChoicePairs(DESIGN_DELIVERABLES, 'design', 'data-design-deliverable')}
+        </div>
         <label class="mzj-field full-width-field"><span>ملاحظات إضافية</span><textarea data-required-text rows="3" placeholder="اكتب أي تفاصيل إضافية للتصميم"></textarea></label>
       </div>`;
   }
   if (kind === 'montage') {
     return `
       <div class="dept-special-fields" data-special-kind="montage">
-        <label class="mzj-field full-width-field"><span>المطلوب</span><select data-montage-deliverable>${renderOptionPairs(MONTAGE_DELIVERABLES)}</select></label>
-        <p class="department-hint" data-montage-hint>اختار نوع المونتاج ليظهر التسليم المطلوب.</p>
+        <div class="dept-special-head">
+          <strong>المطلوب</strong>
+          <span class="department-hint-inline">اختار مطلوب واحد أو أكتر من المونتاج</span>
+        </div>
+        <div class="multi-choice-grid" data-montage-choices>
+          ${renderMultiChoicePairs(MONTAGE_DELIVERABLES, 'montage', 'data-montage-deliverable')}
+        </div>
         <label class="mzj-field full-width-field"><span>ملاحظات إضافية</span><textarea data-required-text rows="3" placeholder="اكتب أي تفاصيل إضافية للمونتاج"></textarea></label>
       </div>`;
   }
@@ -1038,29 +1058,33 @@ function initCreateTaskFromTemplate() {
       };
     }
     if (kind === 'design') {
-      const select = row.querySelector('[data-design-deliverable]');
-      const title = select?.value || '';
-      const detail = select?.selectedOptions?.[0]?.dataset.desc || '';
+      const selected = Array.from(row.querySelectorAll('[data-design-deliverable]:checked')).map((item) => ({
+        title: item.dataset.title || item.value || '',
+        details: item.dataset.desc || ''
+      })).filter((item) => item.title || item.details);
       const notes = row.querySelector('[data-required-text]')?.value.trim() || '';
       return {
         kind,
-        deliverable: title,
-        deliveryDetails: detail,
+        deliverables: selected,
+        deliverable: selected.map((item) => item.title).join('، '),
+        deliveryDetails: selected.map((item) => [item.title, item.details].filter(Boolean).join(': ')).join(' | '),
         notes,
-        requiredText: [title, detail, notes].filter(Boolean).join(' — ')
+        requiredText: [selected.map((item) => [item.title, item.details].filter(Boolean).join(': ')).join(' | '), notes].filter(Boolean).join(' — ')
       };
     }
     if (kind === 'montage') {
-      const select = row.querySelector('[data-montage-deliverable]');
-      const title = select?.value || '';
-      const detail = select?.selectedOptions?.[0]?.dataset.desc || '';
+      const selected = Array.from(row.querySelectorAll('[data-montage-deliverable]:checked')).map((item) => ({
+        title: item.dataset.title || item.value || '',
+        details: item.dataset.desc || ''
+      })).filter((item) => item.title || item.details);
       const notes = row.querySelector('[data-required-text]')?.value.trim() || '';
       return {
         kind,
-        deliverable: title,
-        deliveryDetails: detail,
+        deliverables: selected,
+        deliverable: selected.map((item) => item.title).join('، '),
+        deliveryDetails: selected.map((item) => [item.title, item.details].filter(Boolean).join(': ')).join(' | '),
         notes,
-        requiredText: [title, detail, notes].filter(Boolean).join(' — ')
+        requiredText: [selected.map((item) => [item.title, item.details].filter(Boolean).join(': ')).join(' | '), notes].filter(Boolean).join(' — ')
       };
     }
     const notes = row.querySelector('[data-required-text]')?.value.trim() || '';
@@ -1197,15 +1221,9 @@ function initCreateTaskFromTemplate() {
   });
 
   departmentsList.addEventListener('change', (event) => {
-    const design = event.target.closest('[data-design-deliverable]');
-    if (design) {
-      const hint = design.closest('.dept-special-fields')?.querySelector('[data-design-hint]');
-      if (hint) hint.textContent = design.selectedOptions?.[0]?.dataset.desc || 'اختار نوع التصميم ليظهر الاستخدام المطلوب.';
-    }
-    const montage = event.target.closest('[data-montage-deliverable]');
-    if (montage) {
-      const hint = montage.closest('.dept-special-fields')?.querySelector('[data-montage-hint]');
-      if (hint) hint.textContent = montage.selectedOptions?.[0]?.dataset.desc || 'اختار نوع المونتاج ليظهر التسليم المطلوب.';
+    const choice = event.target.closest('[data-design-deliverable], [data-montage-deliverable]');
+    if (choice) {
+      choice.closest('.multi-choice-card')?.classList.toggle('is-checked', choice.checked);
     }
   });
 

@@ -194,7 +194,7 @@
       const deliveryLabel = key === 'publish' ? 'نشر' : 'تسليم';
       return `
       <div class="db-dept-mini">
-        <strong>اسم المسئول / ${esc(personLabel(task))}</strong>
+        <strong>${esc(personLabel(task))}</strong>
         <small>تاريخ الاستلام / ${esc(formatDate(taskReceiveDate(task)))}</small>
         <small>التاريخ المطلوب / ${esc(formatDate(taskRequiredDate(task, record)))}</small>
         <small>تاريخ ${deliveryLabel} / ${esc(formatDate(taskDeliveryDate(task)))}</small>

@@ -3611,3 +3611,63 @@ body.sidebar-collapsed .database-main {
 .publish-info-box small{font-size:11px;color:rgba(80,43,36,.75);line-height:1.8;}
 .publish-actions-grid .task-step-btn small{font-weight:800;}
 @media (max-width:900px){.campaign-db-final-table{min-width:1800px}.campaign-db-final-table th,.campaign-db-final-table td{font-size:10px;padding:7px 6px}}
+
+
+/* Database compact responsible name: remove label and save space */
+.campaign-db-table {
+  min-width: 1420px !important;
+  font-size: 11.5px !important;
+}
+
+.campaign-db-table th,
+.campaign-db-table td {
+  padding: 9px 7px !important;
+}
+
+/* make department columns tighter after removing اسم المسئول label */
+.campaign-db-table th:nth-child(7),
+.campaign-db-table td:nth-child(7),
+.campaign-db-table th:nth-child(8),
+.campaign-db-table td:nth-child(8),
+.campaign-db-table th:nth-child(9),
+.campaign-db-table td:nth-child(9),
+.campaign-db-table th:nth-child(10),
+.campaign-db-table td:nth-child(10),
+.campaign-db-table th:nth-child(11),
+.campaign-db-table td:nth-child(11) {
+  width: 116px !important;
+  min-width: 116px !important;
+  max-width: 116px !important;
+  padding-inline: 4px !important;
+}
+
+.campaign-db-table td:nth-child(7) .db-dept-mini,
+.campaign-db-table td:nth-child(8) .db-dept-mini,
+.campaign-db-table td:nth-child(9) .db-dept-mini,
+.campaign-db-table td:nth-child(10) .db-dept-mini,
+.campaign-db-table td:nth-child(11) .db-dept-mini {
+  width: 104px !important;
+  min-width: 104px !important;
+  max-width: 104px !important;
+  padding: 6px 5px !important;
+  gap: 4px !important;
+}
+
+.campaign-db-table td:nth-child(7) .db-dept-mini strong,
+.campaign-db-table td:nth-child(8) .db-dept-mini strong,
+.campaign-db-table td:nth-child(9) .db-dept-mini strong,
+.campaign-db-table td:nth-child(10) .db-dept-mini strong,
+.campaign-db-table td:nth-child(11) .db-dept-mini strong {
+  font-size: 10.5px !important;
+  line-height: 1.35 !important;
+  display: block !important;
+}
+
+.campaign-db-table td:nth-child(7) .db-dept-mini small,
+.campaign-db-table td:nth-child(8) .db-dept-mini small,
+.campaign-db-table td:nth-child(9) .db-dept-mini small,
+.campaign-db-table td:nth-child(10) .db-dept-mini small,
+.campaign-db-table td:nth-child(11) .db-dept-mini small {
+  font-size: 9.5px !important;
+  line-height: 1.38 !important;
+}

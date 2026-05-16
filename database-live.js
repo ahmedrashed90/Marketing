@@ -248,6 +248,7 @@
     if(!modal) return;
     modal.classList.remove('is-open');
     modal.setAttribute('aria-hidden','true');
+    modal.style.display = '';
   }
 
   function openDbEdit(recordId){
@@ -269,6 +270,7 @@
     if(note) note.textContent = '';
     modal.classList.add('is-open');
     modal.setAttribute('aria-hidden','false');
+    modal.style.display = 'grid';
   }
 
   async function saveDbEdit(event){
@@ -374,10 +376,26 @@
       return `<tr data-record-id="${esc(r.id)}">
         <td>${idx+1}</td><td>${esc(r.type)}</td><td>${esc(r.name)}</td><td>${esc(r.code || '--')}</td><td>${esc(r.goal || '--')}</td><td>${esc(formatDate(r.launchDate))}</td>
         <td>${renderDeptSummary(r,'photography')}</td><td>${renderDeptSummary(r,'content')}</td><td>${renderDeptSummary(r,'design')}</td><td>${renderDeptSummary(r,'video')}</td><td>${renderDeptSummary(r,'publish')}</td>
-        <td>${esc(formatDate(del))}</td><td>${esc(calcDelay(req, del))}</td><td>${renderCellButton(r)}</td><td>${isAdmin() ? `<div class="db-action-stack"><button class="soft-btn db-edit-btn" type="button" data-edit-record="${esc(r.id)}">تعديل</button><button class="danger-btn db-delete-btn" type="button" data-delete-record="${esc(r.id)}">مسح</button></div>` : '--'}</td>
+        <td>${esc(formatDate(del))}</td><td>${esc(calcDelay(req, del))}</td><td>${renderCellButton(r)}</td><td>${isAdmin() ? `<div class="db-action-stack"><button class="soft-btn db-edit-btn" type="button" data-edit-record="${esc(r.id)}" onclick="window.openDatabaseEditCampaign && window.openDatabaseEditCampaign(this.dataset.editRecord)">تعديل</button><button class="danger-btn db-delete-btn" type="button" data-delete-record="${esc(r.id)}">مسح</button></div>` : '--'}</td>
       </tr>`;
     }).join('')}</tbody></table></div>`;
   }
+
+  window.openDatabaseEditCampaign = function(recordId){
+    try{
+      if(!recordId){ alert('لم يتم العثور على رقم الحملة للتعديل.'); return; }
+      openDbEdit(recordId);
+      const modal = document.getElementById('dbEditModal');
+      if(modal){
+        modal.classList.add('is-open');
+        modal.setAttribute('aria-hidden','false');
+        modal.style.display = 'grid';
+      }
+    }catch(err){
+      console.error('openDatabaseEditCampaign failed:', err);
+      alert('تعذر فتح تعديل الحملة: ' + (err.message || err));
+    }
+  };
 
   document.addEventListener('click', async (e) => {
     const detailsBtn = e.target.closest('[data-db-details]');
@@ -391,7 +409,8 @@
     if(editBtn){
       e.preventDefault();
       e.stopPropagation();
-      openDbEdit(editBtn.dataset.editRecord);
+      const rid = editBtn.dataset.editRecord || editBtn.closest('tr')?.dataset.recordId || '';
+      window.openDatabaseEditCampaign ? window.openDatabaseEditCampaign(rid) : openDbEdit(rid);
       return;
     }
     const closeEditBtn = e.target.closest('[data-close-db-edit]');

@@ -522,7 +522,7 @@ function renderUserOptions(users, departmentId = '', allowFallback = true) {
   if (!finalList.length) return '<option value="">لا يوجد يوزرات في هذا القسم</option>';
   return '<option value="">اختار اليوزر</option>' + finalList.map((user) => {
     const value = user.email || user.name || user.id;
-    return `<option value="${escapeHTML(value)}" data-user-name="${escapeHTML(user.name || '')}" data-user-email="${escapeHTML(user.email || '')}">${escapeHTML(user.label || value)}</option>`;
+    return `<option value="${escapeHTML(value)}" data-user-id="${escapeHTML(user.id || '')}" data-user-uid="${escapeHTML(user.uid || user.id || '')}" data-user-name="${escapeHTML(user.name || '')}" data-user-email="${escapeHTML(user.email || '')}">${escapeHTML(user.label || value)}</option>`;
   }).join('');
 }
 
@@ -674,13 +674,22 @@ function initCreateTaskFromTemplate() {
       const department = departmentsCache.find((dept) => String(dept.id) === String(departmentId));
       const selectedUser = row.querySelector('[data-user-select]')?.value || '';
       const requiredText = row.querySelector('[data-required-text]')?.value.trim() || '';
+      const selectedOption = row.querySelector('[data-user-select] option:checked');
+      const selectedName = selectedOption?.dataset.userName || selectedOption?.textContent || selectedUser;
+      const selectedEmail = selectedOption?.dataset.userEmail || selectedUser;
+      const selectedId = selectedOption?.dataset.userId || selectedOption?.dataset.userUid || selectedEmail || selectedName;
       return {
         enabled,
         departmentId,
         departmentName: department?.name || '',
-        userName: selectedUser,
-        userDisplayName: row.querySelector('[data-user-select] option:checked')?.dataset.userName || row.querySelector('[data-user-select] option:checked')?.textContent || selectedUser,
-        userEmail: row.querySelector('[data-user-select] option:checked')?.dataset.userEmail || selectedUser,
+        userId: selectedId,
+        userUid: selectedOption?.dataset.userUid || selectedId,
+        userName: selectedName,
+        userDisplayName: selectedName,
+        userEmail: selectedEmail,
+        assigneeUid: selectedOption?.dataset.userUid || selectedId,
+        assigneeEmail: selectedEmail,
+        assigneeName: selectedName,
         receiveDate: row.querySelector('[data-receive-date]')?.value || '',
         requiredDate: row.querySelector('[data-required-date]')?.value || '',
         deliveryDate: row.querySelector('[data-delivery-date]')?.value || '',
@@ -829,8 +838,14 @@ initCreateTaskFromTemplate();
         enabled: d.enabled !== false,
         departmentId: d.departmentId || d.id || d.department || d.section || ('dept_' + i),
         departmentName: d.departmentName || d.name || d.department || d.sectionName || d.section || 'قسم',
-        userName: d.userName || d.responsible || d.assignee || d.owner || d.user || '',
-        userEmail: d.userEmail || d.email || d.assigneeEmail || '',
+        userId: d.userId || d.userUid || d.assigneeUid || d.uid || '',
+        userUid: d.userUid || d.assigneeUid || d.uid || d.userId || '',
+        userName: d.userName || d.userDisplayName || d.assigneeName || d.responsible || d.assignee || d.owner || d.user || '',
+        userDisplayName: d.userDisplayName || d.userName || d.assigneeName || d.responsible || d.assignee || d.owner || d.user || '',
+        userEmail: d.userEmail || d.assigneeEmail || d.email || '',
+        assigneeUid: d.assigneeUid || d.userUid || d.userId || d.uid || '',
+        assigneeEmail: d.assigneeEmail || d.userEmail || d.email || '',
+        assigneeName: d.assigneeName || d.userDisplayName || d.userName || '',
         receiveDate: d.receiveDate || d.receivedAt || d.startDate || '',
         requiredDate: d.requiredDate || d.deadline || d.dueDate || '',
         deliveryDate: d.deliveryDate || d.deliveredAt || d.completedAt || '',
@@ -898,7 +913,20 @@ initCreateTaskFromTemplate();
   }
   function esc(v){ return String(v || '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
   function user(){ return window.MZJAuth?.getUser?.() || null; }
-  function userIsAdmin(){ return (user()?.role || document.body.dataset.userRole) === 'admin'; }
+  function userIsAdmin(){ return ['admin','marketing_manager'].includes(String(user()?.role || document.body.dataset.userRole || '').toLowerCase()); }
+  function normMatchValue(value){ return String(value || '').trim().toLowerCase(); }
+  function assignedToCurrentUser(dept, current){
+    if (userIsAdmin()) return true;
+    if (!current) return false;
+    const currentValues = [current.id, current.uid, current.email, current.name, current.displayName]
+      .map(normMatchValue).filter(Boolean);
+    const deptValues = [
+      dept.userId, dept.userUid, dept.assigneeUid,
+      dept.userEmail, dept.assigneeEmail, dept.email,
+      dept.userName, dept.userDisplayName, dept.assigneeName, dept.responsible
+    ].map(normMatchValue).filter(Boolean);
+    return deptValues.some((value) => currentValues.includes(value));
+  }
   function taskTitle(task){ return task.campaignName || task.templateName || task.campaignCode || 'حملة بدون اسم'; }
   function deptKey(deptName){
     const value = String(deptName || '').toLowerCase();
@@ -983,7 +1011,7 @@ initCreateTaskFromTemplate();
     const selected = ((task.readiness || {})[key] || []).join(',');
     return `<article class="department-task-card dynamic-dashboard-card" data-dept-task-card data-task-id="${esc(task.id)}" data-readiness-key="${esc(key)}" data-completed-steps="${esc(selected)}">
       <div class="task-template-top"><strong>${esc(taskTitle(task))}</strong><span>${meta(task)}</span></div>
-      <div class="department-task-meta"><span>${esc(deptTask.userName || 'بدون مسؤول')}</span><span>${esc(deptTask.receiveDate || '—')}</span><span>${esc(deptTask.requiredDate || '—')}</span><span>${esc(deptTask.deliveryDate || '—')}</span><span>—</span></div>
+      <div class="department-task-meta"><span>${esc(deptTask.userDisplayName || deptTask.userName || deptTask.userEmail || 'بدون مسؤول')}</span><span>${esc(deptTask.receiveDate || '—')}</span><span>${esc(deptTask.requiredDate || '—')}</span><span>${esc(deptTask.deliveryDate || '—')}</span><span>—</span></div>
       <div class="department-progress-row"><div class="department-progress-box"><small>اكتمال التاسك</small><strong data-task-percent>${p}%</strong></div><div class="department-progress-box"><small>نسبة الحملة</small><strong data-campaign-percent>${Math.round(p / Math.max((task.departmentTasks||[]).length,1))}%</strong></div></div>
       <div class="mini-progress"><span data-task-bar style="width:${p}%"></span></div>
       <div class="task-card-actions"><button class="details-btn" type="button" data-open-task-details data-dept-key="${esc(dkey)}" data-dept="${esc(deptTask.departmentName || 'قسم')}" data-task-title="${esc(taskTitle(task))}" data-required="${esc(deptTask.requiredText || 'لا يوجد مطلوب مكتوب')}" data-steps="${esc(steps)}">تفاصيل</button></div>
@@ -1014,7 +1042,7 @@ initCreateTaskFromTemplate();
         appendCard(readiness, readinessCard(task));
       }
       (task.departmentTasks || []).forEach(dept => {
-        const visible = userIsAdmin() || !current || !dept.userName || [dept.userName, dept.userEmail, dept.email].filter(Boolean).some(v => String(v).toLowerCase() === String(current.name || current.email).toLowerCase());
+        const visible = assignedToCurrentUser(dept, current);
         if (!visible) return;
         appendCard(userLists[deptKey(dept.departmentName)], userDeptCard(task, dept));
       });

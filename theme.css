@@ -3217,3 +3217,76 @@ body.sidebar-collapsed .database-main {
 .labeled-task-meta span {
   border-radius: 16px;
 }
+
+/* User task card: المطلوب يظهر من التفاصيل فقط */
+.department-task-card .user-task-required-summary {
+  display: none !important;
+}
+
+/* Professional task details requirement layout */
+.task-required-box {
+  padding: 18px !important;
+}
+#taskDetailsRequired {
+  display: grid !important;
+  gap: 12px !important;
+}
+.photo-required-grid {
+  display: grid;
+  gap: 12px;
+}
+.photo-required-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  direction: rtl;
+}
+.photo-required-cell {
+  background: rgba(255,255,255,.78);
+  border: 1px solid rgba(78,40,34,.10);
+  border-radius: 18px;
+  padding: 14px 16px;
+  min-height: 72px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  box-shadow: 0 10px 24px rgba(65,36,31,.05);
+}
+.photo-required-cell small {
+  display: block;
+  color: #9b8174;
+  font-weight: 900;
+  font-size: 12px;
+  margin-bottom: 8px;
+}
+.photo-required-cell strong {
+  display: block;
+  color: #44231e;
+  font-size: 15px;
+  line-height: 1.7;
+  font-weight: 900;
+  margin: 0;
+}
+.task-required-line {
+  text-align: right;
+}
+.task-step-btn[disabled] {
+  opacity: 1 !important;
+  background: rgba(255,255,255,.58) !important;
+  border-style: dashed !important;
+  cursor: not-allowed !important;
+}
+.task-step-btn[disabled] span::after {
+  content: "  · أدمن فقط";
+  font-size: 11px;
+  color: #9b8174;
+}
+.task-step-btn[disabled] small {
+  color: #9b8174 !important;
+}
+
+@media (max-width: 700px) {
+  .photo-required-row {
+    grid-template-columns: 1fr;
+  }
+}

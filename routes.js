@@ -8,5 +8,6 @@ window.MZJ_ROUTES = {
   database: "database.html",
   dashboard: "dashboard.html",
   campaignsCalendar: "campaigns-calendar.html",
-  taskTemplates: "templates.html"
+  taskTemplates: "templates.html",
+  platforms: "platforms.html"
 };

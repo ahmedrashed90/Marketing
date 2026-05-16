@@ -3,7 +3,7 @@
   const FIRESTORE_TASK_COLLECTIONS=['workspace_tasks'];
   let firestoreRecords=[];
   const displayGroups = [
-    ['photography','عرض التصوير','مرفقات قسم التصوير من تفاصيل التاسك'],['content','عرض المحتوى','مرفقات قسم المحتوى من تفاصيل التاسك'],['design','عرض التصميم','مرفقات قسم التصميم من تفاصيل التاسك'],['video','عرض الفيديو','مرفقات قسم المونتاج / الفيديو من تفاصيل التاسك'],['schedule','عرض جدول النشر','Template جدول النشر المرفوع من مدير التسويق'],['budget','عرض الميزانية','Template الميزانية المرفوع من مدير التسويق'],['results','عرض نتائج الحملة','Template تقرير النتائج المرفوع من مدير التسويق']
+    ['photography','عرض التصوير','مرفقات قسم التصوير من تفاصيل التاسك'],['content','عرض المحتوى','مرفقات قسم المحتوى من تفاصيل التاسك'],['design','عرض التصميم','مرفقات قسم التصميم من تفاصيل التاسك'],['video','عرض الفيديو','مرفقات قسم المونتاج / الفيديو من تفاصيل التاسك'],['schedule','عرض جدول النشر','نتيجة جدول النشر المحفوظة مع الحملة'],['budget','عرض الميزانية','بيانات الميزانية ومجموع المنصات'],['results','عرض نتائج الحملة','تقرير النتائج سيتم ربطه في مكان منفصل']
   ];
   function normalizeRecord(r, fallbackId){
     if(!r || typeof r !== 'object') return null;
@@ -65,7 +65,7 @@
   function render(){
     const holder=document.getElementById('campaignRecordsLive'); if(!holder) return;
     const records=loadRecords();
-    if(!records.length){holder.innerHTML='<article class="empty-database-state"><div class="empty-icon">DB</div><div><span class="eyebrow">قاعدة البيانات جاهزة</span><h4>لا توجد حملات أو أجندات مضافة حالياً</h4><p>أي حملة أو أجندة يتم إنشاؤها أو موجودة في مسار workspace_tasks هتظهر هنا بتواريخها، وقت التأخير، مرفقات الأقسام، وTemplates جدول النشر والميزانية والنتائج.</p></div></article>';return;}
+    if(!records.length){holder.innerHTML='<article class="empty-database-state"><div class="empty-icon">DB</div><div><span class="eyebrow">قاعدة البيانات جاهزة</span><h4>لا توجد حملات أو أجندات مضافة حالياً</h4><p>أي حملة أو أجندة يتم إنشاؤها أو موجودة في مسار workspace_tasks هتظهر هنا بتواريخها، وقت التأخير، مرفقات الأقسام، ونتيجة جدول النشر والميزانية ومرفقات الأقسام.</p></div></article>';return;}
     holder.innerHTML=records.map((r,idx)=>{
       const code=r.code||('TASK-'+(idx+1)); const name=r.name||'حملة / أجندة';
       const req=r.requiredDate||r.launchDate||r.deadline; const del=r.deliveryDate||r.completedAt;

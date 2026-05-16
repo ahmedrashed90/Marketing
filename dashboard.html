@@ -32,7 +32,8 @@
       <a class="nav-link" href="dashboard.html" data-route="dashboard"><span class="nav-icon">07</span><span class="nav-text">الداش بورد</span></a>
       <a class="nav-link" href="campaigns-calendar.html" data-route="campaignsCalendar"><span class="nav-icon">08</span><span class="nav-text">الحملات والأجندات</span></a>
       <a class="nav-link" href="templates.html" data-route="taskTemplates"><span class="nav-icon">09</span><span class="nav-text">قوالب الحملات</span></a>
-    <a class="nav-link" href="login.html" data-route="login"><span class="nav-icon">10</span><span class="nav-text">تسجيل الدخول</span></a>
+      <a class="nav-link" href="platforms.html" data-route="platforms"><span class="nav-icon">10</span><span class="nav-text">منصات الميزانية</span></a>
+    <a class="nav-link" href="login.html" data-route="login"><span class="nav-icon">11</span><span class="nav-text">تسجيل الدخول</span></a>
     </nav>
 
     <div class="sidebar-card">
@@ -495,27 +496,46 @@
         <section class="create-task-section">
           <div class="section-title-row">
             <div>
-              <span class="eyebrow">جدول النشر والميزانية والنتائج</span>
-              <h4>أقسام اختيارية حسب القالب</h4>
+              <span class="eyebrow">جدول النشر والميزانية</span>
+              <h4>نتيجة جدول النشر وحساب الميزانية</h4>
             </div>
+            <a class="soft-btn" href="platforms.html">إدارة منصات الميزانية</a>
           </div>
 
-          <div class="optional-create-grid">
-            <label class="mzj-field file-template-field">
-              <span>Template جدول النشر</span>
-              <input type="file" id="publishScheduleTemplate" name="publishScheduleTemplate" accept=".xlsx,.xls">
-              <small>ارفع شيت Excel خارجي لجدول النشر</small>
+          <div class="optional-create-grid schedule-budget-grid">
+            <label class="mzj-field full-width-field">
+              <span>نتيجة جدول النشر</span>
+              <textarea id="publishScheduleResult" name="publishScheduleResult" rows="4" placeholder="اكتب نتيجة جدول النشر هنا أو ملخص الجدول بعد تجهيزه"></textarea>
+              <small>جدول النشر مش Template هنا؛ دي نتيجة يتم حفظها مع الحملة أو الأجندة.</small>
             </label>
-            <label class="mzj-field file-template-field">
-              <span>Template الميزانية</span>
-              <input type="file" id="budgetPlanTemplate" name="budgetPlanTemplate" accept=".xlsx,.xls">
-              <small>ارفع شيت Excel خارجي للميزانية</small>
-            </label>
-            <label class="mzj-field file-template-field">
-              <span>Template تقرير النتائج</span>
-              <input type="file" id="resultsReportTemplate" name="resultsReportTemplate" accept=".xlsx,.xls">
-              <small>ارفع شيت Excel خارجي لتقرير النتائج</small>
-            </label>
+          </div>
+
+          <div class="budget-builder-card">
+            <div class="section-title-row compact-title-row">
+              <div>
+                <span class="eyebrow">الميزانية</span>
+                <h4>بيانات إعلان الميزانية</h4>
+                <p>مدير التسويق يكتب البيانات، وإجمالي الميزانية يتحسب من مجموع المنصات المختارة.</p>
+              </div>
+            </div>
+            <div class="create-task-grid budget-fields-grid">
+              <label class="mzj-field"><span>نوع الإعلان</span><select id="budgetAdType" name="budgetAdType"><option value="">اختار</option><option value="بيعي">بيعي</option><option value="كاش">كاش</option></select></label>
+              <label class="mzj-field"><span>اسم الإعلان</span><input type="text" id="budgetAdName" name="budgetAdName" placeholder="اسم الإعلان"></label>
+              <label class="mzj-field"><span>تاريخ النشر</span><input type="date" id="budgetPublishDate" name="budgetPublishDate"></label>
+              <label class="mzj-field"><span>مدة الإعلان</span><input type="text" id="budgetDuration" name="budgetDuration" placeholder="مثال: 7 أيام"></label>
+              <label class="mzj-field"><span>عدد الإعلانات</span><input type="number" min="0" id="budgetAdsCount" name="budgetAdsCount" placeholder="0"></label>
+              <label class="mzj-field"><span>هدف المحتوى</span><input type="text" id="budgetContentGoal" name="budgetContentGoal" placeholder="اكتب هدف المحتوى"></label>
+              <label class="mzj-field"><span>الهدف المتوقع</span><input type="text" id="budgetExpectedGoal" name="budgetExpectedGoal" placeholder="اكتب الهدف المتوقع"></label>
+            </div>
+            <div class="platform-budget-head">
+              <strong>ميزانية المنصات</strong>
+              <small>المنصات بتتقرأ من صفحة منصات الميزانية ومسار Firebase: marketing_platforms</small>
+            </div>
+            <div id="budgetPlatformsList" class="budget-platforms-list"></div>
+            <div class="budget-total-box">
+              <span>إجمالي الميزانية</span>
+              <strong id="budgetTotalValue">0</strong>
+            </div>
           </div>
         </section>
 

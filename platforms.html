@@ -3,14 +3,14 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>MZJ Marketing System - قاعدة البيانات</title>
+  <title>MZJ Marketing System - منصات الميزانية</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="theme.css" />
 </head>
-<body data-user-role="user">
-  <aside class="sidebar" id="sidebar">
+<body>
+<aside class="sidebar" id="sidebar">
     <div class="brand-block">
       <button class="menu-toggle" id="sidebarToggle" type="button" aria-label="فتح وإغلاق القائمة">
         <span></span><span></span><span></span>
@@ -32,60 +32,76 @@
       <a class="nav-link" href="dashboard.html" data-route="dashboard"><span class="nav-icon">07</span><span class="nav-text">الداش بورد</span></a>
       <a class="nav-link" href="campaigns-calendar.html" data-route="campaignsCalendar"><span class="nav-icon">08</span><span class="nav-text">الحملات والأجندات</span></a>
       <a class="nav-link" href="templates.html" data-route="taskTemplates"><span class="nav-icon">09</span><span class="nav-text">قوالب الحملات</span></a>
-      <a class="nav-link" href="platforms.html" data-route="platforms"><span class="nav-icon">10</span><span class="nav-text">منصات الميزانية</span></a>
+      <a class="nav-link active" href="platforms.html" data-route="platforms"><span class="nav-icon">10</span><span class="nav-text">منصات الميزانية</span></a>
     <a class="nav-link" href="login.html" data-route="login"><span class="nav-icon">11</span><span class="nav-text">تسجيل الدخول</span></a>
     </nav>
 
     <div class="sidebar-card">
       <span class="status-dot"></span>
       <div>
-        <strong>Campaigns DB</strong>
-        <small>قاعدة بيانات الحملات</small>
+        <strong>Templates</strong>
+        <small>قوالب شكل الحملات والأجندات</small>
       </div>
     </div>
   </aside>
+  <main class="main-shell">
+    <header class="topbar">
+      <div class="page-title">
+        <p>PLATFORMS</p>
+        <h1>منصات الميزانية</h1>
+        <small>إدارة المنصات التي تظهر داخل ميزانية الحملة أو الأجندة.</small>
+      </div>
+    </header>
 
-  <main class="main-shell database-main">
-    <section class="database-search-only" aria-label="بحث قاعدة البيانات">
-      <div class="database-search-card">
-        <label for="campaignSearch">بحث سريع</label>
-        <div class="search-box">
-          <input id="campaignSearch" type="search" placeholder="ابحث باسم الحملة، الكود، النوع، الهدف..." />
-          <button type="button">بحث</button>
+    <section class="workspace-card admin-users-panel platforms-panel">
+      <div class="section-title-row">
+        <div>
+          <span class="eyebrow">marketing_platforms</span>
+          <h2>إضافة منصة جديدة</h2>
+          <p>اكتب اسم المنصة واحفظها على Firebase. المنصات دي هتظهر في نموذج إنشاء الحملة داخل قسم الميزانية.</p>
         </div>
       </div>
+      <form id="platformForm" class="create-task-form platforms-form">
+        <div class="create-task-grid compact-grid">
+          <label class="mzj-field">
+            <span>اسم المنصة</span>
+            <input type="text" id="platformName" placeholder="مثال: سناب شات" required>
+          </label>
+          <label class="mzj-field">
+            <span>كود المنصة اختياري</span>
+            <input type="text" id="platformKey" placeholder="snapchat">
+          </label>
+          <label class="mzj-field checkbox-field platform-active-field">
+            <span>مفعلة</span>
+            <input type="checkbox" id="platformActive" checked>
+          </label>
+        </div>
+        <div class="task-card-actions create-task-actions">
+          <button class="ghost-btn" type="button" id="cancelPlatformEdit" hidden>إلغاء التعديل</button>
+          <button class="primary-btn" type="submit" id="savePlatformBtn">حفظ المنصة</button>
+          <button class="soft-btn" type="button" id="seedDefaultPlatforms">إضافة المنصات الأساسية</button>
+        </div>
+        <p class="admin-only-note" id="platformNote">الحفظ يتم على Firebase في مسار marketing_platforms.</p>
+      </form>
     </section>
 
-    <section class="workspace-card campaign-db-panel">
-      <div class="campaign-records" id="campaignRecordsLive">
-        <article class="empty-database-state">
-          <div class="empty-icon">DB</div>
-          <div>
-            <span class="eyebrow">قاعدة البيانات جاهزة</span>
-            <h4>لا توجد حملات أو أجندات مضافة حالياً</h4>
-            <p>أول ما يتم إنشاء حملة أو أجندة من السيستم، هتظهر هنا بنفس التصميم: بيانات الحملة، أقسام التشغيل، وأزرار عرض التصوير والمحتوى والتصميم والفيديو وجدول النشر والميزانية والنتائج.</p>
-          </div>
-        </article>
+    <section class="workspace-card platforms-panel">
+      <div class="section-title-row">
+        <div>
+          <span class="eyebrow">قائمة المنصات</span>
+          <h2>المنصات المحفوظة</h2>
+        </div>
       </div>
+      <div id="platformsList" class="platforms-list"></div>
     </section>
   </main>
-
-  <div class="details-modal" id="detailsModal" aria-hidden="true">
-    <div class="details-backdrop" data-close-modal></div>
-    <section class="details-card" role="dialog" aria-modal="true" aria-labelledby="detailsTitle">
-      <button class="modal-close" type="button" data-close-modal aria-label="إغلاق">×</button>
-      <span class="eyebrow">تفاصيل العرض</span>
-      <h3 id="detailsTitle">عرض</h3>
-      <div class="details-lines" id="detailsContent"></div>
-    </section>
-  </div>
 
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
   <script src="firebase-config.js"></script>
   <script src="routes.js"></script>
   <script src="auth.js"></script>
+  <script src="platforms-management.js"></script>
   <script src="app.js"></script>
-  <script src="database-live.js"></script>
 </body>
 </html>

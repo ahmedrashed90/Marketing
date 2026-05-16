@@ -532,6 +532,43 @@ function usersForDepartment(dept, allUsers) {
   return (allUsers || []).filter((user) => String(user.department || '') === String(dept?.id || '')).map(normalizeSystemUser).filter(Boolean);
 }
 
+const DEFAULT_MARKETING_PLATFORMS = [
+  'سناب شات', 'تيك توك', 'انستجرام', 'فيس بوك', 'يوتيوب', 'جوجل', 'لينكد ان', 'حملات واتساب', 'TV'
+];
+
+function normalizePlatform(row, id) {
+  const name = String(row?.name || row?.platformName || row?.title || row || '').trim();
+  if (!name) return null;
+  return {
+    id: id || row?.id || name,
+    key: row?.key || row?.slug || name.toLowerCase().replace(/\s+/g, '_'),
+    name,
+    active: row?.active !== false,
+    source: row?.source || 'firebase'
+  };
+}
+
+async function loadMarketingPlatforms() {
+  const defaults = DEFAULT_MARKETING_PLATFORMS.map((name, index) => normalizePlatform({ name, key: 'platform_' + index, active: true, source: 'default' }, 'default_' + index));
+  const collected = [];
+  if (window.firebase && window.MZJ_FIREBASE_CONFIG && firebase.firestore) {
+    try {
+      if (!firebase.apps.length) firebase.initializeApp(window.MZJ_FIREBASE_CONFIG);
+      const snap = await firebase.firestore().collection('marketing_platforms').get();
+      snap.forEach((doc) => {
+        const item = normalizePlatform(doc.data() || {}, doc.id);
+        if (item && item.active !== false) collected.push(item);
+      });
+    } catch (error) {
+      console.warn('marketing_platforms load failed:', error);
+    }
+  }
+  const source = collected.length ? collected : defaults;
+  const map = new Map();
+  source.filter(Boolean).forEach((platform) => map.set(String(platform.name).toLowerCase(), platform));
+  return Array.from(map.values());
+}
+
 function initCreateTaskFromTemplate() {
   const openBtn = document.getElementById('createTaskOpen');
   const openBtnMini = document.getElementById('createTaskOpenMini');
@@ -546,17 +583,22 @@ function initCreateTaskFromTemplate() {
   const departmentsList = document.getElementById('departmentTaskList');
   const addDepartmentBtn = null;
   const note = document.getElementById('createTaskFormNote');
+  const budgetPlatformsList = document.getElementById('budgetPlatformsList');
+  const budgetTotalValue = document.getElementById('budgetTotalValue');
 
   if (!modal || !form || !typeSelect || !templateSelect || !departmentsList) return;
 
   let departmentsCache = [];
   let usersCache = [];
   let departmentIndex = 0;
+  let platformsCache = [];
 
   async function ensureDepartments() {
     departmentsCache = await loadDepartmentsFromContentTasks();
     usersCache = await loadUsersFromSystemPath();
+    platformsCache = await loadMarketingPlatforms();
     if (!departmentsList.children.length) renderAllDepartments();
+    renderBudgetPlatforms();
   }
 
   function fillTemplateOptions() {
@@ -611,53 +653,56 @@ function initCreateTaskFromTemplate() {
 
   function createDepartmentRow(dept) {
     const row = document.createElement('article');
-    row.className = 'department-task-row department-task-row-selectable';
+    row.className = 'department-task-row department-task-row-selectable department-accordion-row';
     row.dataset.departmentId = dept.id;
     row.innerHTML = `
       <div class="department-row-head">
-        <label class="department-check-line">
-          <input type="checkbox" data-department-enabled>
+        <input type="checkbox" data-department-enabled hidden>
+        <button class="department-toggle-btn" type="button" data-department-toggle>
           <strong>${escapeHTML(dept.name)}</strong>
-        </label>
-        <span class="department-source-label">content_tasks</span>
+          <small>اضغط لفتح القسم وتحديد اليوزر والمطلوب</small>
+        </button>
+        <span class="department-source-label">departments</span>
       </div>
 
-      <div class="department-task-grid">
-        <label class="mzj-field">
-          <span>اليوزر / المسؤول</span>
-          <select data-user-select>${renderUserOptions(usersForDepartment(dept, usersCache), dept.id, false)}</select>
-        </label>
+      <div class="department-task-body" data-department-body>
+        <div class="department-task-grid">
+          <label class="mzj-field">
+            <span>اليوزر / المسؤول</span>
+            <select data-user-select>${renderUserOptions(usersForDepartment(dept, usersCache), dept.id, false)}</select>
+          </label>
 
-        <label class="mzj-field">
-          <span>تاريخ الاستلام</span>
-          <input type="date" data-receive-date>
-        </label>
+          <label class="mzj-field">
+            <span>تاريخ الاستلام</span>
+            <input type="date" data-receive-date>
+          </label>
 
-        <label class="mzj-field">
-          <span>التاريخ المطلوب</span>
-          <input type="date" data-required-date>
-        </label>
+          <label class="mzj-field">
+            <span>التاريخ المطلوب</span>
+            <input type="date" data-required-date>
+          </label>
 
-        <label class="mzj-field">
-          <span>تاريخ التسليم</span>
-          <input type="date" data-delivery-date>
-        </label>
+          <label class="mzj-field">
+            <span>تاريخ التسليم</span>
+            <input type="date" data-delivery-date>
+          </label>
 
-        <label class="mzj-field checkbox-field">
-          <span>تأكيد استلام التاسك</span>
-          <input type="checkbox" data-received-confirm>
-        </label>
+          <label class="mzj-field checkbox-field">
+            <span>تأكيد استلام التاسك</span>
+            <input type="checkbox" data-received-confirm>
+          </label>
 
-        <label class="mzj-field">
-          <span>إرفاق المهام</span>
-          <input type="text" data-attachment-label placeholder="مثال: إرفاق ملف التصوير">
+          <label class="mzj-field">
+            <span>إرفاق المهام</span>
+            <input type="text" data-attachment-label placeholder="مثال: إرفاق ملف التصوير">
+          </label>
+        </div>
+
+        <label class="mzj-field full-width-field">
+          <span>المطلوب</span>
+          <textarea data-required-text rows="3" placeholder="اكتب المطلوب من القسم ده"></textarea>
         </label>
       </div>
-
-      <label class="mzj-field full-width-field">
-        <span>المطلوب</span>
-        <textarea data-required-text rows="3" placeholder="اكتب المطلوب من القسم ده"></textarea>
-      </label>
     `;
     departmentsList.appendChild(row);
   }
@@ -665,6 +710,60 @@ function initCreateTaskFromTemplate() {
   function renderAllDepartments() {
     departmentsList.innerHTML = '';
     departmentsCache.forEach((dept) => createDepartmentRow(dept));
+  }
+
+  function updateBudgetTotal() {
+    if (!budgetPlatformsList || !budgetTotalValue) return;
+    const total = Array.from(budgetPlatformsList.querySelectorAll('[data-platform-amount]')).reduce((sum, input) => {
+      const row = input.closest('[data-platform-budget-row]');
+      const checked = row?.querySelector('[data-platform-check]')?.checked;
+      return sum + (checked ? Number(input.value || 0) : 0);
+    }, 0);
+    budgetTotalValue.textContent = total.toLocaleString('ar-EG');
+  }
+
+  function renderBudgetPlatforms() {
+    if (!budgetPlatformsList) return;
+    if (!platformsCache.length) {
+      budgetPlatformsList.innerHTML = '<p class="template-empty">لا توجد منصات. أضفها من صفحة منصات الميزانية.</p>';
+      updateBudgetTotal();
+      return;
+    }
+    budgetPlatformsList.innerHTML = platformsCache.map((platform) => `
+      <article class="platform-budget-row" data-platform-budget-row data-platform-id="${escapeHTML(platform.id)}" data-platform-name="${escapeHTML(platform.name)}">
+        <label class="platform-budget-check">
+          <input type="checkbox" data-platform-check>
+          <strong>${escapeHTML(platform.name)}</strong>
+        </label>
+        <input type="number" min="0" step="1" data-platform-amount placeholder="0">
+      </article>
+    `).join('');
+    updateBudgetTotal();
+  }
+
+  function collectBudgetDetails() {
+    const selectedPlatforms = budgetPlatformsList ? Array.from(budgetPlatformsList.querySelectorAll('[data-platform-budget-row]')).map((row) => {
+      const checked = row.querySelector('[data-platform-check]')?.checked;
+      const amount = Number(row.querySelector('[data-platform-amount]')?.value || 0);
+      return {
+        id: row.dataset.platformId || '',
+        name: row.dataset.platformName || '',
+        amount,
+        selected: Boolean(checked)
+      };
+    }).filter((platform) => platform.selected || platform.amount > 0) : [];
+    const total = selectedPlatforms.reduce((sum, platform) => sum + Number(platform.amount || 0), 0);
+    return {
+      adType: document.getElementById('budgetAdType')?.value || '',
+      adName: document.getElementById('budgetAdName')?.value || '',
+      publishDate: document.getElementById('budgetPublishDate')?.value || '',
+      duration: document.getElementById('budgetDuration')?.value || '',
+      adsCount: document.getElementById('budgetAdsCount')?.value || '',
+      contentGoal: document.getElementById('budgetContentGoal')?.value || '',
+      expectedGoal: document.getElementById('budgetExpectedGoal')?.value || '',
+      platforms: selectedPlatforms,
+      totalBudget: total
+    };
   }
 
   function collectDepartmentTasks() {
@@ -719,6 +818,26 @@ function initCreateTaskFromTemplate() {
     renderTemplateFieldInputs(selected);
   });
 
+  departmentsList.addEventListener('click', (event) => {
+    const btn = event.target.closest('[data-department-toggle]');
+    if (!btn) return;
+    const row = btn.closest('.department-task-row');
+    const checkbox = row?.querySelector('[data-department-enabled]');
+    if (!row || !checkbox) return;
+    const willOpen = !row.classList.contains('is-open');
+    departmentsList.querySelectorAll('.department-task-row.is-open').forEach((other) => {
+      if (other !== row) other.classList.remove('is-open');
+    });
+    row.classList.toggle('is-open', willOpen);
+    checkbox.checked = willOpen ? true : checkbox.checked;
+    row.classList.toggle('is-selected', checkbox.checked);
+  });
+
+  if (budgetPlatformsList) {
+    budgetPlatformsList.addEventListener('input', updateBudgetTotal);
+    budgetPlatformsList.addEventListener('change', updateBudgetTotal);
+  }
+
 
   document.addEventListener('click', (event) => {
     if (event.target.closest('[data-close-create-task]') || event.target === modal) {
@@ -764,9 +883,8 @@ function initCreateTaskFromTemplate() {
       campaignGoal: formData.get('campaignGoal') || '',
       launchDate: formData.get('launchDate') || '',
       departmentTasks,
-      publishScheduleTemplate: document.getElementById('publishScheduleTemplate')?.files?.[0]?.name || '',
-      budgetPlanTemplate: document.getElementById('budgetPlanTemplate')?.files?.[0]?.name || '',
-      resultsReportTemplate: document.getElementById('resultsReportTemplate')?.files?.[0]?.name || '',
+      publishScheduleResult: document.getElementById('publishScheduleResult')?.value || '',
+      budgetDetails: collectBudgetDetails(),
       sourceCollection: 'workspace_tasks',
       createdAt: new Date().toISOString(),
       stage: 'required',

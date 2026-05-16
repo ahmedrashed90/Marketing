@@ -13,7 +13,8 @@
     ['database','قاعدة البيانات','database.html'],
     ['dashboard','الداش بورد','dashboard.html'],
     ['campaignsCalendar','الحملات والأجندات','campaigns-calendar.html'],
-    ['taskTemplates','قوالب الحملات','templates.html']
+    ['taskTemplates','قوالب الحملات','templates.html'],
+    ['platforms','منصات الميزانية','platforms.html']
   ];
 
   const deps = [

@@ -3,7 +3,7 @@
   const USER_COLLECTION = 'users';
   const LEGACY_USER_COLLECTION = 'user';
   const TEST_USERS = [
-    { email: 'admin@mzj.local', password: '123456', name: 'مدير النظام', role: 'admin', department: 'management', pagesAccess: ['admin','dashboard','database','departments','taskTemplates','campaignsCalendar','stock','dailyTasks','content'] },
+    { email: 'admin@mzj.local', password: '123456', name: 'مدير النظام', role: 'admin', department: 'management', pagesAccess: ['admin','dashboard','database','departments','taskTemplates','platforms','campaignsCalendar','stock','dailyTasks','content'] },
     { email: 'user@mzj.local', password: '123456', name: 'يوزر عادي', role: 'user', department: 'photography', pagesAccess: ['dashboard'] }
   ];
 
@@ -18,6 +18,7 @@
     'dashboard.html': 'dashboard',
     'campaigns-calendar.html': 'campaignsCalendar',
     'templates.html': 'taskTemplates',
+    'platforms.html': 'platforms',
     'login.html': 'login'
   };
 
@@ -47,6 +48,10 @@
     taskTemplates: 'taskTemplates',
     templates: 'taskTemplates',
     'قوالب الحملات': 'taskTemplates',
+    platforms: 'platforms',
+    marketingPlatforms: 'platforms',
+    'منصات الميزانية': 'platforms',
+    'المنصات': 'platforms',
     login: 'login',
     'تسجيل الدخول': 'login'
   };

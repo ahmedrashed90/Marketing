@@ -253,8 +253,10 @@ function normalizeTaskFileRecord(file, index) {
 }
 
 function getTaskDeptByMeta(meta) {
+  if (meta?.deptData && typeof meta.deptData === 'object') return meta.deptData;
   if (!meta?.taskId) return null;
-  const task = readTasks().find((item) => String(item.id || item.firestoreId || item.docId) === String(meta.taskId));
+  const taskSource = typeof window.MZJReadDashboardTasks === 'function' ? window.MZJReadDashboardTasks() : [];
+  const task = taskSource.find((item) => String(item.id || item.firestoreId || item.docId) === String(meta.taskId));
   if (!task) return null;
   const departments = Array.isArray(task.departmentTasks) ? task.departmentTasks : [];
   return departments.find((dept) => rawDeptIdentity(dept) === String(meta.deptIdentity || '') || deptIdentity(dept) === String(meta.deptIdentity || '')) || null;
@@ -408,13 +410,25 @@ async function saveTaskAttachmentToFirebase(meta, fileRecord) {
     updatedAt: new Date().toISOString()
   }, { merge: true });
 
-  const cacheIndex = firestoreTaskCache.findIndex((item) => String(item.id || item.firestoreId || item.docId) === String(meta.taskId));
-  if (cacheIndex >= 0) {
-    firestoreTaskCache[cacheIndex] = {
-      ...firestoreTaskCache[cacheIndex],
-      departmentTasks: updatedDepartments,
+  if (meta.deptData && typeof meta.deptData === 'object') {
+    const currentFiles = Array.isArray(meta.deptData.files) ? meta.deptData.files.slice() : [];
+    const currentAttachments = Array.isArray(meta.deptData.attachments) ? meta.deptData.attachments.slice() : [];
+    const currentDriveFiles = Array.isArray(meta.deptData.driveFiles) ? meta.deptData.driveFiles.slice() : [];
+    currentFiles.push(fileRecord);
+    currentAttachments.push(fileRecord);
+    currentDriveFiles.push(fileRecord);
+    meta.deptData = {
+      ...meta.deptData,
+      files: currentFiles,
+      attachments: currentAttachments,
+      driveFiles: currentDriveFiles,
+      fileUrl: fileRecord.fileUrl || fileRecord.url || '',
+      attachmentUrl: fileRecord.fileUrl || fileRecord.url || '',
       updatedAt: new Date().toISOString()
     };
+  }
+  if (typeof window.MZJRefreshDashboardTaskCache === 'function') {
+    window.MZJRefreshDashboardTaskCache(String(meta.taskId), updatedDepartments);
   }
 }
 
@@ -448,6 +462,12 @@ function openTaskDetails(button) {
 
   activeTaskCard = button.closest('[data-dept-task-card]') || button.closest('.dept-card-template');
   const selected = (activeTaskCard?.dataset.completedSteps || '').split(',').filter(Boolean);
+  let deptDataFromButton = null;
+  try {
+    deptDataFromButton = button.dataset.deptTaskJson ? JSON.parse(decodeURIComponent(button.dataset.deptTaskJson)) : null;
+  } catch (error) {
+    deptDataFromButton = null;
+  }
   activeTaskDetailsMeta = {
     taskId: activeTaskCard?.dataset.taskId || '',
     deptIdentity: activeTaskCard?.dataset.deptIdentity || '',
@@ -455,7 +475,8 @@ function openTaskDetails(button) {
     departmentName: button.dataset.dept || '',
     campaignName: button.dataset.taskTitle || '',
     campaignCode: activeTaskCard?.dataset.campaignCode || '',
-    taskType: activeTaskCard?.dataset.taskType || ''
+    taskType: activeTaskCard?.dataset.taskType || '',
+    deptData: deptDataFromButton
   };
 
   if (taskDetailsDept) taskDetailsDept.textContent = button.dataset.dept || 'تفاصيل القسم';
@@ -1773,6 +1794,17 @@ initCreateTaskFromTemplate();
     all.filter(Boolean).forEach((task) => map.set(String(task.id), { ...(map.get(String(task.id)) || {}), ...task }));
     return Array.from(map.values());
   }
+  window.MZJReadDashboardTasks = readTasks;
+  window.MZJRefreshDashboardTaskCache = function refreshDashboardTaskCache(taskId, departmentTasks){
+    const idx = firestoreTaskCache.findIndex((item) => String(item.id || item.firestoreId || item.docId) === String(taskId));
+    if (idx >= 0) {
+      firestoreTaskCache[idx] = {
+        ...firestoreTaskCache[idx],
+        departmentTasks,
+        updatedAt: new Date().toISOString()
+      };
+    }
+  };
   async function saveTaskToFirestore(task){
     if (!window.firebase || !window.MZJ_FIREBASE_CONFIG || !firebase.firestore) throw new Error('Firebase SDK غير موجود');
     if (!firebase.apps.length) firebase.initializeApp(window.MZJ_FIREBASE_CONFIG);
@@ -1984,7 +2016,7 @@ initCreateTaskFromTemplate();
       </div>
       <div class="department-progress-row"><div class="department-progress-box"><small>اكتمال التاسك</small><strong data-task-percent>${p}%</strong></div><div class="department-progress-box"><small>نسبة الحملة</small><strong data-campaign-percent>${Math.round(p / Math.max((task.departmentTasks||[]).length,1))}%</strong></div></div>
       <div class="mini-progress"><span data-task-bar style="width:${p}%"></span></div>
-      <div class="task-card-actions"><button class="details-btn" type="button" data-open-task-details data-dept-key="${esc(dkey)}" data-dept="${esc(deptTask.departmentName || 'قسم')}" data-task-title="${esc(taskTitle(task))}" data-required="${esc(formatDepartmentRequirement(deptTask))}" data-steps="${esc(steps)}">تفاصيل</button><button class="soft-btn receive-task-btn ${(deptTask.receivedConfirmed || deptTask.received || deptTask.receivedAt) ? 'is-done' : ''}" type="button" data-receive-task data-task-id="${esc(task.id)}" data-dept-identity="${esc(deptIdentity(deptTask))}" ${(deptTask.receivedConfirmed || deptTask.received || deptTask.receivedAt) ? 'disabled' : ''}>${(deptTask.receivedConfirmed || deptTask.received || deptTask.receivedAt) ? 'تم تأكيد الاستلام' : 'تأكيد استلام التاسك'}</button></div>
+      <div class="task-card-actions"><button class="details-btn" type="button" data-open-task-details data-dept-key="${esc(dkey)}" data-dept="${esc(deptTask.departmentName || 'قسم')}" data-task-title="${esc(taskTitle(task))}" data-required="${esc(formatDepartmentRequirement(deptTask))}" data-dept-task-json="${esc(encodeURIComponent(JSON.stringify(deptTask || {})))}" data-steps="${esc(steps)}">تفاصيل</button><button class="soft-btn receive-task-btn ${(deptTask.receivedConfirmed || deptTask.received || deptTask.receivedAt) ? 'is-done' : ''}" type="button" data-receive-task data-task-id="${esc(task.id)}" data-dept-identity="${esc(deptIdentity(deptTask))}" ${(deptTask.receivedConfirmed || deptTask.received || deptTask.receivedAt) ? 'disabled' : ''}>${(deptTask.receivedConfirmed || deptTask.received || deptTask.receivedAt) ? 'تم تأكيد الاستلام' : 'تأكيد استلام التاسك'}</button></div>
     </article>`;
   }
 

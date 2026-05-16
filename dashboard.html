@@ -451,10 +451,28 @@
               <input type="text" id="campaignName" name="campaignName" placeholder="اكتب الاسم">
             </label>
 
-            <label class="mzj-field">
-              <span>كود الحملة</span>
-              <input type="text" id="campaignCode" name="campaignCode" placeholder="مثال C1-1">
+            <label class="mzj-field code-field-wrap">
+              <span>كود الحملة / الأجندة</span>
+              <div class="code-inline-row">
+                <input type="text" id="campaignCode" name="campaignCode" readonly placeholder="يتم توليده تلقائيًا">
+                <button class="soft-btn" type="button" id="generateCampaignCodeBtn">توليد</button>
+              </div>
             </label>
+
+            <label class="mzj-field">
+              <span>نوع الحملة / الأجندة</span>
+              <select id="campaignTypeName" name="campaignTypeName">
+                <option value="">اختار نوع الحملة</option>
+              </select>
+            </label>
+
+            <div class="campaign-type-add-row">
+              <label class="mzj-field">
+                <span>إضافة نوع جديد</span>
+                <input type="text" id="newCampaignTypeName" placeholder="اكتب نوع جديد لو مش موجود">
+              </label>
+              <button class="soft-btn" type="button" id="addCampaignTypeBtn">حفظ النوع</button>
+            </div>
 
             <label class="mzj-field">
               <span>الهدف من الحملة</span>
@@ -462,8 +480,13 @@
             </label>
 
             <label class="mzj-field">
-              <span>تاريخ نزول الحملة</span>
-              <input type="date" id="launchDate" name="launchDate">
+              <span id="campaignStartDateLabel">تاريخ بداية الحملة</span>
+              <input type="date" id="campaignStartDate" name="campaignStartDate">
+            </label>
+
+            <label class="mzj-field">
+              <span id="campaignEndDateLabel">تاريخ نهاية الحملة</span>
+              <input type="date" id="campaignEndDate" name="campaignEndDate">
             </label>
           </div>
 

@@ -604,6 +604,131 @@ async function loadMarketingPlatforms() {
   return Array.from(map.values());
 }
 
+const DEFAULT_CAMPAIGN_TYPES = ['حملة بيعية', 'حملة تسويقية', 'حملة تفاعلية', 'حملة محتوى', 'أجندة'];
+
+function normalizeCampaignType(row, id) {
+  const name = String(row?.name || row?.title || row?.label || row || '').trim();
+  if (!name) return null;
+  return {
+    id: id || row?.id || name,
+    name,
+    active: row?.active !== false
+  };
+}
+
+async function loadCampaignTypes() {
+  const collected = [];
+  if (window.firebase && window.MZJ_FIREBASE_CONFIG && firebase.firestore) {
+    try {
+      if (!firebase.apps.length) firebase.initializeApp(window.MZJ_FIREBASE_CONFIG);
+      const snap = await firebase.firestore().collection('marketing_campaign_types').get();
+      snap.forEach((doc) => {
+        const item = normalizeCampaignType(doc.data() || {}, doc.id);
+        if (item && item.active !== false) collected.push(item);
+      });
+    } catch (error) {
+      console.warn('marketing_campaign_types load failed:', error);
+    }
+  }
+  const source = collected.length ? collected : DEFAULT_CAMPAIGN_TYPES.map((name, index) => ({ id: 'default_' + index, name, active: true }));
+  const map = new Map();
+  source.filter(Boolean).forEach((item) => map.set(String(item.name).toLowerCase(), item));
+  return Array.from(map.values());
+}
+
+function generateCampaignCode(taskType = 'campaign') {
+  const prefix = taskType === 'agenda' ? 'AG' : 'CA';
+  const now = new Date();
+  const y = String(now.getFullYear()).slice(-2);
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  const d = String(now.getDate()).padStart(2, '0');
+  const rand = Math.floor(1000 + Math.random() * 9000);
+  return `${prefix}-${y}${m}${d}-${rand}`;
+}
+
+function deptKindFromName(name) {
+  const value = String(name || '').toLowerCase();
+  if (value.includes('تصوير') || value.includes('photo') || value.includes('shoot')) return 'photography';
+  if (value.includes('محتوى') || value.includes('content') || value.includes('نشر')) return value.includes('نشر') ? 'publish' : 'content';
+  if (value.includes('تصميم') || value.includes('design')) return 'design';
+  if (value.includes('مونتاج') || value.includes('فيديو') || value.includes('montage') || value.includes('video')) return 'montage';
+  return 'generic';
+}
+
+const PHOTOGRAPHY_CONTENT_TYPES = ['ريل', 'صور الموقع', 'فيديو HD', 'فيديو الصالة'];
+const DESIGN_DELIVERABLES = [
+  ['بوست سوشيال ميديا', 'Instagram / Facebook / X'],
+  ['كاروسيل', 'حملات / عروض / محتوى توعوي / سيارات'],
+  ['موشن جرافيك', 'Instagram / Snapchat / Facebook'],
+  ['ستوري', 'Instagram / Snapchat / Facebook'],
+  ['بنر إعلاني', 'حملات ممولة / موقع'],
+  ['ثامبنيل', 'YouTube / Reels / Video Cover'],
+  ['إيديت صور سيارات', 'موقع / سوشيال / حملات'],
+  ['ملفات مفتوحة', 'عند الحاجة للأرشفة أو التعديل لاحقًا'],
+  ['نسخة نشر نهائية', 'JPG / PNG / PDF حسب المطلوب']
+];
+const MONTAGE_DELIVERABLES = [
+  ['مونتاج أجندة عادي', 'Reel 1080x1920 + نسخة نهائية للنشر'],
+  ['فيديو ستوري', 'Story 1080x1920 + نسخة نهائية للنشر'],
+  ['مونتاج إعلان ممول', 'Reel 1080x1920 + Video 1080x1350 + نسخة إعلان ممول'],
+  ['مونتاج بمشاهد AI', 'مشاهد AI منفصلة + نسخة مراجعة أولى + نسخة نهائية'],
+  ['مونتاج ريل مواصفات', 'Reel 1080x1920 + Cover عند الحاجة'],
+  ['مونتاج فيديو مواصفات', 'YouTube HD Video 1920x1080 + نسخة Shorts عند الحاجة'],
+  ['مونتاج ريل معرض', 'Reel 1080x1920 + Story 1080x1920 عند الحاجة'],
+  ['مونتاج YouTube', 'YouTube HD Video 1920x1080 + Thumbnail + نسخة Shorts عند الحاجة']
+];
+
+function renderOptionPairs(pairs) {
+  return '<option value="">اختار المطلوب</option>' + pairs.map(([title, desc]) => `<option value="${escapeHTML(title)}" data-desc="${escapeHTML(desc)}">${escapeHTML(title)} — ${escapeHTML(desc)}</option>`).join('');
+}
+
+function attachmentLabelForKind(kind) {
+  if (kind === 'photography') return 'إرفاق ملف التصوير';
+  if (kind === 'content' || kind === 'publish') return 'إرفاق ملف اسكريبت';
+  if (kind === 'design') return 'إرفاق ملف الصور';
+  if (kind === 'montage') return 'إرفاق ملف الفيديو';
+  return 'إرفاق ملف';
+}
+
+function buildSpecialDepartmentFields(kind) {
+  if (kind === 'photography') {
+    return `
+      <div class="dept-special-fields" data-special-kind="photography">
+        <div class="dept-special-head">
+          <strong>المطلوب</strong>
+          <button class="soft-btn" type="button" data-add-photo-item>+ إضافة مطلوب تصوير</button>
+        </div>
+        <div class="photo-items-list" data-photo-items-list>
+          <article class="photo-item-row" data-photo-item>
+            <label class="mzj-field"><span>نوع السيارة</span><input type="text" data-photo-car-type placeholder="مثال: هيونداي / النترا"></label>
+            <label class="mzj-field"><span>نوع المحتوى</span><select data-photo-content-type>${PHOTOGRAPHY_CONTENT_TYPES.map(t => `<option value="${escapeHTML(t)}">${escapeHTML(t)}</option>`).join('')}</select></label>
+          </article>
+        </div>
+      </div>`;
+  }
+  if (kind === 'design') {
+    return `
+      <div class="dept-special-fields" data-special-kind="design">
+        <label class="mzj-field full-width-field"><span>المطلوب</span><select data-design-deliverable>${renderOptionPairs(DESIGN_DELIVERABLES)}</select></label>
+        <p class="department-hint" data-design-hint>اختار نوع التصميم ليظهر الاستخدام المطلوب.</p>
+        <label class="mzj-field full-width-field"><span>ملاحظات إضافية</span><textarea data-required-text rows="3" placeholder="اكتب أي تفاصيل إضافية للتصميم"></textarea></label>
+      </div>`;
+  }
+  if (kind === 'montage') {
+    return `
+      <div class="dept-special-fields" data-special-kind="montage">
+        <label class="mzj-field full-width-field"><span>المطلوب</span><select data-montage-deliverable>${renderOptionPairs(MONTAGE_DELIVERABLES)}</select></label>
+        <p class="department-hint" data-montage-hint>اختار نوع المونتاج ليظهر التسليم المطلوب.</p>
+        <label class="mzj-field full-width-field"><span>ملاحظات إضافية</span><textarea data-required-text rows="3" placeholder="اكتب أي تفاصيل إضافية للمونتاج"></textarea></label>
+      </div>`;
+  }
+  return `
+    <label class="mzj-field full-width-field dept-special-fields" data-special-kind="${escapeHTML(kind)}">
+      <span>المطلوب</span>
+      <textarea data-required-text rows="3" placeholder="اكتب شرح المطلوب من القسم"></textarea>
+    </label>`;
+}
+
 function initCreateTaskFromTemplate() {
   const openBtn = document.getElementById('createTaskOpen');
   const openBtnMini = document.getElementById('createTaskOpenMini');
@@ -618,6 +743,13 @@ function initCreateTaskFromTemplate() {
   const departmentsList = document.getElementById('departmentTaskList');
   const addDepartmentBtn = null;
   const note = document.getElementById('createTaskFormNote');
+  const campaignCodeInput = document.getElementById('campaignCode');
+  const generateCampaignCodeBtn = document.getElementById('generateCampaignCodeBtn');
+  const campaignTypeSelect = document.getElementById('campaignTypeName');
+  const newCampaignTypeInput = document.getElementById('newCampaignTypeName');
+  const addCampaignTypeBtn = document.getElementById('addCampaignTypeBtn');
+  const campaignStartDateLabel = document.getElementById('campaignStartDateLabel');
+  const campaignEndDateLabel = document.getElementById('campaignEndDateLabel');
   const budgetItemsList = document.getElementById('budgetItemsList');
   const addBudgetItemBtn = document.getElementById('addBudgetItem');
   const budgetGrandTotalValue = document.getElementById('budgetGrandTotalValue');
@@ -630,11 +762,38 @@ function initCreateTaskFromTemplate() {
   let usersCache = [];
   let departmentIndex = 0;
   let platformsCache = [];
+  let campaignTypesCache = [];
+
+  function renderCampaignTypesOptions() {
+    if (!campaignTypeSelect) return;
+    const current = campaignTypeSelect.value;
+    campaignTypeSelect.innerHTML = '<option value="">اختار نوع الحملة</option>' + campaignTypesCache.map((type) => `<option value="${escapeHTML(type.name)}">${escapeHTML(type.name)}</option>`).join('');
+    if (current) campaignTypeSelect.value = current;
+  }
+
+  async function refreshCampaignTypes() {
+    campaignTypesCache = await loadCampaignTypes();
+    renderCampaignTypesOptions();
+  }
+
+  function applyDateLabels() {
+    const isAgenda = typeSelect?.value === 'agenda';
+    if (campaignStartDateLabel) campaignStartDateLabel.textContent = isAgenda ? 'تاريخ بداية الأجندة' : 'تاريخ بداية الحملة';
+    if (campaignEndDateLabel) campaignEndDateLabel.textContent = isAgenda ? 'تاريخ نهاية الأجندة' : 'تاريخ نهاية الحملة';
+  }
+
+  function ensureGeneratedCode(force = false) {
+    if (!campaignCodeInput) return;
+    if (force || !campaignCodeInput.value) campaignCodeInput.value = generateCampaignCode(typeSelect?.value || 'campaign');
+  }
 
   async function ensureDepartments() {
     departmentsCache = await loadDepartmentsFromContentTasks();
     usersCache = await loadUsersFromSystemPath();
     platformsCache = await loadMarketingPlatforms();
+    await refreshCampaignTypes();
+    applyDateLabels();
+    ensureGeneratedCode();
     if (!departmentsList.children.length) renderAllDepartments();
     if (budgetItemsList && !budgetItemsList.children.length) createBudgetItem();
     updateBudgetTotal();
@@ -679,8 +838,10 @@ function initCreateTaskFromTemplate() {
 
   function createDepartmentRow(dept) {
     const row = document.createElement('article');
+    const kind = deptKindFromName(dept.name);
     row.className = 'department-task-row department-task-row-selectable department-accordion-row';
     row.dataset.departmentId = dept.id;
+    row.dataset.departmentKind = kind;
     row.innerHTML = `
       <div class="department-row-head">
         <input type="checkbox" data-department-enabled hidden>
@@ -692,15 +853,10 @@ function initCreateTaskFromTemplate() {
       </div>
 
       <div class="department-task-body" data-department-body>
-        <div class="department-task-grid">
+        <div class="department-task-grid department-task-core-grid">
           <label class="mzj-field">
             <span>اليوزر / المسؤول</span>
             <select data-user-select>${renderUserOptions(usersForDepartment(dept, usersCache), dept.id, false)}</select>
-          </label>
-
-          <label class="mzj-field">
-            <span>تاريخ الاستلام</span>
-            <input type="date" data-receive-date>
           </label>
 
           <label class="mzj-field">
@@ -712,22 +868,11 @@ function initCreateTaskFromTemplate() {
             <span>تاريخ التسليم</span>
             <input type="date" data-delivery-date>
           </label>
-
-          <label class="mzj-field checkbox-field">
-            <span>تأكيد استلام التاسك</span>
-            <input type="checkbox" data-received-confirm>
-          </label>
-
-          <label class="mzj-field">
-            <span>إرفاق المهام</span>
-            <input type="text" data-attachment-label placeholder="مثال: إرفاق ملف التصوير">
-          </label>
         </div>
 
-        <label class="mzj-field full-width-field">
-          <span>المطلوب</span>
-          <textarea data-required-text rows="3" placeholder="اكتب المطلوب من القسم ده"></textarea>
-        </label>
+        ${buildSpecialDepartmentFields(kind)}
+
+        <p class="admin-only-note department-receive-note">تأكيد استلام التاسك وتاريخ الاستلام ورفع الملف يتم من كارت اليوزر في الداش بورد.</p>
       </div>
     `;
     departmentsList.appendChild(row);
@@ -880,13 +1025,57 @@ function initCreateTaskFromTemplate() {
     };
   }
 
+  function collectSpecialDepartmentDetails(row, kind) {
+    if (kind === 'photography') {
+      const items = Array.from(row.querySelectorAll('[data-photo-item]')).map((item) => ({
+        carType: item.querySelector('[data-photo-car-type]')?.value.trim() || '',
+        contentType: item.querySelector('[data-photo-content-type]')?.value || ''
+      })).filter((item) => item.carType || item.contentType);
+      return {
+        kind,
+        items,
+        requiredText: items.map((item) => [item.carType ? `نوع السيارة: ${item.carType}` : '', item.contentType ? `نوع المحتوى: ${item.contentType}` : ''].filter(Boolean).join(' — ')).join(' | ')
+      };
+    }
+    if (kind === 'design') {
+      const select = row.querySelector('[data-design-deliverable]');
+      const title = select?.value || '';
+      const detail = select?.selectedOptions?.[0]?.dataset.desc || '';
+      const notes = row.querySelector('[data-required-text]')?.value.trim() || '';
+      return {
+        kind,
+        deliverable: title,
+        deliveryDetails: detail,
+        notes,
+        requiredText: [title, detail, notes].filter(Boolean).join(' — ')
+      };
+    }
+    if (kind === 'montage') {
+      const select = row.querySelector('[data-montage-deliverable]');
+      const title = select?.value || '';
+      const detail = select?.selectedOptions?.[0]?.dataset.desc || '';
+      const notes = row.querySelector('[data-required-text]')?.value.trim() || '';
+      return {
+        kind,
+        deliverable: title,
+        deliveryDetails: detail,
+        notes,
+        requiredText: [title, detail, notes].filter(Boolean).join(' — ')
+      };
+    }
+    const notes = row.querySelector('[data-required-text]')?.value.trim() || '';
+    return { kind, notes, requiredText: notes };
+  }
+
   function collectDepartmentTasks() {
     return Array.from(departmentsList.querySelectorAll('.department-task-row')).map((row) => {
       const enabled = Boolean(row.querySelector('[data-department-enabled]')?.checked);
       const departmentId = row.dataset.departmentId || '';
       const department = departmentsCache.find((dept) => String(dept.id) === String(departmentId));
+      const kind = row.dataset.departmentKind || deptKindFromName(department?.name || '');
+      const special = collectSpecialDepartmentDetails(row, kind);
+      const requiredText = special.requiredText || '';
       const selectedUser = row.querySelector('[data-user-select]')?.value || '';
-      const requiredText = row.querySelector('[data-required-text]')?.value.trim() || '';
       const selectedOption = row.querySelector('[data-user-select] option:checked');
       const selectedName = selectedOption?.dataset.userName || selectedOption?.textContent || selectedUser;
       const selectedEmail = selectedOption?.dataset.userEmail || selectedUser;
@@ -894,6 +1083,7 @@ function initCreateTaskFromTemplate() {
       return {
         enabled,
         departmentId,
+        departmentKind: kind,
         departmentName: department?.name || '',
         userId: selectedId,
         userUid: selectedOption?.dataset.userUid || selectedId,
@@ -903,12 +1093,16 @@ function initCreateTaskFromTemplate() {
         assigneeUid: selectedOption?.dataset.userUid || selectedId,
         assigneeEmail: selectedEmail,
         assigneeName: selectedName,
-        receiveDate: row.querySelector('[data-receive-date]')?.value || '',
+        receiveDate: '',
         requiredDate: row.querySelector('[data-required-date]')?.value || '',
         deliveryDate: row.querySelector('[data-delivery-date]')?.value || '',
-        receivedConfirmed: Boolean(row.querySelector('[data-received-confirm]')?.checked),
-        attachmentLabel: row.querySelector('[data-attachment-label]')?.value.trim() || '',
-        requiredText
+        receivedConfirmed: false,
+        received: false,
+        receivedAt: '',
+        receivedBy: '',
+        attachmentLabel: attachmentLabelForKind(kind),
+        requiredText,
+        requiredDetails: special
       };
     }).filter((task) => task.enabled && (task.departmentId || task.userName || task.requiredText));
   }
@@ -916,6 +1110,8 @@ function initCreateTaskFromTemplate() {
   function openCreateTaskModal() {
     ensureDepartments().then(() => {
       fillTemplateOptions();
+      applyDateLabels();
+      ensureGeneratedCode();
       modal.classList.add('is-open');
       modal.setAttribute('aria-hidden', 'false');
     });
@@ -924,7 +1120,37 @@ function initCreateTaskFromTemplate() {
   if (openBtn) openBtn.addEventListener('click', openCreateTaskModal);
   if (openBtnMini) openBtnMini.addEventListener('click', openCreateTaskModal);
 
-  typeSelect.addEventListener('change', fillTemplateOptions);
+  typeSelect.addEventListener('change', () => {
+    fillTemplateOptions();
+    applyDateLabels();
+    ensureGeneratedCode(true);
+  });
+
+  if (generateCampaignCodeBtn) {
+    generateCampaignCodeBtn.addEventListener('click', () => ensureGeneratedCode(true));
+  }
+
+  if (addCampaignTypeBtn) {
+    addCampaignTypeBtn.addEventListener('click', async () => {
+      const name = newCampaignTypeInput?.value.trim() || '';
+      if (!name) {
+        if (note) note.textContent = '⚠️ اكتب نوع الحملة الجديد الأول.';
+        return;
+      }
+      try {
+        if (!window.firebase || !window.MZJ_FIREBASE_CONFIG || !firebase.firestore) throw new Error('Firebase SDK غير موجود');
+        if (!firebase.apps.length) firebase.initializeApp(window.MZJ_FIREBASE_CONFIG);
+        const id = 'type_' + Date.now();
+        await firebase.firestore().collection('marketing_campaign_types').doc(id).set({ id, name, active: true, createdAt: new Date().toISOString() });
+        if (newCampaignTypeInput) newCampaignTypeInput.value = '';
+        await refreshCampaignTypes();
+        if (campaignTypeSelect) campaignTypeSelect.value = name;
+        if (note) note.textContent = '✅ تم حفظ نوع الحملة الجديد في السيستم.';
+      } catch (error) {
+        if (note) note.textContent = '⚠️ فشل حفظ نوع الحملة في Firebase: ' + (error?.message || error?.code || error);
+      }
+    });
+  }
 
   templateSelect.addEventListener('change', () => {
     if (preview) {
@@ -935,6 +1161,27 @@ function initCreateTaskFromTemplate() {
   });
 
   departmentsList.addEventListener('click', (event) => {
+    const addPhoto = event.target.closest('[data-add-photo-item]');
+    if (addPhoto) {
+      const list = addPhoto.closest('.dept-special-fields')?.querySelector('[data-photo-items-list]');
+      if (list) {
+        const item = document.createElement('article');
+        item.className = 'photo-item-row';
+        item.dataset.photoItem = 'true';
+        item.innerHTML = `
+          <label class="mzj-field"><span>نوع السيارة</span><input type="text" data-photo-car-type placeholder="مثال: هيونداي / النترا"></label>
+          <label class="mzj-field"><span>نوع المحتوى</span><select data-photo-content-type>${PHOTOGRAPHY_CONTENT_TYPES.map(t => `<option value="${escapeHTML(t)}">${escapeHTML(t)}</option>`).join('')}</select></label>
+          <button class="soft-danger-btn" type="button" data-remove-photo-item>مسح</button>
+        `;
+        list.appendChild(item);
+      }
+      return;
+    }
+    const removePhoto = event.target.closest('[data-remove-photo-item]');
+    if (removePhoto) {
+      removePhoto.closest('[data-photo-item]')?.remove();
+      return;
+    }
     const btn = event.target.closest('[data-department-toggle]');
     if (!btn) return;
     const row = btn.closest('.department-task-row');
@@ -947,6 +1194,19 @@ function initCreateTaskFromTemplate() {
     row.classList.toggle('is-open', willOpen);
     checkbox.checked = willOpen ? true : checkbox.checked;
     row.classList.toggle('is-selected', checkbox.checked);
+  });
+
+  departmentsList.addEventListener('change', (event) => {
+    const design = event.target.closest('[data-design-deliverable]');
+    if (design) {
+      const hint = design.closest('.dept-special-fields')?.querySelector('[data-design-hint]');
+      if (hint) hint.textContent = design.selectedOptions?.[0]?.dataset.desc || 'اختار نوع التصميم ليظهر الاستخدام المطلوب.';
+    }
+    const montage = event.target.closest('[data-montage-deliverable]');
+    if (montage) {
+      const hint = montage.closest('.dept-special-fields')?.querySelector('[data-montage-hint]');
+      if (hint) hint.textContent = montage.selectedOptions?.[0]?.dataset.desc || 'اختار نوع المونتاج ليظهر التسليم المطلوب.';
+    }
   });
 
   if (budgetItemsList) {
@@ -1023,9 +1283,13 @@ function initCreateTaskFromTemplate() {
       templateValues: collectTemplateValues(),
       taskDate: formData.get('taskDate') || '',
       campaignName: formData.get('campaignName') || '',
-      campaignCode: formData.get('campaignCode') || '',
+      campaignCode: formData.get('campaignCode') || generateCampaignCode(taskType),
+      campaignTypeName: formData.get('campaignTypeName') || '',
       campaignGoal: formData.get('campaignGoal') || '',
-      launchDate: formData.get('launchDate') || '',
+      campaignStartDate: formData.get('campaignStartDate') || '',
+      campaignEndDate: formData.get('campaignEndDate') || '',
+      launchDate: formData.get('campaignStartDate') || '',
+      endDate: formData.get('campaignEndDate') || '',
       departmentTasks,
       publishScheduleEntries: collectPublishScheduleDetails(),
       publishScheduleResult: collectPublishScheduleDetails().map((item) => [item.day, item.date, item.content].filter(Boolean).join(' - ')).join(' | '),

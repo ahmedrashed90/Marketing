@@ -25,7 +25,7 @@
       name: row.name || row.displayName || row.fullName || email,
       role: normalizeRole(row.role || row.type),
       department: row.department || row.departmentId || row.section || '',
-      pagesAccess: row.pagesAccess || row.allowedPages || row.permissions || [],
+      pagesAccess: row.pagesAccess || row.pages || row.allowedPages || row.permissions || [],
       password: row.password || row.pass || '',
       source: row.source || 'firestore:users'
     };
@@ -148,7 +148,7 @@
 
         if (!found) found = TEST_USERS.find(u => u.email.toLowerCase() === email.toLowerCase() && u.password === password);
         if (!found) { if(msg) msg.textContent = 'الحساب غير موجود في مسار users أو كلمة المرور غير صحيحة.'; return; }
-        setUser({ id: found.id || '', email: found.email, name: found.name || found.email, role: normalizeRole(found.role), department: found.department || '', pagesAccess: found.pagesAccess || [], loginAt: new Date().toISOString(), source: found.source || 'local', collectionName: found.collectionName || USER_COLLECTION });
+        setUser({ id: found.id || '', email: found.email, name: found.name || found.email, role: normalizeRole(found.role), department: found.department || '', pagesAccess: found.pagesAccess || found.pages || [], loginAt: new Date().toISOString(), source: found.source || 'local', collectionName: found.collectionName || USER_COLLECTION });
         location.href = 'dashboard.html';
       });
     }

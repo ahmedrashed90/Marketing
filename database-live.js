@@ -1,16 +1,6 @@
 (function(){
   const FIRESTORE_TASK_COLLECTIONS = ['workspace_tasks'];
   let firestoreRecords = [];
-  let firebaseUsers = [];
-  let firebaseDepartments = [];
-
-  const DEFAULT_EDIT_DEPARTMENTS = [
-    { key: 'photography', label: 'قسم التصوير', aliases: ['photography','photo','قسم التصوير','التصوير','تصوير'] },
-    { key: 'content', label: 'قسم المحتوى', aliases: ['content','قسم المحتوى','المحتوى','كتابة المحتوى'] },
-    { key: 'design', label: 'قسم التصميم', aliases: ['design','قسم التصميم','التصميم','مصمم'] },
-    { key: 'video', label: 'قسم المونتاج', aliases: ['video','montage','قسم المونتاج','المونتاج','الفيديو','قسم الفيديو'] },
-    { key: 'publish', label: 'قسم النشر', aliases: ['publish','posting','قسم النشر','النشر'] }
-  ];
 
   const DEPARTMENT_ALIASES = {
     photography: ['photography','photo','قسم التصوير','التصوير','تصوير'],
@@ -20,6 +10,30 @@
     publish: ['publish','posting','قسم النشر','النشر'],
     archive: ['archive','قسم الارشيف','قسم الأرشيف','الأرشيف']
   };
+
+
+  const PHOTOGRAPHY_CONTENT_TYPES = ['ريل', 'صور الموقع', 'فيديو HD', 'فيديو الصالة'];
+  const DESIGN_DELIVERABLES = [
+    ['بوست سوشيال ميديا', 'Instagram / Facebook / X'],
+    ['كاروسيل', 'حملات / عروض / محتوى توعوي / سيارات'],
+    ['موشن جرافيك', 'Instagram / Snapchat / Facebook'],
+    ['ستوري', 'Instagram / Snapchat / Facebook'],
+    ['بنر إعلاني', 'حملات ممولة / موقع'],
+    ['ثامبنيل', 'YouTube / Reels / Video Cover'],
+    ['إيديت صور سيارات', 'موقع / سوشيال / حملات'],
+    ['ملفات مفتوحة', 'عند الحاجة للأرشفة أو التعديل لاحقًا'],
+    ['نسخة نشر نهائية', 'JPG / PNG / PDF حسب المطلوب']
+  ];
+  const MONTAGE_DELIVERABLES = [
+    ['مونتاج أجندة عادي', 'Reel 1080x1920 + نسخة نهائية للنشر'],
+    ['فيديو ستوري', 'Story 1080x1920 + نسخة نهائية للنشر'],
+    ['مونتاج إعلان ممول', 'Reel 1080x1920 + Video 1080x1350 + نسخة إعلان ممول'],
+    ['مونتاج بمشاهد AI', 'مشاهد AI منفصلة + نسخة مراجعة أولى + نسخة نهائية'],
+    ['مونتاج ريل مواصفات', 'Reel 1080x1920 + Cover عند الحاجة'],
+    ['مونتاج فيديو مواصفات', 'YouTube HD Video 1920x1080 + نسخة Shorts عند الحاجة'],
+    ['مونتاج ريل معرض', 'Reel 1080x1920 + Story 1080x1920 عند الحاجة'],
+    ['مونتاج YouTube', 'YouTube HD Video 1920x1080 + Thumbnail + نسخة Shorts عند الحاجة']
+  ];
 
   function esc(value){
     return String(value ?? '').replace(/[&<>'"]/g, (m) => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#039;','"':'&quot;'}[m]));
@@ -92,25 +106,6 @@
       map.set(String(item.id), item);
     });
     return Array.from(map.values()).sort((a,b) => String(b.createdAt||'').localeCompare(String(a.createdAt||'')));
-  }
-
-  async function loadUsersAndDepartments(){
-    if(!window.firebase || !window.MZJ_FIREBASE_CONFIG || !firebase.firestore) return;
-    try{
-      if(!firebase.apps.length) firebase.initializeApp(window.MZJ_FIREBASE_CONFIG);
-      const [usersSnap, depsSnap] = await Promise.all([
-        firebase.firestore().collection('users').get(),
-        firebase.firestore().collection('departments').get().catch(() => ({ forEach: () => {} }))
-      ]);
-      const users=[];
-      usersSnap.forEach(doc => users.push({ id: doc.id, firestoreId: doc.id, ...(doc.data() || {}) }));
-      firebaseUsers = users;
-      const deps=[];
-      depsSnap.forEach(doc => deps.push({ id: doc.id, firestoreId: doc.id, ...(doc.data() || {}) }));
-      firebaseDepartments = deps;
-    }catch(err){
-      console.warn('فشل قراءة users/departments للتعديل:', err);
-    }
   }
 
   async function loadFirestoreRecords(){
@@ -250,82 +245,24 @@
 
   function escAttr(value){ return esc(value).replace(/`/g, '&#096;'); }
 
-  function userName(user){ return user.name || user.displayName || user.username || user.email || 'يوزر'; }
-  function userEmail(user){ return user.email || user.userEmail || ''; }
-  function userId(user){ return user.uid || user.id || user.firestoreId || user.docId || user.email || ''; }
-
-  function getTaskUserId(task){
-    return task.userId || task.uid || task.assigneeUid || task.assigneeId || task.memberUid || '';
-  }
-
-  function getDeptSavedMembers(deptKeyValue){
-    const def = DEFAULT_EDIT_DEPARTMENTS.find(d => d.key === deptKeyValue);
-    const aliases = [deptKeyValue, def?.label, ...(def?.aliases || [])].map(v => String(v || '').toLowerCase());
-    const dep = firebaseDepartments.find(d => {
-      const vals = [d.id, d.slug, d.key, d.name, d.label, d.departmentName].map(v => String(v || '').toLowerCase());
-      return vals.some(v => aliases.some(a => v && (v === a || v.includes(a) || a.includes(v))));
-    });
-    if(!dep) return [];
-    const arr = [];
-    ['users','members','memberUids','userIds','memberEmails'].forEach(k => {
-      if(Array.isArray(dep[k])) arr.push(...dep[k]);
-    });
-    return arr;
-  }
-
-  function usersForDepartment(deptKeyValue){
-    const savedMembers = getDeptSavedMembers(deptKeyValue);
-    if(!savedMembers.length){
-      return firebaseUsers;
-    }
-    const memberKeys = savedMembers.map(m => {
-      if(m && typeof m === 'object') return [m.uid,m.id,m.email,m.userEmail,m.name,m.displayName].filter(Boolean).map(x => String(x).toLowerCase());
-      return [String(m).toLowerCase()];
-    }).flat();
-    const selected = firebaseUsers.filter(u => {
-      const vals = [userId(u), userEmail(u), userName(u)].filter(Boolean).map(v => String(v).toLowerCase());
-      return vals.some(v => memberKeys.includes(v));
-    });
-    return selected.length ? selected : firebaseUsers;
-  }
-
-  function userOptionsHtml(users, selectedTask){
-    const selectedEmail = String(selectedTask?.userEmail || selectedTask?.assigneeEmail || '').toLowerCase();
-    const selectedId = String(getTaskUserId(selectedTask || {}) || '').toLowerCase();
-    const options = ['<option value="">اختار اليوزر</option>'];
-    users.forEach(u => {
-      const id = userId(u);
-      const email = userEmail(u);
-      const name = userName(u);
-      const selected = (selectedEmail && String(email).toLowerCase() === selectedEmail) || (selectedId && String(id).toLowerCase() === selectedId) ? ' selected' : '';
-      options.push(`<option value="${escAttr(id)}" data-name="${escAttr(name)}" data-email="${escAttr(email)}"${selected}>${esc(name)}${email ? ' — ' + esc(email) : ''}</option>`);
-    });
-    return options.join('');
-  }
-
-  function taskForEditDepartment(tasks, deptKeyValue){
-    return tasks.find(t => deptKey(t) === deptKeyValue) || null;
-  }
-
   function renderEditDepartmentRows(record){
     const tasks = Array.isArray(record.departmentTasks) ? record.departmentTasks : [];
-    return DEFAULT_EDIT_DEPARTMENTS.map((dept, idx) => {
-      const task = taskForEditDepartment(tasks, dept.key) || {};
-      const active = !!taskForEditDepartment(tasks, dept.key);
-      const users = usersForDepartment(dept.key);
-      return `<article class="db-edit-dept-row ${active ? 'is-active' : ''}" data-edit-dept-index="${idx}" data-edit-dept-key="${escAttr(dept.key)}" data-edit-dept-label="${escAttr(dept.label)}">
+    if(!tasks.length) return '<p class="db-empty-line">لا توجد أقسام محفوظة داخل هذه الحملة.</p>';
+    return tasks.map((task, idx) => {
+      const kind = deptKey(task);
+      return `<article class="db-edit-dept-row" data-edit-dept-index="${idx}">
         <div class="db-edit-dept-title">
-          <label class="db-edit-dept-check"><input type="checkbox" data-edit-dept-enabled ${active ? 'checked' : ''}> <strong>${esc(dept.label)}</strong></label>
-          <small>${esc(dept.key)}</small>
+          <strong>${esc(departmentLabel(task))}</strong>
+          <small>${esc(kind)}</small>
         </div>
         <div class="db-edit-grid db-edit-dept-grid">
-          <label class="mzj-field"><span>اسم المسؤول</span><select data-edit-user-select>${userOptionsHtml(users, task)}</select></label>
-          <label class="mzj-field"><span>إيميل المسؤول</span><input type="email" data-edit-user-email value="${escAttr(task.userEmail || task.assigneeEmail || '')}" placeholder="يتحدد تلقائيًا من اليوزر"></label>
+          <label class="mzj-field"><span>اسم المسؤول</span><input type="text" data-edit-user-name value="${escAttr(personLabel(task) === '--' ? '' : personLabel(task))}"></label>
+          <label class="mzj-field"><span>إيميل المسؤول</span><input type="email" data-edit-user-email value="${escAttr(task.userEmail || task.assigneeEmail || '')}"></label>
           <label class="mzj-field"><span>تاريخ الاستلام</span><input type="date" data-edit-receive-date value="${escAttr(dateForInput(taskReceiveDate(task)))}"></label>
           <label class="mzj-field"><span>التاريخ المطلوب</span><input type="date" data-edit-required-date value="${escAttr(dateForInput(taskRequiredDate(task, record)))}"></label>
           <label class="mzj-field"><span>تاريخ التسليم</span><input type="date" data-edit-delivery-date value="${escAttr(dateForInput(taskDeliveryDate(task)))}"></label>
-          <label class="mzj-field full-width-field"><span>المطلوب</span><textarea rows="3" data-edit-required-text>${esc(task.requiredText || task.notes || '')}</textarea></label>
         </div>
+        ${renderEditRequirementsFields(dept.key, task)}
       </article>`;
     }).join('');
   }
@@ -338,8 +275,7 @@
     modal.style.display = '';
   }
 
-  async function openDbEdit(recordId){
-    if(!firebaseUsers.length){ await loadUsersAndDepartments(); }
+  function openDbEdit(recordId){
     const record = loadRecords().find(r => String(r.id) === String(recordId));
     if(!record) return;
     const modal = document.getElementById('dbEditModal');
@@ -369,43 +305,29 @@
     const note = document.getElementById('dbEditNote');
     if(!target){ if(note) note.textContent = '⚠️ لم يتم العثور على الحملة.'; return; }
 
-    const existingTasks = Array.isArray(target.departmentTasks) ? target.departmentTasks : [];
-    const editedDepartmentTasks = Array.from(document.querySelectorAll('.db-edit-dept-row')).map((row) => {
-      const enabled = row.querySelector('[data-edit-dept-enabled]')?.checked;
-      if(!enabled) return null;
-      const deptKeyValue = row.dataset.editDeptKey || '';
-      const deptLabel = row.dataset.editDeptLabel || '';
-      const oldTask = taskForEditDepartment(existingTasks, deptKeyValue) || {};
-      const select = row.querySelector('[data-edit-user-select]');
-      const selected = select?.selectedOptions?.[0];
-      const uid = select?.value || oldTask.userId || oldTask.uid || oldTask.assigneeUid || '';
-      const name = selected?.dataset?.name || oldTask.userName || oldTask.assigneeName || '';
-      const email = row.querySelector('[data-edit-user-email]')?.value.trim() || selected?.dataset?.email || oldTask.userEmail || oldTask.assigneeEmail || '';
+    const editedDepartmentTasks = Array.isArray(target.departmentTasks) ? target.departmentTasks.map((task, idx) => {
+      const row = document.querySelector(`[data-edit-dept-index="${idx}"]`);
+      if(!row) return task;
+      const name = row.querySelector('[data-edit-user-name]')?.value.trim() || '';
+      const email = row.querySelector('[data-edit-user-email]')?.value.trim() || '';
       const receiveDate = row.querySelector('[data-edit-receive-date]')?.value || '';
       const requiredDate = row.querySelector('[data-edit-required-date]')?.value || '';
       const deliveryDate = row.querySelector('[data-edit-delivery-date]')?.value || '';
       const requiredText = row.querySelector('[data-edit-required-text]')?.value.trim() || '';
       return {
-        ...oldTask,
-        departmentKey: deptKeyValue,
-        departmentId: deptKeyValue,
-        departmentName: deptLabel,
-        department: deptLabel,
-        userId: uid,
-        uid,
-        assigneeUid: uid,
-        userName: name,
-        assigneeName: name,
-        userDisplayName: name,
-        userEmail: email,
-        assigneeEmail: email,
+        ...task,
+        userName: name || task.userName || task.assigneeName || '',
+        assigneeName: name || task.assigneeName || task.userName || '',
+        userDisplayName: name || task.userDisplayName || task.userName || '',
+        userEmail: email || task.userEmail || task.assigneeEmail || '',
+        assigneeEmail: email || task.assigneeEmail || task.userEmail || '',
         receiveDate,
-        receivedAt: receiveDate || oldTask.receivedAt || '',
+        receivedAt: receiveDate || task.receivedAt || '',
         requiredDate,
         deliveryDate,
         requiredText
       };
-    }).filter(Boolean);
+    }) : [];
 
     const taskType = document.getElementById('dbEditTaskType')?.value || 'campaign';
     const payload = {
@@ -423,9 +345,6 @@
       campaignEndDate: document.getElementById('dbEditEndDate')?.value || '',
       endDate: document.getElementById('dbEditEndDate')?.value || '',
       departmentTasks: editedDepartmentTasks,
-      assignedDepartments: editedDepartmentTasks,
-      assigneeUids: editedDepartmentTasks.map(t => t.uid || t.userId || t.assigneeUid).filter(Boolean),
-      assigneeEmails: editedDepartmentTasks.map(t => t.userEmail || t.assigneeEmail).filter(Boolean),
       updatedAt: new Date().toISOString()
     };
 
@@ -486,10 +405,10 @@
     }).join('')}</tbody></table></div>`;
   }
 
-  window.openDatabaseEditCampaign = async function(recordId){
+  window.openDatabaseEditCampaign = function(recordId){
     try{
       if(!recordId){ alert('لم يتم العثور على رقم الحملة للتعديل.'); return; }
-      await openDbEdit(recordId);
+      openDbEdit(recordId);
       const modal = document.getElementById('dbEditModal');
       if(modal){
         modal.classList.add('is-open');
@@ -515,17 +434,7 @@
       e.preventDefault();
       e.stopPropagation();
       const rid = editBtn.dataset.editRecord || editBtn.closest('tr')?.dataset.recordId || '';
-      if(window.openDatabaseEditCampaign) await window.openDatabaseEditCampaign(rid); else await openDbEdit(rid);
-      return;
-    }
-    const userSelect = e.target.closest('[data-edit-user-select]');
-    if(userSelect){
-      const opt = userSelect.selectedOptions?.[0];
-      const row = userSelect.closest('.db-edit-dept-row');
-      const emailInput = row?.querySelector('[data-edit-user-email]');
-      if(emailInput && opt?.dataset?.email) emailInput.value = opt.dataset.email;
-      const enabled = row?.querySelector('[data-edit-dept-enabled]');
-      if(enabled) enabled.checked = true;
+      window.openDatabaseEditCampaign ? window.openDatabaseEditCampaign(rid) : openDbEdit(rid);
       return;
     }
     const closeEditBtn = e.target.closest('[data-close-db-edit]');
@@ -544,7 +453,7 @@
 
   document.addEventListener('DOMContentLoaded', () => {
     render();
-    loadUsersAndDepartments().then(loadFirestoreRecords);
+    loadFirestoreRecords();
     const search = document.getElementById('campaignSearch');
     if(search) search.addEventListener('input', render);
     const editForm = document.getElementById('dbEditForm');

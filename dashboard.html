@@ -9,7 +9,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="theme.css" />
 </head>
-<body>
+<body data-user-role="user">
   <aside class="sidebar" id="sidebar">
     <div class="brand-block">
       <button class="menu-toggle" id="sidebarToggle" type="button" aria-label="فتح وإغلاق القائمة">
@@ -23,14 +23,14 @@
     </div>
 
     <nav class="side-nav" aria-label="صفحات السيستم">
-      <a class="nav-link" href="test.html"><span class="nav-icon">01</span><span class="nav-text">صفحة الإدارة</span></a>
-      <a class="nav-link" href="#"><span class="nav-icon">02</span><span class="nav-text">صفحة الاستوك</span></a>
-      <a class="nav-link" href="#"><span class="nav-icon">03</span><span class="nav-text">تاسكات يومية</span></a>
-      <a class="nav-link" href="#"><span class="nav-icon">04</span><span class="nav-text">المحتوى</span></a>
-      <a class="nav-link" href="#"><span class="nav-icon">05</span><span class="nav-text">الأقسام</span></a>
-      <a class="nav-link" href="database.html"><span class="nav-icon">06</span><span class="nav-text">قاعدة البيانات</span></a>
-      <a class="nav-link active" href="dashboard.html"><span class="nav-icon">07</span><span class="nav-text">الداش بورد</span></a>
-      <a class="nav-link" href="#"><span class="nav-icon">08</span><span class="nav-text">الحملات والأجندات</span></a>
+      <a class="nav-link" href="admin.html" data-route="admin"><span class="nav-icon">01</span><span class="nav-text">صفحة الإدارة</span></a>
+      <a class="nav-link" href="stock.html" data-route="stock"><span class="nav-icon">02</span><span class="nav-text">صفحة الاستوك</span></a>
+      <a class="nav-link" href="daily-tasks.html" data-route="dailyTasks"><span class="nav-icon">03</span><span class="nav-text">تاسكات يومية</span></a>
+      <a class="nav-link" href="content.html" data-route="content"><span class="nav-icon">04</span><span class="nav-text">المحتوى</span></a>
+      <a class="nav-link" href="departments.html" data-route="departments"><span class="nav-icon">05</span><span class="nav-text">الأقسام</span></a>
+      <a class="nav-link" href="database.html" data-route="database"><span class="nav-icon">06</span><span class="nav-text">قاعدة البيانات</span></a>
+      <a class="nav-link" href="dashboard.html" data-route="dashboard"><span class="nav-icon">07</span><span class="nav-text">الداش بورد</span></a>
+      <a class="nav-link" href="campaigns-calendar.html" data-route="campaignsCalendar"><span class="nav-icon">08</span><span class="nav-text">الحملات والأجندات</span></a>
     </nav>
 
     <div class="sidebar-card">
@@ -230,43 +230,39 @@
             <h3>قسم التصوير</h3>
             <span class="column-hint">مهام اليوزر الحالية</span>
           </div>
-          <div class="board-list">
-            <article class="dept-card-template compact-template">
+          <div class="board-list department-task-list">
+            <article class="department-task-card" data-dept-task-card data-completed-steps="">
               <div class="task-template-top">
                 <strong>بيانات الحملة</strong>
                 <span>نوع الحملة — كود الحملة — تاريخ نزول الحملة</span>
               </div>
-              <div class="detail-lines-lite compact-lines">
+              <div class="department-task-meta">
                 <span>اسم المسؤول</span>
                 <span>تاريخ الاستلام</span>
                 <span>التاريخ المطلوب</span>
                 <span>تاريخ التسليم</span>
                 <span>وقت التأخير</span>
               </div>
-              <div class="task-progress-strip" data-progress-scope>
-                <div><span>اكتمال التاسك</span><strong data-task-percent>0%</strong></div>
-                <div><span>نسبة الحملة</span><strong data-campaign-percent>0%</strong></div>
+              <div class="department-progress-row">
+                <div class="department-progress-box">
+                  <small>اكتمال التاسك</small>
+                  <strong data-task-percent>0%</strong>
+                </div>
+                <div class="department-progress-box">
+                  <small>نسبة الحملة</small>
+                  <strong data-campaign-percent>0%</strong>
+                </div>
               </div>
               <div class="mini-progress"><span data-task-bar></span></div>
-              <button class="details-task-btn" type="button" data-open-task-details data-dept="قسم المونتاج" data-task-title="تفاصيل تاسك المونتاج" data-required="هنا يظهر المطلوب الخاص بقسم المونتاج بعد ربط التاسك بالداتا." data-steps="مونتاج الجزء 1|الاعتماد|مونتاج الجزء 2|الاعتماد|الإرفاق">تفاصيل</button>
-              <div class="task-progress-strip" data-progress-scope>
-                <div><span>اكتمال التاسك</span><strong data-task-percent>0%</strong></div>
-                <div><span>نسبة الحملة</span><strong data-campaign-percent>0%</strong></div>
+              <div class="task-card-actions">
+                <button class="details-btn" type="button"
+                  data-open-task-details
+                  data-dept-key="shooting"
+                  data-dept="قسم التصوير"
+                  data-task-title="تفاصيل تاسك التصوير"
+                  data-required="هنا يظهر المطلوب الخاص بقسم التصوير بعد ربط التاسك بالداتا."
+                  data-steps="تصوير الجزء 1|الاعتماد|تصوير الجزء 2|الاعتماد|الإرفاق">تفاصيل</button>
               </div>
-              <div class="mini-progress"><span data-task-bar></span></div>
-              <button class="details-task-btn" type="button" data-open-task-details data-dept="قسم التصميم" data-task-title="تفاصيل تاسك التصميم" data-required="هنا يظهر المطلوب الخاص بقسم التصميم بعد ربط التاسك بالداتا." data-steps="تصميم الجزء 1|الاعتماد|تصميم الجزء 2|الاعتماد|الإرفاق">تفاصيل</button>
-              <div class="task-progress-strip" data-progress-scope>
-                <div><span>اكتمال التاسك</span><strong data-task-percent>0%</strong></div>
-                <div><span>نسبة الحملة</span><strong data-campaign-percent>0%</strong></div>
-              </div>
-              <div class="mini-progress"><span data-task-bar></span></div>
-              <button class="details-task-btn" type="button" data-open-task-details data-dept="قسم المحتوى" data-task-title="تفاصيل تاسك المحتوى" data-required="هنا يظهر المطلوب الخاص بقسم المحتوى بعد ربط التاسك بالداتا." data-steps="نموذج المحتوى|الاعتماد|كتابة المحتوى|الاعتماد|الإرفاق">تفاصيل</button>
-              <div class="task-progress-strip" data-progress-scope>
-                <div><span>اكتمال التاسك</span><strong data-task-percent>0%</strong></div>
-                <div><span>نسبة الحملة</span><strong data-campaign-percent>0%</strong></div>
-              </div>
-              <div class="mini-progress"><span data-task-bar></span></div>
-              <button class="details-task-btn" type="button" data-open-task-details data-dept="قسم التصوير" data-task-title="تفاصيل تاسك التصوير" data-required="هنا يظهر المطلوب الخاص بقسم التصوير بعد ربط التاسك بالداتا." data-steps="تصوير الجزء 1|الاعتماد|تصوير الجزء 2|الاعتماد|الإرفاق">تفاصيل</button>
             </article>
           </div>
         </article>
@@ -276,18 +272,38 @@
             <h3>قسم المحتوى</h3>
             <span class="column-hint">مهام اليوزر الحالية</span>
           </div>
-          <div class="board-list">
-            <article class="dept-card-template compact-template">
+          <div class="board-list department-task-list">
+            <article class="department-task-card" data-dept-task-card data-completed-steps="">
               <div class="task-template-top">
                 <strong>بيانات الحملة</strong>
                 <span>نوع الحملة — كود الحملة — تاريخ نزول الحملة</span>
               </div>
-              <div class="detail-lines-lite compact-lines">
+              <div class="department-task-meta">
                 <span>اسم المسؤول</span>
                 <span>تاريخ الاستلام</span>
                 <span>التاريخ المطلوب</span>
                 <span>تاريخ التسليم</span>
                 <span>وقت التأخير</span>
+              </div>
+              <div class="department-progress-row">
+                <div class="department-progress-box">
+                  <small>اكتمال التاسك</small>
+                  <strong data-task-percent>0%</strong>
+                </div>
+                <div class="department-progress-box">
+                  <small>نسبة الحملة</small>
+                  <strong data-campaign-percent>0%</strong>
+                </div>
+              </div>
+              <div class="mini-progress"><span data-task-bar></span></div>
+              <div class="task-card-actions">
+                <button class="details-btn" type="button"
+                  data-open-task-details
+                  data-dept-key="content"
+                  data-dept="قسم المحتوى"
+                  data-task-title="تفاصيل تاسك المحتوى"
+                  data-required="هنا يظهر المطلوب الخاص بقسم المحتوى بعد ربط التاسك بالداتا."
+                  data-steps="نموذج المحتوى|الاعتماد|كتابة المحتوى|الاعتماد|الإرفاق">تفاصيل</button>
               </div>
             </article>
           </div>
@@ -298,18 +314,38 @@
             <h3>قسم التصميم</h3>
             <span class="column-hint">مهام اليوزر الحالية</span>
           </div>
-          <div class="board-list">
-            <article class="dept-card-template compact-template">
+          <div class="board-list department-task-list">
+            <article class="department-task-card" data-dept-task-card data-completed-steps="">
               <div class="task-template-top">
                 <strong>بيانات الحملة</strong>
                 <span>نوع الحملة — كود الحملة — تاريخ نزول الحملة</span>
               </div>
-              <div class="detail-lines-lite compact-lines">
+              <div class="department-task-meta">
                 <span>اسم المسؤول</span>
                 <span>تاريخ الاستلام</span>
                 <span>التاريخ المطلوب</span>
                 <span>تاريخ التسليم</span>
                 <span>وقت التأخير</span>
+              </div>
+              <div class="department-progress-row">
+                <div class="department-progress-box">
+                  <small>اكتمال التاسك</small>
+                  <strong data-task-percent>0%</strong>
+                </div>
+                <div class="department-progress-box">
+                  <small>نسبة الحملة</small>
+                  <strong data-campaign-percent>0%</strong>
+                </div>
+              </div>
+              <div class="mini-progress"><span data-task-bar></span></div>
+              <div class="task-card-actions">
+                <button class="details-btn" type="button"
+                  data-open-task-details
+                  data-dept-key="design"
+                  data-dept="قسم التصميم"
+                  data-task-title="تفاصيل تاسك التصميم"
+                  data-required="هنا يظهر المطلوب الخاص بقسم التصميم بعد ربط التاسك بالداتا."
+                  data-steps="تصميم الجزء 1|الاعتماد|تصميم الجزء 2|الاعتماد|الإرفاق">تفاصيل</button>
               </div>
             </article>
           </div>
@@ -320,45 +356,74 @@
             <h3>قسم المونتاج</h3>
             <span class="column-hint">مهام اليوزر الحالية</span>
           </div>
-          <div class="board-list">
-            <article class="dept-card-template compact-template">
+          <div class="board-list department-task-list">
+            <article class="department-task-card" data-dept-task-card data-completed-steps="">
               <div class="task-template-top">
                 <strong>بيانات الحملة</strong>
                 <span>نوع الحملة — كود الحملة — تاريخ نزول الحملة</span>
               </div>
-              <div class="detail-lines-lite compact-lines">
+              <div class="department-task-meta">
                 <span>اسم المسؤول</span>
                 <span>تاريخ الاستلام</span>
                 <span>التاريخ المطلوب</span>
                 <span>تاريخ التسليم</span>
                 <span>وقت التأخير</span>
               </div>
+              <div class="department-progress-row">
+                <div class="department-progress-box">
+                  <small>اكتمال التاسك</small>
+                  <strong data-task-percent>0%</strong>
+                </div>
+                <div class="department-progress-box">
+                  <small>نسبة الحملة</small>
+                  <strong data-campaign-percent>0%</strong>
+                </div>
+              </div>
+              <div class="mini-progress"><span data-task-bar></span></div>
+              <div class="task-card-actions">
+                <button class="details-btn" type="button"
+                  data-open-task-details
+                  data-dept-key="montage"
+                  data-dept="قسم المونتاج"
+                  data-task-title="تفاصيل تاسك المونتاج"
+                  data-required="هنا يظهر المطلوب الخاص بقسم المونتاج بعد ربط التاسك بالداتا."
+                  data-steps="مونتاج الجزء 1|الاعتماد|مونتاج الجزء 2|الاعتماد|الإرفاق">تفاصيل</button>
+              </div>
             </article>
           </div>
         </article>
       </div>
     </section>
-  </main>
-
-
   <div class="task-details-modal" id="taskDetailsModal" aria-hidden="true">
-    <div class="details-backdrop" data-close-task-modal></div>
-    <section class="task-details-card" role="dialog" aria-modal="true" aria-labelledby="taskDetailsTitle">
-      <button class="modal-close" type="button" data-close-task-modal aria-label="إغلاق">×</button>
-      <span class="eyebrow" id="taskDetailsDept">تفاصيل القسم</span>
-      <h3 id="taskDetailsTitle">تفاصيل التاسك</h3>
-      <div class="task-requirement-box">
+    <section class="task-details-dialog" role="dialog" aria-modal="true" aria-labelledby="taskDetailsTitle">
+      <div class="task-details-head">
+        <div>
+          <p id="taskDetailsDept">تفاصيل القسم</p>
+          <h3 id="taskDetailsTitle">تفاصيل التاسك</h3>
+        </div>
+        <button class="modal-close-btn" type="button" data-close-task-modal aria-label="إغلاق">×</button>
+      </div>
+      <div class="task-required-box">
         <strong>التاسك والمطلوب</strong>
         <p id="taskDetailsRequired">هنا يظهر المطلوب بعد ربط التاسك بالداتا.</p>
       </div>
-      <div class="task-progress-summary">
-        <div><span>اكتمال التاسك</span><strong id="modalTaskPercent">0%</strong></div>
-        <div><span>مساهمة القسم في الحملة</span><strong id="modalCampaignPercent">0%</strong></div>
+      <div class="department-progress-row">
+        <div class="department-progress-box">
+          <small>اكتمال التاسك</small>
+          <strong id="modalTaskPercent">0%</strong>
+        </div>
+        <div class="department-progress-box">
+          <small>مساهمة القسم في الحملة</small>
+          <strong id="modalCampaignPercent">0%</strong>
+        </div>
       </div>
-      <div class="completion-actions" id="taskStepButtons"></div>
+      <div class="task-steps-grid" id="taskStepButtons"></div>
+      <p class="admin-only-note">زر الاعتماد خاص بالأدمن فقط، وسيتم تعطيله تلقائيًا لليوزر العادي.</p>
     </section>
   </div>
 
+  <script src="firebase-config.js"></script>
+  <script src="routes.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

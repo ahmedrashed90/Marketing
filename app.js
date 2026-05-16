@@ -69,6 +69,21 @@ if (roleButtons.length && rolePanels.length) {
 }
 
 
+// Routes for the new marketing system version
+(function initNewRoutes() {
+  const routes = window.MZJ_ROUTES || {};
+  document.querySelectorAll('[data-route]').forEach((link) => {
+    const routeKey = link.dataset.route;
+    if (routes[routeKey]) link.setAttribute('href', routes[routeKey]);
+  });
+
+  const currentPage = (location.pathname.split('/').pop() || 'admin.html').toLowerCase();
+  document.querySelectorAll('.nav-link').forEach((link) => {
+    const href = (link.getAttribute('href') || '').split('/').pop().toLowerCase();
+    link.classList.toggle('active', href === currentPage || (currentPage === 'test.html' && href === 'admin.html'));
+  });
+})();
+
 const taskDetailsModal = document.getElementById('taskDetailsModal');
 const taskDetailsTitle = document.getElementById('taskDetailsTitle');
 const taskDetailsDept = document.getElementById('taskDetailsDept');
@@ -78,9 +93,18 @@ const modalTaskPercent = document.getElementById('modalTaskPercent');
 const modalCampaignPercent = document.getElementById('modalCampaignPercent');
 let activeTaskCard = null;
 
+function getCurrentUserRole() {
+  return localStorage.getItem('mzj_user_role') || document.body.dataset.userRole || 'user';
+}
+
+function isAdminUser() {
+  return getCurrentUserRole() === 'admin';
+}
+
 function syncTaskProgress() {
   if (!taskStepButtons) return;
-  const activeButtons = Array.from(taskStepButtons.querySelectorAll('.step-complete-btn.is-active'));
+
+  const activeButtons = Array.from(taskStepButtons.querySelectorAll('.task-step-btn.is-done'));
   const completed = activeButtons.length;
   const taskPercent = completed * 20;
   const campaignPercent = completed * 5;
@@ -105,7 +129,7 @@ function syncTaskProgress() {
 function openTaskDetails(button) {
   if (!taskDetailsModal || !taskStepButtons) return;
 
-  activeTaskCard = button.closest('.dept-card-template');
+  activeTaskCard = button.closest('[data-dept-task-card]') || button.closest('.dept-card-template');
   const selected = (activeTaskCard?.dataset.completedSteps || '').split(',').filter(Boolean);
 
   if (taskDetailsDept) taskDetailsDept.textContent = button.dataset.dept || 'تفاصيل القسم';
@@ -114,13 +138,26 @@ function openTaskDetails(button) {
 
   taskStepButtons.innerHTML = '';
   const steps = (button.dataset.steps || '').split('|').map((step) => step.trim()).filter(Boolean);
+
   steps.forEach((step, index) => {
+    const isApprovalStep = step.includes('اعتماد');
     const stepButton = document.createElement('button');
     stepButton.type = 'button';
-    stepButton.className = 'step-complete-btn';
+    stepButton.className = 'task-step-btn';
     stepButton.dataset.stepIndex = String(index);
-    if (selected.includes(String(index))) stepButton.classList.add('is-active');
-    stepButton.innerHTML = `<span>${step}</span><small>20% من التاسك · 5% من الحملة</small>`;
+    stepButton.dataset.stepValue = '20';
+    stepButton.dataset.campaignValue = '5';
+
+    if (isApprovalStep) {
+      stepButton.dataset.adminOnly = 'true';
+      if (!isAdminUser()) {
+        stepButton.disabled = true;
+        stepButton.title = 'زر الاعتماد خاص بالأدمن فقط';
+      }
+    }
+
+    if (selected.includes(String(index))) stepButton.classList.add('is-done');
+    stepButton.innerHTML = `<span>${step}</span><small>20% من التاسك<br>5% من الحملة${isApprovalStep ? '<br>أدمن فقط' : ''}</small>`;
     taskStepButtons.appendChild(stepButton);
   });
 
@@ -139,13 +176,15 @@ document.addEventListener('click', (event) => {
   const taskDetailsButton = event.target.closest('[data-open-task-details]');
   if (taskDetailsButton) openTaskDetails(taskDetailsButton);
 
-  const stepButton = event.target.closest('.step-complete-btn');
-  if (stepButton) {
-    stepButton.classList.toggle('is-active');
+  const stepButton = event.target.closest('.task-step-btn');
+  if (stepButton && !stepButton.disabled) {
+    stepButton.classList.toggle('is-done');
     syncTaskProgress();
   }
 
-  if (event.target.closest('[data-close-task-modal]')) closeTaskDetails();
+  if (event.target.closest('[data-close-task-modal]') || event.target === taskDetailsModal) {
+    closeTaskDetails();
+  }
 });
 
 document.addEventListener('keydown', (event) => {

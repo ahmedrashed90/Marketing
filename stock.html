@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>MZJ Marketing System - قاعدة البيانات</title>
+  <title>MZJ Marketing System - صفحة الاستوك</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&display=swap" rel="stylesheet">
@@ -36,46 +36,26 @@
     <div class="sidebar-card">
       <span class="status-dot"></span>
       <div>
-        <strong>Campaigns DB</strong>
-        <small>قاعدة بيانات الحملات</small>
+        <strong>STOCK</strong>
+        <small>مسار النسخة الجديدة</small>
       </div>
     </div>
   </aside>
 
-  <main class="main-shell database-main">
-    <section class="database-search-only" aria-label="بحث قاعدة البيانات">
-      <div class="database-search-card">
-        <label for="campaignSearch">بحث سريع</label>
-        <div class="search-box">
-          <input id="campaignSearch" type="search" placeholder="ابحث باسم الحملة، الكود، النوع، الهدف..." />
-          <button type="button">بحث</button>
-        </div>
+  <main class="main-shell">
+    <header class="topbar">
+      <div class="page-title">
+        <p>STOCK</p>
+        <h1>صفحة الاستوك</h1>
       </div>
-    </section>
+    </header>
 
-    <section class="workspace-card campaign-db-panel">
-      <div class="campaign-records is-empty">
-        <article class="empty-database-state">
-          <div class="empty-icon">DB</div>
-          <div>
-            <span class="eyebrow">قاعدة البيانات جاهزة</span>
-            <h4>لا توجد حملات أو أجندات مضافة حالياً</h4>
-            <p>أول ما يتم إنشاء حملة أو أجندة من السيستم، هتظهر هنا بنفس التصميم: بيانات الحملة، أقسام التشغيل، وأزرار عرض التصوير والمحتوى والتصميم والفيديو وجدول النشر والميزانية والنتائج.</p>
-          </div>
-        </article>
-      </div>
+    <section class="workspace-card empty-state-card">
+      <span class="eyebrow">NEW VERSION ROUTE</span>
+      <h2>صفحة الاستوك</h2>
+      <p>هنا هيتبني شكل ومحتوى صفحة الاستوك لما نبدأ تفاصيلها.</p>
     </section>
   </main>
-
-  <div class="details-modal" id="detailsModal" aria-hidden="true">
-    <div class="details-backdrop" data-close-modal></div>
-    <section class="details-card" role="dialog" aria-modal="true" aria-labelledby="detailsTitle">
-      <button class="modal-close" type="button" data-close-modal aria-label="إغلاق">×</button>
-      <span class="eyebrow">تفاصيل العرض</span>
-      <h3 id="detailsTitle">عرض</h3>
-      <div class="details-lines" id="detailsContent"></div>
-    </section>
-  </div>
 
   <script src="firebase-config.js"></script>
   <script src="routes.js"></script>

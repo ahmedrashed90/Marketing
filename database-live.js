@@ -1,6 +1,16 @@
 (function(){
   const FIRESTORE_TASK_COLLECTIONS = ['workspace_tasks'];
   let firestoreRecords = [];
+  let firebaseUsers = [];
+  let firebaseDepartments = [];
+
+  const DEFAULT_EDIT_DEPARTMENTS = [
+    { key: 'photography', label: 'قسم التصوير', aliases: ['photography','photo','قسم التصوير','التصوير','تصوير'] },
+    { key: 'content', label: 'قسم المحتوى', aliases: ['content','قسم المحتوى','المحتوى','كتابة المحتوى'] },
+    { key: 'design', label: 'قسم التصميم', aliases: ['design','قسم التصميم','التصميم','مصمم'] },
+    { key: 'video', label: 'قسم المونتاج', aliases: ['video','montage','قسم المونتاج','المونتاج','الفيديو','قسم الفيديو'] },
+    { key: 'publish', label: 'قسم النشر', aliases: ['publish','posting','قسم النشر','النشر'] }
+  ];
 
   const DEPARTMENT_ALIASES = {
     photography: ['photography','photo','قسم التصوير','التصوير','تصوير'],
@@ -106,6 +116,25 @@
       map.set(String(item.id), item);
     });
     return Array.from(map.values()).sort((a,b) => String(b.createdAt||'').localeCompare(String(a.createdAt||'')));
+  }
+
+  async function loadUsersAndDepartments(){
+    if(!window.firebase || !window.MZJ_FIREBASE_CONFIG || !firebase.firestore) return;
+    try{
+      if(!firebase.apps.length) firebase.initializeApp(window.MZJ_FIREBASE_CONFIG);
+      const [usersSnap, depsSnap] = await Promise.all([
+        firebase.firestore().collection('users').get(),
+        firebase.firestore().collection('departments').get().catch(() => ({ forEach: () => {} }))
+      ]);
+      const users=[];
+      usersSnap.forEach(doc => users.push({ id: doc.id, firestoreId: doc.id, ...(doc.data() || {}) }));
+      firebaseUsers = users;
+      const deps=[];
+      depsSnap.forEach(doc => deps.push({ id: doc.id, firestoreId: doc.id, ...(doc.data() || {}) }));
+      firebaseDepartments = deps;
+    }catch(err){
+      console.warn('فشل قراءة users/departments للتعديل:', err);
+    }
   }
 
   async function loadFirestoreRecords(){
@@ -245,19 +274,188 @@
 
   function escAttr(value){ return esc(value).replace(/`/g, '&#096;'); }
 
+  function userName(user){ return user.name || user.displayName || user.username || user.email || 'يوزر'; }
+  function userEmail(user){ return user.email || user.userEmail || ''; }
+  function userId(user){ return user.uid || user.id || user.firestoreId || user.docId || user.email || ''; }
+
+  function getTaskUserId(task){
+    return task.userId || task.uid || task.assigneeUid || task.assigneeId || task.memberUid || '';
+  }
+
+  function getDeptSavedMembers(deptKeyValue){
+    const def = DEFAULT_EDIT_DEPARTMENTS.find(d => d.key === deptKeyValue);
+    const aliases = [deptKeyValue, def?.label, ...(def?.aliases || [])].map(v => String(v || '').toLowerCase());
+    const dep = firebaseDepartments.find(d => {
+      const vals = [d.id, d.slug, d.key, d.name, d.label, d.departmentName].map(v => String(v || '').toLowerCase());
+      return vals.some(v => aliases.some(a => v && (v === a || v.includes(a) || a.includes(v))));
+    });
+    if(!dep) return [];
+    const arr = [];
+    ['users','members','memberUids','userIds','memberEmails'].forEach(k => {
+      if(Array.isArray(dep[k])) arr.push(...dep[k]);
+    });
+    return arr;
+  }
+
+  function usersForDepartment(deptKeyValue){
+    const savedMembers = getDeptSavedMembers(deptKeyValue);
+    if(!savedMembers.length){
+      return firebaseUsers;
+    }
+    const memberKeys = savedMembers.map(m => {
+      if(m && typeof m === 'object') return [m.uid,m.id,m.email,m.userEmail,m.name,m.displayName].filter(Boolean).map(x => String(x).toLowerCase());
+      return [String(m).toLowerCase()];
+    }).flat();
+    const selected = firebaseUsers.filter(u => {
+      const vals = [userId(u), userEmail(u), userName(u)].filter(Boolean).map(v => String(v).toLowerCase());
+      return vals.some(v => memberKeys.includes(v));
+    });
+    return selected.length ? selected : firebaseUsers;
+  }
+
+  function userOptionsHtml(users, selectedTask){
+    const selectedEmail = String(selectedTask?.userEmail || selectedTask?.assigneeEmail || '').toLowerCase();
+    const selectedId = String(getTaskUserId(selectedTask || {}) || '').toLowerCase();
+    const options = ['<option value="">اختار اليوزر</option>'];
+    users.forEach(u => {
+      const id = userId(u);
+      const email = userEmail(u);
+      const name = userName(u);
+      const selected = (selectedEmail && String(email).toLowerCase() === selectedEmail) || (selectedId && String(id).toLowerCase() === selectedId) ? ' selected' : '';
+      options.push(`<option value="${escAttr(id)}" data-name="${escAttr(name)}" data-email="${escAttr(email)}"${selected}>${esc(name)}${email ? ' — ' + esc(email) : ''}</option>`);
+    });
+    return options.join('');
+  }
+
+  function taskForEditDepartment(tasks, deptKeyValue){
+    return tasks.find(t => deptKey(t) === deptKeyValue) || null;
+  }
+
+  function editKindFromDeptKey(deptKeyValue){
+    if(deptKeyValue === 'video') return 'montage';
+    return deptKeyValue;
+  }
+
+  function selectedTitlesFromTask(task){
+    const pools = [];
+    if(Array.isArray(task?.deliverables)) pools.push(task.deliverables);
+    if(Array.isArray(task?.selectedDeliverables)) pools.push(task.selectedDeliverables);
+    if(Array.isArray(task?.specialDetails?.deliverables)) pools.push(task.specialDetails.deliverables);
+    if(Array.isArray(task?.special?.deliverables)) pools.push(task.special.deliverables);
+    return pools.flat().map(item => String(item?.title || item?.name || item?.value || item || '').trim()).filter(Boolean);
+  }
+
+  function renderEditChoiceCards(pairs, attrName, selectedTitles){
+    const selected = new Set((selectedTitles || []).map(x => String(x).trim()));
+    return pairs.map(([title, desc]) => {
+      const isChecked = selected.has(title) ? ' checked' : '';
+      return `<label class="multi-choice-card db-edit-choice-card${isChecked ? ' is-selected' : ''}">
+        <input type="checkbox" ${attrName} value="${escAttr(title)}" data-title="${escAttr(title)}" data-desc="${escAttr(desc)}"${isChecked}>
+        <span class="multi-choice-title">${esc(title)}</span>
+        <small>${esc(desc)}</small>
+      </label>`;
+    }).join('');
+  }
+
+  function photographyItemsFromTask(task){
+    const raw = Array.isArray(task?.items) ? task.items :
+      (Array.isArray(task?.photoItems) ? task.photoItems :
+      (Array.isArray(task?.specialDetails?.items) ? task.specialDetails.items : []));
+    const cleaned = raw.map(item => ({
+      carType: item?.carType || item?.vehicleType || item?.car || '',
+      contentType: item?.contentType || item?.type || item?.content || ''
+    })).filter(item => item.carType || item.contentType);
+    return cleaned.length ? cleaned : [{ carType: '', contentType: '' }];
+  }
+
+  function renderPhotoEditItem(item){
+    return `<article class="photo-item-row db-edit-photo-row" data-edit-photo-item>
+      <label class="mzj-field"><span>نوع السيارة</span><input type="text" data-edit-photo-car-type value="${escAttr(item?.carType || '')}" placeholder="مثال: هيونداي / النترا"></label>
+      <label class="mzj-field"><span>نوع المحتوى</span><select data-edit-photo-content-type>${PHOTOGRAPHY_CONTENT_TYPES.map(t => `<option value="${escAttr(t)}"${String(item?.contentType || '') === t ? ' selected' : ''}>${esc(t)}</option>`).join('')}</select></label>
+      <button class="soft-danger-btn db-edit-photo-remove" type="button" data-edit-remove-photo-item>مسح</button>
+    </article>`;
+  }
+
+  function renderEditRequirementsFields(deptKeyValue, task){
+    const kind = editKindFromDeptKey(deptKeyValue);
+    if(kind === 'photography'){
+      return `<div class="dept-special-fields db-edit-required-fields" data-edit-special-kind="photography">
+        <div class="dept-special-head">
+          <strong>المطلوب</strong>
+          <button class="soft-btn" type="button" data-edit-add-photo-item>+ إضافة مطلوب تصوير</button>
+        </div>
+        <div class="photo-items-list" data-edit-photo-items-list>
+          ${photographyItemsFromTask(task).map(renderPhotoEditItem).join('')}
+        </div>
+      </div>`;
+    }
+    if(kind === 'design'){
+      return `<div class="dept-special-fields db-edit-required-fields" data-edit-special-kind="design">
+        <div class="dept-special-head"><strong>المطلوب</strong><span class="department-hint-inline">اختار مطلوب واحد أو أكتر من التصميم</span></div>
+        <div class="multi-choice-grid" data-edit-design-choices>${renderEditChoiceCards(DESIGN_DELIVERABLES, 'data-edit-design-deliverable', selectedTitlesFromTask(task))}</div>
+        <label class="mzj-field full-width-field"><span>ملاحظات إضافية</span><textarea data-edit-required-text rows="3" placeholder="اكتب أي تفاصيل إضافية للتصميم">${esc(task.notes || task.specialDetails?.notes || task.requiredNotes || '')}</textarea></label>
+      </div>`;
+    }
+    if(kind === 'montage'){
+      return `<div class="dept-special-fields db-edit-required-fields" data-edit-special-kind="montage">
+        <div class="dept-special-head"><strong>المطلوب</strong><span class="department-hint-inline">اختار مطلوب واحد أو أكتر من المونتاج</span></div>
+        <div class="multi-choice-grid" data-edit-montage-choices>${renderEditChoiceCards(MONTAGE_DELIVERABLES, 'data-edit-montage-deliverable', selectedTitlesFromTask(task))}</div>
+        <label class="mzj-field full-width-field"><span>ملاحظات إضافية</span><textarea data-edit-required-text rows="3" placeholder="اكتب أي تفاصيل إضافية للمونتاج">${esc(task.notes || task.specialDetails?.notes || task.requiredNotes || '')}</textarea></label>
+      </div>`;
+    }
+    return `<label class="mzj-field full-width-field db-edit-required-fields" data-edit-special-kind="${escAttr(kind)}"><span>المطلوب</span><textarea rows="3" data-edit-required-text placeholder="اكتب شرح المطلوب من القسم">${esc(task.requiredText || task.notes || '')}</textarea></label>`;
+  }
+
+  function collectEditRequirements(row, deptKeyValue){
+    const kind = editKindFromDeptKey(deptKeyValue);
+    if(kind === 'photography'){
+      const items = Array.from(row.querySelectorAll('[data-edit-photo-item]')).map(item => ({
+        carType: item.querySelector('[data-edit-photo-car-type]')?.value.trim() || '',
+        contentType: item.querySelector('[data-edit-photo-content-type]')?.value || ''
+      })).filter(item => item.carType || item.contentType);
+      return {
+        kind,
+        items,
+        specialDetails: { kind, items },
+        requiredText: items.map(item => [item.carType ? `نوع السيارة: ${item.carType}` : '', item.contentType ? `نوع المحتوى: ${item.contentType}` : ''].filter(Boolean).join(' — ')).join(' | ')
+      };
+    }
+    if(kind === 'design' || kind === 'montage'){
+      const selector = kind === 'design' ? '[data-edit-design-deliverable]:checked' : '[data-edit-montage-deliverable]:checked';
+      const selected = Array.from(row.querySelectorAll(selector)).map(item => ({
+        title: item.dataset.title || item.value || '',
+        details: item.dataset.desc || ''
+      })).filter(item => item.title || item.details);
+      const notes = row.querySelector('[data-edit-required-text]')?.value.trim() || '';
+      return {
+        kind,
+        deliverables: selected,
+        selectedDeliverables: selected,
+        specialDetails: { kind, deliverables: selected, notes },
+        deliverable: selected.map(item => item.title).join('، '),
+        deliveryDetails: selected.map(item => [item.title, item.details].filter(Boolean).join(': ')).join(' | '),
+        notes,
+        requiredText: [selected.map(item => [item.title, item.details].filter(Boolean).join(': ')).join(' | '), notes].filter(Boolean).join(' — ')
+      };
+    }
+    const notes = row.querySelector('[data-edit-required-text]')?.value.trim() || '';
+    return { kind, notes, specialDetails: { kind, notes }, requiredText: notes };
+  }
+
   function renderEditDepartmentRows(record){
     const tasks = Array.isArray(record.departmentTasks) ? record.departmentTasks : [];
-    if(!tasks.length) return '<p class="db-empty-line">لا توجد أقسام محفوظة داخل هذه الحملة.</p>';
-    return tasks.map((task, idx) => {
-      const kind = deptKey(task);
-      return `<article class="db-edit-dept-row" data-edit-dept-index="${idx}">
+    return DEFAULT_EDIT_DEPARTMENTS.map((dept, idx) => {
+      const task = taskForEditDepartment(tasks, dept.key) || {};
+      const active = !!taskForEditDepartment(tasks, dept.key);
+      const users = usersForDepartment(dept.key);
+      return `<article class="db-edit-dept-row ${active ? 'is-active' : ''}" data-edit-dept-index="${idx}" data-edit-dept-key="${escAttr(dept.key)}" data-edit-dept-label="${escAttr(dept.label)}">
         <div class="db-edit-dept-title">
-          <strong>${esc(departmentLabel(task))}</strong>
-          <small>${esc(kind)}</small>
+          <label class="db-edit-dept-check"><input type="checkbox" data-edit-dept-enabled ${active ? 'checked' : ''}> <strong>${esc(dept.label)}</strong></label>
+          <small>${esc(dept.key)}</small>
         </div>
         <div class="db-edit-grid db-edit-dept-grid">
-          <label class="mzj-field"><span>اسم المسؤول</span><input type="text" data-edit-user-name value="${escAttr(personLabel(task) === '--' ? '' : personLabel(task))}"></label>
-          <label class="mzj-field"><span>إيميل المسؤول</span><input type="email" data-edit-user-email value="${escAttr(task.userEmail || task.assigneeEmail || '')}"></label>
+          <label class="mzj-field"><span>اسم المسؤول</span><select data-edit-user-select>${userOptionsHtml(users, task)}</select></label>
+          <label class="mzj-field"><span>إيميل المسؤول</span><input type="email" data-edit-user-email value="${escAttr(task.userEmail || task.assigneeEmail || '')}" placeholder="يتحدد تلقائيًا من اليوزر"></label>
           <label class="mzj-field"><span>تاريخ الاستلام</span><input type="date" data-edit-receive-date value="${escAttr(dateForInput(taskReceiveDate(task)))}"></label>
           <label class="mzj-field"><span>التاريخ المطلوب</span><input type="date" data-edit-required-date value="${escAttr(dateForInput(taskRequiredDate(task, record)))}"></label>
           <label class="mzj-field"><span>تاريخ التسليم</span><input type="date" data-edit-delivery-date value="${escAttr(dateForInput(taskDeliveryDate(task)))}"></label>
@@ -275,7 +473,8 @@
     modal.style.display = '';
   }
 
-  function openDbEdit(recordId){
+  async function openDbEdit(recordId){
+    if(!firebaseUsers.length){ await loadUsersAndDepartments(); }
     const record = loadRecords().find(r => String(r.id) === String(recordId));
     if(!record) return;
     const modal = document.getElementById('dbEditModal');
@@ -305,29 +504,45 @@
     const note = document.getElementById('dbEditNote');
     if(!target){ if(note) note.textContent = '⚠️ لم يتم العثور على الحملة.'; return; }
 
-    const editedDepartmentTasks = Array.isArray(target.departmentTasks) ? target.departmentTasks.map((task, idx) => {
-      const row = document.querySelector(`[data-edit-dept-index="${idx}"]`);
-      if(!row) return task;
-      const name = row.querySelector('[data-edit-user-name]')?.value.trim() || '';
-      const email = row.querySelector('[data-edit-user-email]')?.value.trim() || '';
+    const existingTasks = Array.isArray(target.departmentTasks) ? target.departmentTasks : [];
+    const editedDepartmentTasks = Array.from(document.querySelectorAll('.db-edit-dept-row')).map((row) => {
+      const enabled = row.querySelector('[data-edit-dept-enabled]')?.checked;
+      if(!enabled) return null;
+      const deptKeyValue = row.dataset.editDeptKey || '';
+      const deptLabel = row.dataset.editDeptLabel || '';
+      const oldTask = taskForEditDepartment(existingTasks, deptKeyValue) || {};
+      const select = row.querySelector('[data-edit-user-select]');
+      const selected = select?.selectedOptions?.[0];
+      const uid = select?.value || oldTask.userId || oldTask.uid || oldTask.assigneeUid || '';
+      const name = selected?.dataset?.name || oldTask.userName || oldTask.assigneeName || '';
+      const email = row.querySelector('[data-edit-user-email]')?.value.trim() || selected?.dataset?.email || oldTask.userEmail || oldTask.assigneeEmail || '';
       const receiveDate = row.querySelector('[data-edit-receive-date]')?.value || '';
       const requiredDate = row.querySelector('[data-edit-required-date]')?.value || '';
       const deliveryDate = row.querySelector('[data-edit-delivery-date]')?.value || '';
-      const requiredText = row.querySelector('[data-edit-required-text]')?.value.trim() || '';
+      const requirements = collectEditRequirements(row, deptKeyValue);
+      const requiredText = requirements.requiredText || '';
       return {
-        ...task,
-        userName: name || task.userName || task.assigneeName || '',
-        assigneeName: name || task.assigneeName || task.userName || '',
-        userDisplayName: name || task.userDisplayName || task.userName || '',
-        userEmail: email || task.userEmail || task.assigneeEmail || '',
-        assigneeEmail: email || task.assigneeEmail || task.userEmail || '',
+        ...oldTask,
+        ...requirements,
+        departmentKey: deptKeyValue,
+        departmentId: deptKeyValue,
+        departmentName: deptLabel,
+        department: deptLabel,
+        userId: uid,
+        uid,
+        assigneeUid: uid,
+        userName: name,
+        assigneeName: name,
+        userDisplayName: name,
+        userEmail: email,
+        assigneeEmail: email,
         receiveDate,
-        receivedAt: receiveDate || task.receivedAt || '',
+        receivedAt: receiveDate || oldTask.receivedAt || '',
         requiredDate,
         deliveryDate,
         requiredText
       };
-    }) : [];
+    }).filter(Boolean);
 
     const taskType = document.getElementById('dbEditTaskType')?.value || 'campaign';
     const payload = {
@@ -345,6 +560,9 @@
       campaignEndDate: document.getElementById('dbEditEndDate')?.value || '',
       endDate: document.getElementById('dbEditEndDate')?.value || '',
       departmentTasks: editedDepartmentTasks,
+      assignedDepartments: editedDepartmentTasks,
+      assigneeUids: editedDepartmentTasks.map(t => t.uid || t.userId || t.assigneeUid).filter(Boolean),
+      assigneeEmails: editedDepartmentTasks.map(t => t.userEmail || t.assigneeEmail).filter(Boolean),
       updatedAt: new Date().toISOString()
     };
 
@@ -405,10 +623,10 @@
     }).join('')}</tbody></table></div>`;
   }
 
-  window.openDatabaseEditCampaign = function(recordId){
+  window.openDatabaseEditCampaign = async function(recordId){
     try{
       if(!recordId){ alert('لم يتم العثور على رقم الحملة للتعديل.'); return; }
-      openDbEdit(recordId);
+      await openDbEdit(recordId);
       const modal = document.getElementById('dbEditModal');
       if(modal){
         modal.classList.add('is-open');
@@ -434,7 +652,17 @@
       e.preventDefault();
       e.stopPropagation();
       const rid = editBtn.dataset.editRecord || editBtn.closest('tr')?.dataset.recordId || '';
-      window.openDatabaseEditCampaign ? window.openDatabaseEditCampaign(rid) : openDbEdit(rid);
+      if(window.openDatabaseEditCampaign) await window.openDatabaseEditCampaign(rid); else await openDbEdit(rid);
+      return;
+    }
+    const userSelect = e.target.closest('[data-edit-user-select]');
+    if(userSelect){
+      const opt = userSelect.selectedOptions?.[0];
+      const row = userSelect.closest('.db-edit-dept-row');
+      const emailInput = row?.querySelector('[data-edit-user-email]');
+      if(emailInput && opt?.dataset?.email) emailInput.value = opt.dataset.email;
+      const enabled = row?.querySelector('[data-edit-dept-enabled]');
+      if(enabled) enabled.checked = true;
       return;
     }
     const closeEditBtn = e.target.closest('[data-close-db-edit]');
@@ -453,7 +681,7 @@
 
   document.addEventListener('DOMContentLoaded', () => {
     render();
-    loadFirestoreRecords();
+    loadUsersAndDepartments().then(loadFirestoreRecords);
     const search = document.getElementById('campaignSearch');
     if(search) search.addEventListener('input', render);
     const editForm = document.getElementById('dbEditForm');

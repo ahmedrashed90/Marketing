@@ -50,28 +50,52 @@
   }
 
   async function getFirestoreUser(email){
-    if (!window.firebase || !window.MZJ_FIREBASE_CONFIG) return null;
+    if (!window.firebase || !window.MZJ_FIREBASE_CONFIG) return { user: null, error: 'firebase-sdk-missing' };
+    const wantedEmail = String(email || '').trim().toLowerCase();
     try {
       if (!firebase.apps.length) firebase.initializeApp(window.MZJ_FIREBASE_CONFIG);
       const db = firebase.firestore();
       for (const collectionName of [USER_COLLECTION, LEGACY_USER_COLLECTION]) {
-        const snap = await db.collection(collectionName).where('email','==', email).limit(1).get();
-        if (!snap.empty) {
-          const doc = snap.docs[0];
-          const user = normalizeUserDoc(doc.data() || {}, doc.id, email);
-          user.collectionName = collectionName;
-          user.source = 'firestore:' + collectionName;
-          return user;
+        // 1) Fast exact query on the email field.
+        try {
+          const exactSnap = await db.collection(collectionName).where('email','==', email).limit(1).get();
+          if (!exactSnap.empty) {
+            const doc = exactSnap.docs[0];
+            const user = normalizeUserDoc(doc.data() || {}, doc.id, email);
+            user.collectionName = collectionName;
+            user.source = 'firestore:' + collectionName;
+            return { user, error: null };
+          }
+        } catch(queryErr) {
+          // If where queries are blocked by rules, try a direct list below. If list is also blocked, we surface the error.
+          console.warn('Firestore exact query failed:', queryErr);
         }
+
+        // 2) Full collection scan fallback: supports old users with email casing differences or alternate fields.
+        const snap = await db.collection(collectionName).get();
+        let matched = null;
+        snap.forEach((doc) => {
+          if (matched) return;
+          const data = doc.data() || {};
+          const possibleEmails = [data.email, data.mail, data.userEmail, data.username]
+            .filter(Boolean)
+            .map(v => String(v).trim().toLowerCase());
+          if (possibleEmails.includes(wantedEmail)) {
+            matched = normalizeUserDoc(data, doc.id, email);
+            matched.collectionName = collectionName;
+            matched.source = 'firestore:' + collectionName;
+          }
+        });
+        if (matched) return { user: matched, error: null };
       }
-      return null;
+      return { user: null, error: null };
     } catch (err) {
-      console.warn('Firestore user login fallback:', err);
-      return null;
+      console.warn('Firestore users login failed:', err);
+      return { user: null, error: err };
     }
   }
 
-  window.MZJAuth = { getUser, logout, users: TEST_USERS, getFirestoreUser, loadLocalManagedUsers, normalizeRole, normalizeUserDoc, USER_COLLECTION };
+  window.MZJAuth = { getUser, logout, users: TEST_USERS, getFirestoreUser, loadLocalManagedUsers, normalizeRole, normalizeUserDoc, USER_COLLECTION, LEGACY_USER_COLLECTION };
 
   document.addEventListener('DOMContentLoaded', function(){
     const page = location.pathname.split('/').pop() || 'login.html';
@@ -98,9 +122,15 @@
         const email = (document.getElementById('loginEmail')?.value || '').trim();
         const password = document.getElementById('loginPassword')?.value || '';
         const msg = document.getElementById('loginMessage');
-        if (msg) msg.textContent = 'جاري البحث في مسار user...';
+        if (msg) msg.textContent = 'جاري البحث في مسار users...';
 
-        let found = await getFirestoreUser(email);
+        const firestoreResult = await getFirestoreUser(email);
+        if (firestoreResult && firestoreResult.error && firestoreResult.error !== 'firebase-sdk-missing') {
+          const code = firestoreResult.error.code || firestoreResult.error.message || firestoreResult.error;
+          if(msg) msg.textContent = 'فشل قراءة مسار users من Firebase: ' + code + ' — راجع قواعد Firestore أو الصلاحيات.';
+          return;
+        }
+        let found = firestoreResult ? firestoreResult.user : null;
         if (found) {
           const savedPassword = found.password || '123456';
           if (String(savedPassword) !== String(password)) {
@@ -117,7 +147,7 @@
         }
 
         if (!found) found = TEST_USERS.find(u => u.email.toLowerCase() === email.toLowerCase() && u.password === password);
-        if (!found) { if(msg) msg.textContent = 'الحساب غير موجود في مسار user أو كلمة المرور غير صحيحة.'; return; }
+        if (!found) { if(msg) msg.textContent = 'الحساب غير موجود في مسار users أو كلمة المرور غير صحيحة.'; return; }
         setUser({ id: found.id || '', email: found.email, name: found.name || found.email, role: normalizeRole(found.role), department: found.department || '', pagesAccess: found.pagesAccess || [], loginAt: new Date().toISOString(), source: found.source || 'local', collectionName: found.collectionName || USER_COLLECTION });
         location.href = 'dashboard.html';
       });

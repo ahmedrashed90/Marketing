@@ -82,7 +82,7 @@
   function renderUserChecks(selected=[]){
     const box = $('#departmentUsersPicker'); if(!box) return;
     const selectedKeys = new Set((selected||[]).map(u=>String(u.email||u.id||u.name).toLowerCase()));
-    if(!currentUsers.length){ box.innerHTML = '<p class="template-empty">مفيش يوزرات ظاهرة من مسار user. أضف اليوزرات من صفحة الإدارة أو تأكد من قواعد Firebase.</p>'; return; }
+    if(!currentUsers.length){ box.innerHTML = '<p class="template-empty">مفيش يوزرات ظاهرة من مسار users. أضف اليوزرات من صفحة الإدارة أو تأكد من قواعد Firebase.</p>'; return; }
     box.innerHTML = currentUsers.map(u=>{
       const key = String(u.email||u.id||u.name).toLowerCase();
       return `<label class="permission-chip department-user-chip"><input type="checkbox" value="${esc(key)}" ${selectedKeys.has(key)?'checked':''}><span>${esc(u.label)}</span></label>`;

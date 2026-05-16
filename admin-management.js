@@ -82,7 +82,7 @@
       if(!user.pagesAccess.length && user.role !== 'admin'){ alert('اختار صفحة واحدة على الأقل لليوزر'); return; }
       try{ const id = await addFirestoreUser(user); if(id) user.id=id; }catch(err){ console.warn(err); }
       const users=load().filter(u=>u.email!==user.email); users.push(user); save(users);
-      $('#adminUserForm').reset(); renderChecks(); await renderUsers(); alert('تم حفظ اليوزر في مسار user وتجهيز صلاحيات الصفحات');
+      $('#adminUserForm').reset(); renderChecks(); await renderUsers(); alert('تم حفظ اليوزر في مسار users وتجهيز صلاحيات الصفحات');
     });
   }
   document.addEventListener('DOMContentLoaded',init);

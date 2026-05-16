@@ -499,7 +499,7 @@ async function loadUsersFromSystemPath() {
       const snap = await firebase.firestore().collection('users').get();
       snap.forEach((doc) => collected.push(normalizeSystemUser({ id: doc.id, ...(doc.data() || {}) })));
     } catch (error) {
-      console.warn('user path fallback:', error);
+      console.warn('users path fallback:', error);
     }
   }
 

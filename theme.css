@@ -1892,3 +1892,180 @@ body[data-user-role="marketing_manager"] [data-role-panel="user"]{display:none!i
   .platform-budget-row input[type="number"] { width: 100%; }
   .platforms-form .compact-grid { grid-template-columns: 1fr; }
 }
+
+/* Full screen create campaign/agenda modal - final override */
+body:has(#createTaskModal.is-open) {
+  overflow: hidden !important;
+}
+
+#createTaskModal,
+.task-details-modal.create-task-modal,
+.create-task-modal {
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  max-width: none !important;
+  max-height: none !important;
+  min-width: 100vw !important;
+  min-height: 100vh !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  z-index: 99999 !important;
+  background: rgba(33, 18, 15, .74) !important;
+  place-items: stretch !important;
+  align-items: stretch !important;
+  justify-content: stretch !important;
+}
+
+#createTaskModal.is-open,
+.task-details-modal.create-task-modal.is-open,
+.create-task-modal.is-open {
+  display: flex !important;
+}
+
+#createTaskModal .task-details-dialog,
+#createTaskModal .create-task-dialog,
+#createTaskModal .create-task-wide,
+.task-details-modal.create-task-modal .task-details-dialog,
+.create-task-modal .task-details-dialog,
+.create-task-modal .create-task-dialog,
+.create-task-modal .create-task-wide {
+  width: 100vw !important;
+  height: 100vh !important;
+  max-width: none !important;
+  max-height: none !important;
+  min-width: 100vw !important;
+  min-height: 100vh !important;
+  margin: 0 !important;
+  border-radius: 0 !important;
+  padding: 28px 42px 110px !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  box-shadow: none !important;
+  background: var(--cream) !important;
+}
+
+#createTaskModal .task-details-head,
+.create-task-modal .task-details-head {
+  position: sticky !important;
+  top: -28px !important;
+  z-index: 20 !important;
+  background: var(--cream) !important;
+  padding-top: 18px !important;
+  margin: -28px -42px 24px !important;
+  padding-inline: 42px !important;
+  border-bottom: 1px solid rgba(62, 36, 32, .11) !important;
+}
+
+#createTaskModal .modal-close-btn,
+.create-task-modal .modal-close-btn {
+  flex: 0 0 auto !important;
+  width: 52px !important;
+  height: 52px !important;
+  border-radius: 18px !important;
+  font-size: 22px !important;
+}
+
+#createTaskModal .create-task-form,
+.create-task-modal .create-task-form {
+  width: 100% !important;
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+#createTaskModal .create-task-section,
+.create-task-modal .create-task-section,
+#createTaskModal .budget-builder-card,
+.create-task-modal .budget-builder-card {
+  width: 100% !important;
+  max-width: none !important;
+}
+
+#createTaskModal .create-task-grid,
+.create-task-modal .create-task-grid,
+#createTaskModal .budget-fields-grid,
+.create-task-modal .budget-fields-grid {
+  grid-template-columns: repeat(3, minmax(220px, 1fr)) !important;
+}
+
+#createTaskModal .template-preview-box,
+.create-task-modal .template-preview-box {
+  min-height: 210px !important;
+}
+
+#createTaskModal .task-form-actions,
+#createTaskModal .create-task-actions,
+#createTaskModal .modal-actions,
+.create-task-modal .task-form-actions,
+.create-task-modal .create-task-actions,
+.create-task-modal .modal-actions {
+  position: fixed !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  z-index: 30 !important;
+  display: flex !important;
+  justify-content: space-between !important;
+  gap: 12px !important;
+  padding: 18px 42px !important;
+  background: rgba(255, 248, 239, .96) !important;
+  border-top: 1px solid rgba(62, 36, 32, .10) !important;
+  backdrop-filter: blur(12px) !important;
+}
+
+#createTaskModal .department-accordion-row,
+.create-task-modal .department-accordion-row {
+  border-radius: 24px !important;
+}
+
+#createTaskModal .department-task-body,
+.create-task-modal .department-task-body {
+  padding: 18px !important;
+}
+
+@media (max-width: 1100px) {
+  #createTaskModal .create-task-grid,
+  .create-task-modal .create-task-grid,
+  #createTaskModal .budget-fields-grid,
+  .create-task-modal .budget-fields-grid {
+    grid-template-columns: repeat(2, minmax(180px, 1fr)) !important;
+  }
+}
+
+@media (max-width: 760px) {
+  #createTaskModal .task-details-dialog,
+  #createTaskModal .create-task-dialog,
+  #createTaskModal .create-task-wide,
+  .task-details-modal.create-task-modal .task-details-dialog,
+  .create-task-modal .task-details-dialog,
+  .create-task-modal .create-task-dialog,
+  .create-task-modal .create-task-wide {
+    padding: 20px 16px 110px !important;
+  }
+
+  #createTaskModal .task-details-head,
+  .create-task-modal .task-details-head {
+    top: -20px !important;
+    margin: -20px -16px 18px !important;
+    padding-inline: 16px !important;
+  }
+
+  #createTaskModal .create-task-grid,
+  .create-task-modal .create-task-grid,
+  #createTaskModal .budget-fields-grid,
+  .create-task-modal .budget-fields-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  #createTaskModal .task-form-actions,
+  #createTaskModal .create-task-actions,
+  #createTaskModal .modal-actions,
+  .create-task-modal .task-form-actions,
+  .create-task-modal .create-task-actions,
+  .create-task-modal .modal-actions {
+    padding: 14px 16px !important;
+    flex-direction: column-reverse !important;
+  }
+}

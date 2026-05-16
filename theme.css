@@ -1753,3 +1753,26 @@ body[data-user-role="marketing_manager"] [data-role-panel="user"]{display:none!i
 .receive-task-btn {
   min-width: 110px;
 }
+
+/* Clear labels inside user dashboard task cards */
+.labeled-task-meta {
+  display: grid;
+  gap: 8px;
+}
+.labeled-task-meta span {
+  display: flex !important;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+}
+.labeled-task-meta small {
+  color: var(--muted);
+  font-weight: 800;
+  font-size: 12px;
+}
+.labeled-task-meta strong {
+  color: var(--brown-900);
+  font-weight: 900;
+  font-size: 13px;
+}

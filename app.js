@@ -851,7 +851,9 @@ initCreateTaskFromTemplate();
         receiveDate: d.receiveDate || d.receivedAt || d.startDate || '',
         requiredDate: d.requiredDate || d.deadline || d.dueDate || '',
         deliveryDate: d.deliveryDate || d.deliveredAt || d.completedAt || '',
-        receivedConfirmed: Boolean(d.receivedConfirmed || d.confirmed || d.received),
+        receivedAt: d.receivedAt || '',
+        receivedBy: d.receivedBy || '',
+        receivedConfirmed: Boolean(d.receivedConfirmed || d.confirmed || d.received || d.receivedAt),
         attachmentLabel: d.attachmentLabel || d.attachment || d.fileName || '',
         requiredText: d.requiredText || d.description || d.details || d.required || ''
       })),
@@ -982,13 +984,13 @@ initCreateTaskFromTemplate();
   }
   function requiredCard(task){
     const receipt = taskReceiptProgress(task);
-    const receivedCount = (task.departmentTasks || []).filter((d) => d.receivedConfirmed || d.receivedAt).length;
-    const totalCount = (task.departmentTasks || []).length || 0;
+    const receivedCount = (task.departmentTasks || []).filter((d) => Boolean(d.receivedConfirmed || d.received || d.receivedAt)).length;
+    const totalCount = (task.departmentTasks || []).filter((d) => d && d.enabled !== false).length || 0;
     return `<article class="task-template-card dynamic-dashboard-card" data-dash-task-id="${esc(task.id)}">
       <div class="task-template-top"><strong>${esc(taskTitle(task))}</strong><span>${meta(task)}</span></div>
       <div class="department-progress-row"><div class="department-progress-box"><small>نسبة تم الاستلام</small><strong>${receipt}%</strong></div><div class="department-progress-box"><small>الأقسام المستلمة</small><strong>${receivedCount} / ${totalCount}</strong></div></div>
       <div class="mini-progress"><span style="width:${receipt}%"></span></div>
-      <div class="receipt-strip">${(task.departmentTasks||[]).map(d=>`<span class="${(d.receivedConfirmed || d.receivedAt) ? 'is-done' : ''}">${esc(d.departmentName || 'قسم')} — ${(d.receivedConfirmed || d.receivedAt) ? 'تم الاستلام' : 'لم يتم الاستلام'}</span>`).join('')}</div>
+      <div class="receipt-strip">${(task.departmentTasks||[]).map(d=>`<span class="${(d.receivedConfirmed || d.received || d.receivedAt) ? 'is-done' : ''}">${esc(d.departmentName || 'قسم')} — ${(d.receivedConfirmed || d.received || d.receivedAt) ? 'تم الاستلام' : 'لم يتم الاستلام'}</span>`).join('')}</div>
       <div class="task-card-actions"><button class="danger-btn" type="button" data-delete-task="${esc(task.id)}" data-admin-only>مسح الحملة</button></div><div class="task-empty-note">المطلوب يختفي من هنا تلقائياً لما كل الأقسام تضغط تم الاستلام.</div>
     </article>`;
   }
@@ -1029,10 +1031,16 @@ initCreateTaskFromTemplate();
     const selected = ((task.readiness || {})[key] || []).join(',');
     return `<article class="department-task-card dynamic-dashboard-card" data-dept-task-card data-task-id="${esc(task.id)}" data-readiness-key="${esc(key)}" data-completed-steps="${esc(selected)}">
       <div class="task-template-top"><strong>${esc(taskTitle(task))}</strong><span>${meta(task)}</span></div>
-      <div class="department-task-meta"><span>${esc(deptTask.userDisplayName || deptTask.userName || deptTask.userEmail || 'بدون مسؤول')}</span><span>${esc(deptTask.receiveDate || '—')}</span><span>${esc(deptTask.requiredDate || '—')}</span><span>${esc(deptTask.deliveryDate || '—')}</span><span>—</span></div>
+      <div class="department-task-meta labeled-task-meta">
+        <span><small>المسؤول</small><strong>${esc(deptTask.userDisplayName || deptTask.userName || deptTask.userEmail || 'بدون مسؤول')}</strong></span>
+        <span><small>تاريخ الاستلام</small><strong>${esc(deptTask.receiveDate || '—')}</strong></span>
+        <span><small>التاريخ المطلوب</small><strong>${esc(deptTask.requiredDate || '—')}</strong></span>
+        <span><small>تاريخ التسليم</small><strong>${esc(deptTask.deliveryDate || '—')}</strong></span>
+        <span><small>حالة الاستلام</small><strong>${(deptTask.receivedConfirmed || deptTask.received || deptTask.receivedAt) ? 'تم الاستلام' : 'لم يتم الاستلام'}</strong></span>
+      </div>
       <div class="department-progress-row"><div class="department-progress-box"><small>اكتمال التاسك</small><strong data-task-percent>${p}%</strong></div><div class="department-progress-box"><small>نسبة الحملة</small><strong data-campaign-percent>${Math.round(p / Math.max((task.departmentTasks||[]).length,1))}%</strong></div></div>
       <div class="mini-progress"><span data-task-bar style="width:${p}%"></span></div>
-      <div class="task-card-actions"><button class="details-btn" type="button" data-open-task-details data-dept-key="${esc(dkey)}" data-dept="${esc(deptTask.departmentName || 'قسم')}" data-task-title="${esc(taskTitle(task))}" data-required="${esc(deptTask.requiredText || 'لا يوجد مطلوب مكتوب')}" data-steps="${esc(steps)}">تفاصيل</button><button class="soft-btn receive-task-btn ${(deptTask.receivedConfirmed || deptTask.receivedAt) ? 'is-done' : ''}" type="button" data-receive-task data-task-id="${esc(task.id)}" data-dept-identity="${esc(deptIdentity(deptTask))}" ${(deptTask.receivedConfirmed || deptTask.receivedAt) ? 'disabled' : ''}>${(deptTask.receivedConfirmed || deptTask.receivedAt) ? 'تم الاستلام' : 'تم الاستلام'}</button></div>
+      <div class="task-card-actions"><button class="details-btn" type="button" data-open-task-details data-dept-key="${esc(dkey)}" data-dept="${esc(deptTask.departmentName || 'قسم')}" data-task-title="${esc(taskTitle(task))}" data-required="${esc(deptTask.requiredText || 'لا يوجد مطلوب مكتوب')}" data-steps="${esc(steps)}">تفاصيل</button><button class="soft-btn receive-task-btn ${(deptTask.receivedConfirmed || deptTask.received || deptTask.receivedAt) ? 'is-done' : ''}" type="button" data-receive-task data-task-id="${esc(task.id)}" data-dept-identity="${esc(deptIdentity(deptTask))}" ${(deptTask.receivedConfirmed || deptTask.received || deptTask.receivedAt) ? 'disabled' : ''}>${(deptTask.receivedConfirmed || deptTask.received || deptTask.receivedAt) ? 'تم الاستلام' : 'تم الاستلام'}</button></div>
     </article>`;
   }
 
@@ -1114,9 +1122,13 @@ initCreateTaskFromTemplate();
       return;
     }
     dept.receivedConfirmed = true;
+    dept.received = true;
     dept.receivedAt = new Date().toISOString();
     dept.receivedBy = current?.email || current?.uid || current?.id || current?.name || '';
     task.receiptProgress = taskReceiptProgress(task);
+    task.receiveProgress = task.receiptProgress;
+    task.receiveDoneCount = (task.departmentTasks || []).filter((d) => Boolean(d.receivedConfirmed || d.received || d.receivedAt)).length;
+    task.receiveTotalCount = (task.departmentTasks || []).filter((d) => d && d.enabled !== false).length;
     try {
       await saveTaskToFirestore(task);
       window.renderDashboardTasks();

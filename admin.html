@@ -54,6 +54,7 @@
       <form id="adminUserForm" class="admin-user-form">
         <label>اسم اليوزر<input id="adminUserName" type="text" placeholder="اسم اليوزر" required></label>
         <label>الإيميل<input id="adminUserEmail" type="email" placeholder="user@email.com" required></label>
+        <label>كلمة المرور<input id="adminUserPassword" type="text" value="123456" placeholder="123456"></label>
         <label>الصلاحية<select id="adminUserRole"><option value="user">يوزر عادي</option><option value="admin">أدمن</option><option value="marketing_manager">مدير تسويق</option></select></label>
         <label>القسم<select id="adminUserDepartment"></select></label>
         <div class="permissions-box"><div class="permissions-head"><strong>الصفحات المسموح يدخل عليها</strong><div><button type="button" class="soft-btn" id="checkAllPages">اختيار الكل</button><button type="button" class="ghost-btn" id="clearPages">مسح الاختيار</button></div></div><div id="adminPagesAccess" class="permissions-grid"></div></div>
@@ -64,6 +65,8 @@
     <section class="workspace-card admin-users-panel"><div class="card-head"><div><span class="eyebrow">قائمة اليوزرات</span><h3>اليوزرات المحفوظة</h3></div></div><div id="adminUsersList" class="admin-users-list"></div></section>
   </main>
 
+  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
   <script src="firebase-config.js"></script>
   <script src="routes.js"></script>
   <script src="auth.js"></script>

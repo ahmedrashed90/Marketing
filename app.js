@@ -99,7 +99,7 @@ function getCurrentUserRole() {
 }
 
 function isAdminUser() {
-  return getCurrentUserRole() === 'admin';
+  return ['admin','marketing_manager'].includes(getCurrentUserRole());
 }
 
 function syncTaskProgress() {
@@ -435,39 +435,63 @@ function renderDepartmentOptions(departments) {
 }
 
 
+function normalizeSystemUser(user) {
+  if (!user) return null;
+  if (typeof user === 'string') return { name: user, email: user, label: user };
+  const name = user.name || user.displayName || user.fullName || user.email || '';
+  const email = user.email || '';
+  if (!name && !email) return null;
+  return {
+    id: user.id || user.uid || email || name,
+    name,
+    email,
+    department: user.department || user.departmentId || '',
+    role: user.role || 'user',
+    label: email && name && email !== name ? `${name} — ${email}` : (name || email)
+  };
+}
+
 async function loadUsersFromSystemPath() {
-  const fallback = (window.MZJAuth?.users || []).map((user) => user.name || user.email).filter(Boolean);
-  try {
-    const localUsers = JSON.parse(localStorage.getItem('users') || '[]');
-    if (Array.isArray(localUsers) && localUsers.length) {
-      return localUsers.map((user) => typeof user === 'string' ? user : (user.name || user.displayName || user.email || '')).filter(Boolean);
-    }
-  } catch (error) {}
+  const collected = [];
+  const fallback = (window.MZJAuth?.users || []).map(normalizeSystemUser).filter(Boolean);
+  if (window.MZJAuth?.loadLocalManagedUsers) collected.push(...window.MZJAuth.loadLocalManagedUsers().map(normalizeSystemUser).filter(Boolean));
+
+  ['mzj_admin_users_cache_v1','users'].forEach((key) => {
+    try {
+      const localUsers = JSON.parse(localStorage.getItem(key) || '[]');
+      if (Array.isArray(localUsers) && localUsers.length) collected.push(...localUsers.map(normalizeSystemUser).filter(Boolean));
+    } catch (error) {}
+  });
 
   if (window.firebase && window.MZJ_FIREBASE_CONFIG) {
     try {
       if (!firebase.apps.length) firebase.initializeApp(window.MZJ_FIREBASE_CONFIG);
       const snap = await firebase.firestore().collection('users').get();
-      const firestoreUsers = [];
-      snap.forEach((doc) => {
-        const data = doc.data() || {};
-        firestoreUsers.push(data.name || data.displayName || data.email || doc.id);
-      });
-      if (firestoreUsers.length) return firestoreUsers;
+      snap.forEach((doc) => collected.push(normalizeSystemUser({ id: doc.id, ...(doc.data() || {}) })));
     } catch (error) {
       console.warn('users path fallback:', error);
     }
   }
-  return fallback;
+
+  const map = new Map();
+  [...collected, ...fallback].filter(Boolean).forEach((user) => {
+    const key = String(user.email || user.name || user.id).toLowerCase();
+    if (key) map.set(key, { ...(map.get(key) || {}), ...user });
+  });
+  return Array.from(map.values());
 }
 
-function renderUserOptions(users) {
-  if (!users || !users.length) {
-    return '<option value="">اكتب أو اختار اليوزر بعد الربط</option>';
+function renderUserOptions(users, departmentId = '') {
+  const list = (users || []).filter(Boolean);
+  if (!list.length) {
+    return '<option value="">لا يوجد يوزرات محفوظة - أضفهم من صفحة الإدارة</option>';
   }
-  return '<option value="">اختار اليوزر</option>' + users.map((user) => (
-    `<option value="${escapeHTML(user)}">${escapeHTML(user)}</option>`
-  )).join('');
+  const deptFiltered = departmentId ? list.filter((user) => !user.department || String(user.department) === String(departmentId)) : list;
+  const finalList = deptFiltered.length ? deptFiltered : list;
+  return '<option value="">اختار اليوزر</option>' + finalList.map((user) => {
+    const value = user.email || user.name || user.id;
+    return `<option value="${escapeHTML(value)}" data-user-name="${escapeHTML(user.name || '')}" data-user-email="${escapeHTML(user.email || '')}">${escapeHTML(user.label || value)}</option>`;
+  }).join('');
 }
 
 function initCreateTaskFromTemplate() {
@@ -479,6 +503,8 @@ function initCreateTaskFromTemplate() {
   const templateSelect = document.getElementById('createTaskTemplate');
   const templateWrap = document.getElementById('templateSelectWrap');
   const preview = document.getElementById('createTaskTemplatePreview');
+  const templateFieldsForm = document.getElementById('templateFieldsForm');
+  const templateFieldsInputGrid = document.getElementById('templateFieldsInputGrid');
   const departmentsList = document.getElementById('departmentTaskList');
   const addDepartmentBtn = null;
   const note = document.getElementById('createTaskFormNote');
@@ -503,6 +529,7 @@ function initCreateTaskFromTemplate() {
     if (!showTemplates) {
       templateSelect.innerHTML = '<option value="">اختار Template محفوظ</option>';
       renderTemplatePreview(preview, null, 'شكل الحملة / الأجندة');
+      renderTemplateFieldInputs(null);
       return;
     }
 
@@ -510,6 +537,7 @@ function initCreateTaskFromTemplate() {
     const label = taskType === 'campaign' ? 'اختار قالب حملة محفوظ' : 'اختار قالب أجندة محفوظ';
     templateSelect.innerHTML = `<option value="">${label}</option>` + matching.map((template) => `<option value="${escapeHTML(template.id)}">${escapeHTML(template.name)}</option>`).join('');
     renderTemplatePreview(preview, null, taskType === 'campaign' ? 'شكل الحملة' : 'شكل الأجندة');
+    renderTemplateFieldInputs(null);
 
     if (!matching.length) {
       preview.innerHTML = `<strong>${taskType === 'campaign' ? 'قوالب الحملات' : 'قوالب الأجندات'}</strong><p>لا يوجد قوالب محفوظة لهذا النوع حالياً. ارفع Template من صفحة قوالب الحملات.</p>`;
@@ -518,6 +546,29 @@ function initCreateTaskFromTemplate() {
 
   function getSelectedTemplate() {
     return loadTaskTemplates().find((template) => template.id === templateSelect.value);
+  }
+
+  function renderTemplateFieldInputs(template) {
+    if (!templateFieldsForm || !templateFieldsInputGrid) return;
+    const headers = Array.isArray(template?.headers) ? template.headers.filter(Boolean) : [];
+    if (!headers.length) {
+      templateFieldsForm.hidden = true;
+      templateFieldsInputGrid.innerHTML = '';
+      return;
+    }
+    templateFieldsForm.hidden = false;
+    templateFieldsInputGrid.innerHTML = headers.map((header, index) => {
+      const value = template.sampleRow && template.sampleRow[index] ? template.sampleRow[index] : '';
+      return `<label class="mzj-field template-dynamic-field"><span>${escapeHTML(header)}</span><input type="text" data-template-field="${index}" data-template-header="${escapeHTML(header)}" placeholder="اكتب ${escapeHTML(header)}" value="${escapeHTML(value)}"></label>`;
+    }).join('');
+  }
+
+  function collectTemplateValues() {
+    if (!templateFieldsInputGrid) return [];
+    return Array.from(templateFieldsInputGrid.querySelectorAll('[data-template-field]')).map((input) => ({
+      header: input.dataset.templateHeader || '',
+      value: input.value || ''
+    }));
   }
 
   function createDepartmentRow(dept) {
@@ -536,7 +587,7 @@ function initCreateTaskFromTemplate() {
       <div class="department-task-grid">
         <label class="mzj-field">
           <span>اليوزر / المسؤول</span>
-          <select data-user-select>${renderUserOptions(usersCache.length ? usersCache : (dept.users || []))}</select>
+          <select data-user-select>${renderUserOptions(usersCache.length ? usersCache : (dept.users || []).map(normalizeSystemUser).filter(Boolean), dept.id)}</select>
         </label>
 
         <label class="mzj-field">
@@ -590,6 +641,8 @@ function initCreateTaskFromTemplate() {
         departmentId,
         departmentName: department?.name || '',
         userName: selectedUser,
+        userDisplayName: row.querySelector('[data-user-select] option:checked')?.dataset.userName || row.querySelector('[data-user-select] option:checked')?.textContent || selectedUser,
+        userEmail: row.querySelector('[data-user-select] option:checked')?.dataset.userEmail || selectedUser,
         receiveDate: row.querySelector('[data-receive-date]')?.value || '',
         requiredDate: row.querySelector('[data-required-date]')?.value || '',
         deliveryDate: row.querySelector('[data-delivery-date]')?.value || '',
@@ -616,6 +669,7 @@ function initCreateTaskFromTemplate() {
   templateSelect.addEventListener('change', () => {
     const selected = getSelectedTemplate();
     renderTemplatePreview(preview, selected, typeSelect.value === 'campaign' ? 'شكل الحملة' : 'شكل الأجندة');
+    renderTemplateFieldInputs(selected);
   });
 
 
@@ -656,6 +710,7 @@ function initCreateTaskFromTemplate() {
       templateId: selectedTemplate?.id || '',
       templateName: selectedTemplate?.name || '',
       templateFields: selectedTemplate?.headers || [],
+      templateValues: collectTemplateValues(),
       taskDate: formData.get('taskDate') || '',
       campaignName: formData.get('campaignName') || '',
       campaignCode: formData.get('campaignCode') || '',

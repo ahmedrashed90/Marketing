@@ -4,13 +4,37 @@
     { email: 'ceo@mzjcars.com', password: '123456', name: 'Ahmed Khaatan', role: 'admin', department: 'management' },
     { email: 'khataan.1992@gmail.com', password: '123456', name: 'Abdullah Khataan', role: 'admin', department: 'management' },
     { email: 'admin@mzj.local', password: '123456', name: 'مدير النظام', role: 'admin', department: 'management' },
+    { email: 'ahmed@mzj.local', password: '123456', name: 'Ahmed Khaatan', role: 'admin', department: 'management' },
     { email: 'user@mzj.local', password: '123456', name: 'يوزر عادي', role: 'user', department: 'photography' }
   ];
 
   function getUser(){ try { return JSON.parse(localStorage.getItem(AUTH_KEY) || 'null'); } catch(e){ return null; } }
   function setUser(user){ localStorage.setItem(AUTH_KEY, JSON.stringify(user)); }
   function logout(){ localStorage.removeItem(AUTH_KEY); location.href = 'login.html'; }
-  function normalizeRole(role){ return String(role || 'user').toLowerCase() === 'admin' ? 'admin' : 'user'; }
+  function normalizeRole(role){
+    const r = String(role || 'user').toLowerCase();
+    if (r === 'admin' || r === 'owner') return 'admin';
+    if (r === 'marketing_manager' || r === 'manager') return 'marketing_manager';
+    return 'user';
+  }
+  function loadLocalManagedUsers(){
+    const keys = ['mzj_admin_users_cache_v1','users'];
+    const out = [];
+    keys.forEach(key => {
+      try {
+        const rows = JSON.parse(localStorage.getItem(key) || '[]');
+        if (Array.isArray(rows)) out.push(...rows);
+      } catch(e) {}
+    });
+    const map = new Map();
+    out.forEach(u => {
+      if(!u) return;
+      const obj = typeof u === 'string' ? {email:u,name:u,password:'123456'} : u;
+      const email = String(obj.email || '').toLowerCase();
+      if(email) map.set(email, {...(map.get(email)||{}), ...obj});
+    });
+    return Array.from(map.values()).map(u => ({...u, role: normalizeRole(u.role), password: u.password || '123456'}));
+  }
 
   async function getFirestoreUser(email){
     if (!window.firebase || !window.MZJ_FIREBASE_CONFIG) return null;
@@ -35,7 +59,7 @@
     }
   }
 
-  window.MZJAuth = { getUser, logout, users: TEST_USERS, getFirestoreUser };
+  window.MZJAuth = { getUser, logout, users: TEST_USERS, getFirestoreUser, loadLocalManagedUsers, normalizeRole };
 
   document.addEventListener('DOMContentLoaded', function(){
     const page = location.pathname.split('/').pop() || 'login.html';
@@ -65,13 +89,17 @@
         if (msg) msg.textContent = 'جاري تسجيل الدخول...';
 
         let found = null;
-        const firestoreUser = await getFirestoreUser(email);
-        if (firestoreUser && (password === '123456' || password === '')) {
+        const localManagedUser = loadLocalManagedUsers().find(u => String(u.email || '').toLowerCase() === email.toLowerCase());
+        if (localManagedUser && (String(localManagedUser.password || '123456') === password || password === '')) {
+          found = { ...localManagedUser, source: 'local-users' };
+        }
+        const firestoreUser = !found ? await getFirestoreUser(email) : null;
+        if (!found && firestoreUser && (password === '123456' || password === '')) {
           found = { ...firestoreUser, password: '123456' };
         }
         if (!found) found = TEST_USERS.find(u => u.email.toLowerCase() === email.toLowerCase() && u.password === password);
-        if (!found) { if(msg) msg.textContent = 'بيانات الدخول غير صحيحة، أو الحساب غير موجود في users.'; return; }
-        setUser({ email: found.email, name: found.name, role: normalizeRole(found.role), department: found.department || '', pagesAccess: found.pagesAccess || [], loginAt: new Date().toISOString(), source: found.source || 'local' });
+        if (!found) { if(msg) msg.textContent = 'بيانات الدخول غير صحيحة. جرّب حساب الأدمن: admin@mzj.local / 123456 أو أي يوزر محفوظ في صفحة الإدارة.'; return; }
+        setUser({ id: found.id || '', email: found.email, name: found.name || found.email, role: normalizeRole(found.role), department: found.department || '', pagesAccess: found.pagesAccess || [], loginAt: new Date().toISOString(), source: found.source || 'local' });
         location.href = 'dashboard.html';
       });
     }
@@ -79,7 +107,7 @@
     document.querySelectorAll('[data-login-fill]').forEach(btn => {
       btn.addEventListener('click', function(){
         const kind = btn.dataset.loginFill;
-        const sample = TEST_USERS.find(u => u.role === kind) || TEST_USERS[0];
+        const sample = TEST_USERS.find(u => normalizeRole(u.role) === kind) || TEST_USERS[0];
         const email = document.getElementById('loginEmail');
         const pass = document.getElementById('loginPassword');
         if(email) email.value = sample.email;
@@ -90,7 +118,7 @@
     if (user) {
       const badge = document.createElement('div');
       badge.className = 'auth-user-badge';
-      badge.innerHTML = `<strong>${user.name}</strong><span>${user.role === 'admin' ? 'Admin' : 'User'}</span><button type="button" data-auth-logout>خروج</button>`;
+      badge.innerHTML = `<strong>${user.name}</strong><span>${user.role === 'admin' ? 'Admin' : (user.role === 'marketing_manager' ? 'Marketing Manager' : 'User')}</span><button type="button" data-auth-logout>خروج</button>`;
       document.body.appendChild(badge);
       badge.querySelector('[data-auth-logout]').addEventListener('click', logout);
 
@@ -104,7 +132,7 @@
         });
       }
       document.querySelectorAll('[data-admin-only]').forEach(el => {
-        if(user.role !== 'admin') {
+        if(user.role !== 'admin' && user.role !== 'marketing_manager') {
           el.setAttribute('disabled','disabled');
           el.style.display = 'none';
         }

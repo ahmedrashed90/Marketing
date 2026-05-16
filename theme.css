@@ -1456,3 +1456,132 @@ body.sidebar-collapsed .main-shell {
   .template-layout,
   .create-task-grid { grid-template-columns: 1fr; }
 }
+
+
+/* Create Task Full Form */
+.create-task-wide {
+  width: min(1120px, calc(100vw - 42px));
+  max-height: calc(100vh - 38px);
+  overflow: auto;
+}
+
+.create-task-form {
+  display: grid;
+  gap: 16px;
+}
+
+.create-task-section {
+  border: 1px solid rgba(62, 36, 32, .08);
+  border-radius: 24px;
+  padding: 16px;
+  background: rgba(255, 248, 239, .58);
+}
+
+.section-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+
+.section-title-row h4 {
+  margin: 4px 0 0;
+  font-size: 20px;
+}
+
+.create-task-grid,
+.department-task-grid,
+.optional-create-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.mzj-field {
+  display: grid;
+  gap: 7px;
+}
+
+.mzj-field span {
+  color: var(--brown-700);
+  font-weight: 900;
+}
+
+.mzj-field input,
+.mzj-field select,
+.mzj-field textarea {
+  width: 100%;
+  border: 1px solid rgba(62, 36, 32, .10);
+  border-radius: 16px;
+  background: rgba(255,255,255,.68);
+  color: var(--brown-900);
+  padding: 12px 14px;
+  font: inherit;
+  font-weight: 800;
+  outline: none;
+}
+
+.mzj-field textarea {
+  resize: vertical;
+  line-height: 1.7;
+}
+
+.checkbox-field input {
+  width: auto;
+  justify-self: start;
+  transform: scale(1.25);
+  accent-color: var(--brown-900);
+}
+
+.full-width-field {
+  margin-top: 12px;
+}
+
+.department-task-list {
+  display: grid;
+  gap: 14px;
+}
+
+.department-task-row {
+  border: 1px solid rgba(62,36,32,.10);
+  border-radius: 22px;
+  padding: 14px;
+  background: rgba(255,255,255,.46);
+}
+
+.department-row-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.department-row-head strong {
+  font-size: 18px;
+}
+
+.optional-create-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.create-task-actions {
+  position: sticky;
+  bottom: 0;
+  padding-block: 12px 0;
+  background: linear-gradient(180deg, rgba(255,248,239,0), var(--cream) 42%);
+}
+
+@media (max-width: 980px) {
+  .create-task-grid,
+  .department-task-grid,
+  .optional-create-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .section-title-row {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}

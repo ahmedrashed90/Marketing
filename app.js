@@ -370,27 +370,222 @@ function initTemplatesPage() {
   renderSavedTemplates();
 }
 
+
+function escapeHTML(value) {
+  return String(value ?? '').replace(/[<>&"']/g, (ch) => ({
+    '<': '&lt;',
+    '>': '&gt;',
+    '&': '&amp;',
+    '"': '&quot;',
+    "'": '&#39;'
+  }[ch]));
+}
+
+const MZJ_DEPARTMENTS_FALLBACK = [
+  { id: 'photography', name: 'قسم التصوير', users: ['ناجي'] },
+  { id: 'content', name: 'قسم المحتوى', users: ['بلال'] },
+  { id: 'design', name: 'قسم التصميم', users: ['عبدالله'] },
+  { id: 'montage', name: 'قسم المونتاج', users: ['محمود'] },
+  { id: 'publishing', name: 'قسم النشر', users: ['حسام'] }
+];
+
+function normalizeContentTaskDepartment(item, index) {
+  const name = item?.name || item?.title || item?.departmentName || item?.sectionName || item?.department || ('قسم ' + (index + 1));
+  const usersRaw = item?.users || item?.members || item?.responsibles || item?.assignees || item?.team || [];
+  const users = Array.isArray(usersRaw)
+    ? usersRaw.map((user) => typeof user === 'string' ? user : (user.name || user.displayName || user.email || '')).filter(Boolean)
+    : [];
+  return {
+    id: item?.id || item?.docId || ('dept_' + index),
+    name,
+    users
+  };
+}
+
+async function loadDepartmentsFromContentTasks() {
+  const localSources = [
+    'mzj_content_tasks',
+    'content_tasks',
+    'mzj_departments',
+    'mzj_content_departments'
+  ];
+
+  for (const key of localSources) {
+    try {
+      const parsed = JSON.parse(localStorage.getItem(key) || '[]');
+      if (Array.isArray(parsed) && parsed.length) {
+        return parsed.map(normalizeContentTaskDepartment);
+      }
+    } catch (error) {}
+  }
+
+  // Firebase-ready hook: عند تفعيل Firebase SDK وتوفير window.MZJ_DB يمكن قراءة collection content_tasks من هنا.
+  if (window.MZJ_CONTENT_TASKS && Array.isArray(window.MZJ_CONTENT_TASKS)) {
+    return window.MZJ_CONTENT_TASKS.map(normalizeContentTaskDepartment);
+  }
+
+  return MZJ_DEPARTMENTS_FALLBACK;
+}
+
+function renderDepartmentOptions(departments) {
+  return '<option value="">اختار القسم</option>' + departments.map((dept) => (
+    `<option value="${escapeHTML(dept.id)}">${escapeHTML(dept.name)}</option>`
+  )).join('');
+}
+
+function renderUserOptions(users) {
+  if (!users || !users.length) {
+    return '<option value="">اكتب أو اختار اليوزر بعد الربط</option>';
+  }
+  return '<option value="">اختار اليوزر</option>' + users.map((user) => (
+    `<option value="${escapeHTML(user)}">${escapeHTML(user)}</option>`
+  )).join('');
+}
+
 function initCreateTaskFromTemplate() {
   const openBtn = document.getElementById('createTaskOpen');
   const modal = document.getElementById('createTaskModal');
+  const form = document.getElementById('createTaskForm');
   const typeSelect = document.getElementById('createTaskType');
   const templateSelect = document.getElementById('createTaskTemplate');
+  const templateWrap = document.getElementById('templateSelectWrap');
   const preview = document.getElementById('createTaskTemplatePreview');
-  const saveBtn = document.getElementById('saveTaskFromTemplate');
-  if (!openBtn || !modal || !typeSelect || !templateSelect) return;
+  const departmentsList = document.getElementById('departmentTaskList');
+  const addDepartmentBtn = document.getElementById('addDepartmentTask');
+  const note = document.getElementById('createTaskFormNote');
+
+  if (!openBtn || !modal || !form || !typeSelect || !templateSelect || !departmentsList) return;
+
+  let departmentsCache = [];
+  let departmentIndex = 0;
+
+  async function ensureDepartments() {
+    departmentsCache = await loadDepartmentsFromContentTasks();
+    if (!departmentsList.children.length) addDepartmentRow();
+  }
 
   function fillTemplateOptions() {
     const taskType = typeSelect.value;
+    const showTemplates = taskType === 'campaign' || taskType === 'agenda';
+    if (templateWrap) templateWrap.hidden = !showTemplates;
+
+    if (!showTemplates) {
+      templateSelect.innerHTML = '<option value="">اختار Template محفوظ</option>';
+      renderTemplatePreview(preview, null, 'شكل الحملة / الأجندة');
+      return;
+    }
+
     const matching = loadTaskTemplates().filter((template) => templateMatchesType(template, taskType));
-    templateSelect.innerHTML = '<option value="">اختار Template محفوظ</option>' + matching.map((template) => `<option value="${template.id}">${template.name}</option>`).join('');
+    const label = taskType === 'campaign' ? 'اختار قالب حملة محفوظ' : 'اختار قالب أجندة محفوظ';
+    templateSelect.innerHTML = `<option value="">${label}</option>` + matching.map((template) => `<option value="${escapeHTML(template.id)}">${escapeHTML(template.name)}</option>`).join('');
     renderTemplatePreview(preview, null, taskType === 'campaign' ? 'شكل الحملة' : 'شكل الأجندة');
+
+    if (!matching.length) {
+      preview.innerHTML = `<strong>${taskType === 'campaign' ? 'قوالب الحملات' : 'قوالب الأجندات'}</strong><p>لا يوجد قوالب محفوظة لهذا النوع حالياً. ارفع Template من صفحة قوالب الحملات.</p>`;
+    }
   }
 
   function getSelectedTemplate() {
     return loadTaskTemplates().find((template) => template.id === templateSelect.value);
   }
 
-  openBtn.addEventListener('click', () => {
+  function addDepartmentRow(initial = {}) {
+    const rowId = 'dept_task_' + (++departmentIndex);
+    const row = document.createElement('article');
+    row.className = 'department-task-row';
+    row.dataset.rowId = rowId;
+    row.innerHTML = `
+      <div class="department-row-head">
+        <strong>مطلوب من قسم</strong>
+        <button class="danger-btn" type="button" data-remove-department-task>حذف</button>
+      </div>
+
+      <div class="department-task-grid">
+        <label class="mzj-field">
+          <span>القسم</span>
+          <select data-department-select required>${renderDepartmentOptions(departmentsCache)}</select>
+        </label>
+
+        <label class="mzj-field">
+          <span>اليوزر / المسؤول</span>
+          <select data-user-select>${renderUserOptions([])}</select>
+        </label>
+
+        <label class="mzj-field">
+          <span>اسم المسؤول يدوي</span>
+          <input type="text" data-user-manual placeholder="لو اليوزر مش ظاهر اكتب الاسم">
+        </label>
+
+        <label class="mzj-field">
+          <span>تاريخ الاستلام</span>
+          <input type="date" data-receive-date>
+        </label>
+
+        <label class="mzj-field">
+          <span>التاريخ المطلوب</span>
+          <input type="date" data-required-date>
+        </label>
+
+        <label class="mzj-field">
+          <span>تاريخ التسليم</span>
+          <input type="date" data-delivery-date>
+        </label>
+
+        <label class="mzj-field checkbox-field">
+          <span>تأكيد استلام التاسك</span>
+          <input type="checkbox" data-received-confirm>
+        </label>
+
+        <label class="mzj-field">
+          <span>إرفاق المهام</span>
+          <input type="text" data-attachment-label placeholder="مثال: إرفاق ملف التصوير">
+        </label>
+      </div>
+
+      <label class="mzj-field full-width-field">
+        <span>المطلوب</span>
+        <textarea data-required-text rows="3" placeholder="اكتب المطلوب من القسم ده"></textarea>
+      </label>
+    `;
+    departmentsList.appendChild(row);
+
+    const departmentSelect = row.querySelector('[data-department-select]');
+    const userSelect = row.querySelector('[data-user-select]');
+
+    departmentSelect.addEventListener('change', () => {
+      const department = departmentsCache.find((dept) => String(dept.id) === String(departmentSelect.value));
+      userSelect.innerHTML = renderUserOptions(department ? department.users : []);
+    });
+
+    if (initial.departmentId) {
+      departmentSelect.value = initial.departmentId;
+      departmentSelect.dispatchEvent(new Event('change'));
+    }
+  }
+
+  function collectDepartmentTasks() {
+    return Array.from(departmentsList.querySelectorAll('.department-task-row')).map((row) => {
+      const departmentId = row.querySelector('[data-department-select]')?.value || '';
+      const department = departmentsCache.find((dept) => String(dept.id) === String(departmentId));
+      const selectedUser = row.querySelector('[data-user-select]')?.value || '';
+      const manualUser = row.querySelector('[data-user-manual]')?.value.trim() || '';
+
+      return {
+        departmentId,
+        departmentName: department?.name || '',
+        userName: selectedUser || manualUser,
+        receiveDate: row.querySelector('[data-receive-date]')?.value || '',
+        requiredDate: row.querySelector('[data-required-date]')?.value || '',
+        deliveryDate: row.querySelector('[data-delivery-date]')?.value || '',
+        receivedConfirmed: Boolean(row.querySelector('[data-received-confirm]')?.checked),
+        attachmentLabel: row.querySelector('[data-attachment-label]')?.value.trim() || '',
+        requiredText: row.querySelector('[data-required-text]')?.value.trim() || ''
+      };
+    }).filter((task) => task.departmentId || task.userName || task.requiredText);
+  }
+
+  openBtn.addEventListener('click', async () => {
+    await ensureDepartments();
     fillTemplateOptions();
     modal.classList.add('is-open');
     modal.setAttribute('aria-hidden', 'false');
@@ -403,6 +598,19 @@ function initCreateTaskFromTemplate() {
     renderTemplatePreview(preview, selected, typeSelect.value === 'campaign' ? 'شكل الحملة' : 'شكل الأجندة');
   });
 
+  if (addDepartmentBtn) {
+    addDepartmentBtn.addEventListener('click', () => addDepartmentRow());
+  }
+
+  departmentsList.addEventListener('click', (event) => {
+    const removeButton = event.target.closest('[data-remove-department-task]');
+    if (removeButton) {
+      const row = removeButton.closest('.department-task-row');
+      if (row) row.remove();
+      if (!departmentsList.children.length) addDepartmentRow();
+    }
+  });
+
   document.addEventListener('click', (event) => {
     if (event.target.closest('[data-close-create-task]') || event.target === modal) {
       modal.classList.remove('is-open');
@@ -410,26 +618,56 @@ function initCreateTaskFromTemplate() {
     }
   });
 
-  if (saveBtn) {
-    saveBtn.addEventListener('click', () => {
-      const selected = getSelectedTemplate();
-      if (!selected) {
-        renderTemplatePreview(preview, null, 'اختار Template الأول');
-        return;
-      }
-      const tasks = JSON.parse(localStorage.getItem(MZJ_CREATED_TASKS_KEY) || '[]');
-      tasks.unshift({
-        id: 'task_' + Date.now(),
-        type: typeSelect.value,
-        templateId: selected.id,
-        templateName: selected.name,
-        fields: selected.headers,
-        createdAt: new Date().toISOString()
-      });
-      localStorage.setItem(MZJ_CREATED_TASKS_KEY, JSON.stringify(tasks));
-      renderTemplatePreview(preview, selected, '✅ تم حفظ التاسك من القالب');
-    });
-  }
+  form.addEventListener('submit', (event) => {
+    event.preventDefault();
+
+    const selectedTemplate = getSelectedTemplate();
+    const taskType = typeSelect.value;
+    const departmentTasks = collectDepartmentTasks();
+
+    if (!taskType) {
+      if (note) note.textContent = '⚠️ اختار حملة أو أجندة الأول.';
+      return;
+    }
+
+    if (taskType === 'campaign' && !selectedTemplate) {
+      if (note) note.textContent = '⚠️ اختار قالب حملة محفوظ الأول.';
+      return;
+    }
+
+    if (!departmentTasks.length) {
+      if (note) note.textContent = '⚠️ اختار قسم واحد على الأقل واكتب المطلوب.';
+      return;
+    }
+
+    const formData = new FormData(form);
+    const payload = {
+      id: 'task_' + Date.now(),
+      taskType,
+      taskTypeLabel: taskType === 'campaign' ? 'حملة' : 'أجندة',
+      templateId: selectedTemplate?.id || '',
+      templateName: selectedTemplate?.name || '',
+      templateFields: selectedTemplate?.headers || [],
+      taskDate: formData.get('taskDate') || '',
+      campaignName: formData.get('campaignName') || '',
+      campaignCode: formData.get('campaignCode') || '',
+      campaignGoal: formData.get('campaignGoal') || '',
+      launchDate: formData.get('launchDate') || '',
+      departmentTasks,
+      publishSchedule: formData.get('publishSchedule') || '',
+      budgetPlan: formData.get('budgetPlan') || '',
+      resultsReport: formData.get('resultsReport') || '',
+      sourceCollection: 'content_tasks',
+      createdAt: new Date().toISOString()
+    };
+
+    const tasks = JSON.parse(localStorage.getItem(MZJ_CREATED_TASKS_KEY) || '[]');
+    tasks.unshift(payload);
+    localStorage.setItem(MZJ_CREATED_TASKS_KEY, JSON.stringify(tasks));
+
+    if (note) note.textContent = '✅ تم حفظ التاسك. البيانات جاهزة للرفع على Firestore بعد ربط Collection التلقائي.';
+    renderTemplatePreview(preview, selectedTemplate, '✅ تم حفظ التاسك من القالب');
+  });
 }
 
 initTemplatesPage();

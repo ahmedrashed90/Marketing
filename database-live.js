@@ -347,15 +347,14 @@
 
   function renderEditChoiceCards(pairs, attrName, selectedTitles){
     const selected = new Set((selectedTitles || []).map(x => String(x).trim()));
+    const kind = String(attrName || '').includes('montage') ? 'montage' : 'design';
     return pairs.map(([title, desc]) => {
-      const isChecked = selected.has(title) ? ' checked' : '';
-      return `<div class="multi-choice-card db-edit-choice-card${isChecked ? ' is-selected' : ''}" role="button" tabindex="0" aria-pressed="${isChecked ? 'true' : 'false'}">
-        <label class="multi-choice-check" onclick="event.stopPropagation()">
-          <input type="checkbox" ${attrName} value="${escAttr(title)}" data-title="${escAttr(title)}" data-desc="${escAttr(desc)}"${isChecked}>
-        </label>
+      const isChecked = selected.has(title);
+      return `<button class="multi-choice-card db-edit-choice-card${isChecked ? ' is-selected' : ''}" type="button" data-edit-choice-card="${escAttr(kind)}" data-title="${escAttr(title)}" data-desc="${escAttr(desc)}" data-selected="${isChecked ? '1' : '0'}" aria-pressed="${isChecked ? 'true' : 'false'}">
+        <span class="multi-choice-check db-edit-choice-box" aria-hidden="true">${isChecked ? '✓' : ''}</span>
         <span class="multi-choice-title">${esc(title)}</span>
         <small>${esc(desc)}</small>
-      </div>`;
+      </button>`;
     }).join('');
   }
 
@@ -423,9 +422,8 @@
       };
     }
     if(kind === 'design' || kind === 'montage'){
-      const selector = kind === 'design' ? '[data-edit-design-deliverable]:checked' : '[data-edit-montage-deliverable]:checked';
-      const selected = Array.from(row.querySelectorAll(selector)).map(item => ({
-        title: item.dataset.title || item.value || '',
+      const selected = Array.from(row.querySelectorAll(`[data-edit-choice-card="${kind}"].is-selected`)).map(item => ({
+        title: item.dataset.title || '',
         details: item.dataset.desc || ''
       })).filter(item => item.title || item.details);
       const notes = row.querySelector('[data-edit-required-text]')?.value.trim() || '';
@@ -688,18 +686,6 @@
 
 
   document.addEventListener('change', function(event){
-    const choice = event.target.closest('[data-edit-design-deliverable], [data-edit-montage-deliverable]');
-    if(choice){
-      const card = choice.closest('.multi-choice-card');
-      if(card){
-        card.classList.toggle('is-selected', choice.checked);
-        card.setAttribute('aria-pressed', choice.checked ? 'true' : 'false');
-      }
-      const row = choice.closest('.db-edit-dept-row');
-      const enabled = row?.querySelector('[data-edit-dept-enabled]');
-      if(enabled) enabled.checked = true;
-      return;
-    }
     const userSelect = event.target.closest('[data-edit-user-select]');
     if(userSelect){
       const opt = userSelect.selectedOptions?.[0];
@@ -712,19 +698,18 @@
   });
 
   document.addEventListener('click', function(event){
-    const card = event.target.closest('.db-edit-choice-card');
-    if(card && !event.target.matches('input')){
+    const card = event.target.closest('[data-edit-choice-card]');
+    if(card){
       event.preventDefault();
-      const input = card.querySelector('input[type="checkbox"]');
-      if(input){
-        input.checked = !input.checked;
-        card.classList.toggle('is-selected', input.checked);
-        card.setAttribute('aria-pressed', input.checked ? 'true' : 'false');
-        const row = card.closest('.db-edit-dept-row');
-        const enabled = row?.querySelector('[data-edit-dept-enabled]');
-        if(enabled) enabled.checked = true;
-        input.dispatchEvent(new Event('change', { bubbles: true }));
-      }
+      const next = !card.classList.contains('is-selected');
+      card.classList.toggle('is-selected', next);
+      card.dataset.selected = next ? '1' : '0';
+      card.setAttribute('aria-pressed', next ? 'true' : 'false');
+      const box = card.querySelector('.db-edit-choice-box');
+      if(box) box.textContent = next ? '✓' : '';
+      const row = card.closest('.db-edit-dept-row');
+      const enabled = row?.querySelector('[data-edit-dept-enabled]');
+      if(enabled) enabled.checked = true;
       return;
     }
     const addPhoto = event.target.closest('[data-edit-add-photo-item]');

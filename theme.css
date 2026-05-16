@@ -1743,3 +1743,13 @@ body[data-user-role="marketing_manager"] [data-role-panel="user"]{display:none!i
 
 /* Admin saved users edit controls */
 .user-card-main{display:grid;gap:6px;min-width:0}.user-card-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.user-pages-list em{padding:6px 10px;border-radius:999px;background:rgba(62,36,32,.06);font-weight:800;font-style:normal;color:var(--muted)}#cancelUserEdit{align-self:end}.admin-user-form > .ghost-btn#cancelUserEdit{min-height:48px}@media(max-width:900px){.user-card-actions{width:100%}.user-card-actions button{flex:1}}
+
+/* Firebase-only dashboard receiving flow */
+.receipt-strip span.is-done,
+.receive-task-btn.is-done {
+  opacity: .72;
+  border: 1px solid rgba(62,36,32,.16);
+}
+.receive-task-btn {
+  min-width: 110px;
+}

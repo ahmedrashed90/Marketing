@@ -774,30 +774,32 @@ function initCreateTaskFromTemplate() {
       publishSteps: []
     };
 
+    payload.departmentTasks = payload.departmentTasks.map((dept) => ({
+      ...dept,
+      receivedConfirmed: false,
+      receivedAt: '',
+      receivedBy: ''
+    }));
+    payload.receiptProgress = 0;
+
     try {
-      if (window.firebase && window.MZJ_FIREBASE_CONFIG && firebase.firestore) {
-        if (!firebase.apps.length) firebase.initializeApp(window.MZJ_FIREBASE_CONFIG);
-        const ref = await firebase.firestore().collection('workspace_tasks').add(payload);
-        payload.firestoreId = ref.id;
-        payload.sourceFirestoreCollection = 'workspace_tasks';
+      if (!window.firebase || !window.MZJ_FIREBASE_CONFIG || !firebase.firestore) {
+        throw new Error('Firebase SDK غير موجود في الصفحة');
       }
+      if (!firebase.apps.length) firebase.initializeApp(window.MZJ_FIREBASE_CONFIG);
+      payload.firestoreId = payload.id;
+      payload.sourceFirestoreCollection = 'workspace_tasks';
+      await firebase.firestore().collection('workspace_tasks').doc(payload.id).set(payload);
     } catch (error) {
-      console.warn('workspace_tasks save fallback:', error);
+      console.error('workspace_tasks save failed:', error);
+      if (note) note.textContent = '⚠️ فشل الحفظ في Firebase: ' + (error?.message || error?.code || error) + ' — لم يتم الحفظ محلياً.';
+      return;
     }
 
-    const tasks = JSON.parse(localStorage.getItem(MZJ_CREATED_TASKS_KEY) || '[]');
-    tasks.unshift(payload);
-    localStorage.setItem(MZJ_CREATED_TASKS_KEY, JSON.stringify(tasks));
-
-    try {
-      const oldPathTasks = JSON.parse(localStorage.getItem('workspace_tasks') || '[]');
-      oldPathTasks.unshift(payload);
-      localStorage.setItem('workspace_tasks', JSON.stringify(oldPathTasks));
-    } catch (error) {}
-
-    if (note) note.textContent = '✅ تم حفظ التاسك في مسار workspace_tasks وظهر في الداش بورد وقاعدة البيانات.';
+    if (note) note.textContent = '✅ تم حفظ التاسك في Firebase داخل مسار workspace_tasks.';
     renderTemplatePreview(preview, selectedTemplate, '✅ تم حفظ التاسك من القالب');
-    if (typeof window.renderDashboardTasks === 'function') window.renderDashboardTasks();
+    if (typeof window.refreshWorkspaceTasksFromFirestore === 'function') await window.refreshWorkspaceTasksFromFirestore();
+    else if (typeof window.renderDashboardTasks === 'function') window.renderDashboardTasks();
   });
 }
 
@@ -860,18 +862,24 @@ initCreateTaskFromTemplate();
   }
   function readTasks(){
     const all = [];
-    TASK_KEYS.forEach((key) => {
-      try {
-        const parsed = JSON.parse(localStorage.getItem(key) || '[]');
-        if (Array.isArray(parsed)) parsed.forEach((task, index) => all.push(normalizeWorkspaceTask(task, key + '_' + index)));
-      } catch(e) {}
-    });
     firestoreTaskCache.forEach((task, index) => all.push(normalizeWorkspaceTask(task, 'firestore_' + index)));
     const map = new Map();
     all.filter(Boolean).forEach((task) => map.set(String(task.id), { ...(map.get(String(task.id)) || {}), ...task }));
     return Array.from(map.values());
   }
-  function writeTasks(tasks){ localStorage.setItem(TASK_KEY, JSON.stringify(tasks)); }
+  async function saveTaskToFirestore(task){
+    if (!window.firebase || !window.MZJ_FIREBASE_CONFIG || !firebase.firestore) throw new Error('Firebase SDK غير موجود');
+    if (!firebase.apps.length) firebase.initializeApp(window.MZJ_FIREBASE_CONFIG);
+    const collectionName = task.sourceFirestoreCollection || 'workspace_tasks';
+    const docId = task.firestoreId || task.docId || task.id;
+    if (!docId) throw new Error('لا يوجد ID للتاسك');
+    const cleanTask = JSON.parse(JSON.stringify({ ...task, firestoreId: docId, sourceFirestoreCollection: collectionName }));
+    await firebase.firestore().collection(collectionName).doc(String(docId)).set(cleanTask, { merge: true });
+    const index = firestoreTaskCache.findIndex((item) => String(item.id || item.firestoreId || item.docId) === String(task.id));
+    if (index >= 0) firestoreTaskCache[index] = cleanTask;
+    else firestoreTaskCache.unshift(cleanTask);
+  }
+  function writeTasks(tasks){ firestoreTaskCache = tasks; }
   async function refreshWorkspaceTasksFromFirestore(){
     if (!window.firebase || !window.MZJ_FIREBASE_CONFIG || !firebase.firestore) return;
     try {
@@ -884,20 +892,15 @@ initCreateTaskFromTemplate();
       firestoreTaskCache = loaded;
       window.renderDashboardTasks?.();
     } catch (error) {
-      console.warn('workspace_tasks load fallback:', error);
+      console.warn('workspace_tasks load failed:', error);
+      firestoreTaskCache = [];
+      window.renderDashboardTasks?.();
     }
   }
+  window.refreshWorkspaceTasksFromFirestore = refreshWorkspaceTasksFromFirestore;
   async function deleteTaskEverywhere(taskId){
     const tasks = readTasks();
     const target = tasks.find((task) => String(task.id) === String(taskId));
-    TASK_KEYS.forEach((key) => {
-      try {
-        const parsed = JSON.parse(localStorage.getItem(key) || '[]');
-        if (Array.isArray(parsed)) {
-          localStorage.setItem(key, JSON.stringify(parsed.filter((task) => String(task.id || task.firestoreId || task.docId) !== String(taskId))));
-        }
-      } catch(e) {}
-    });
     if (window.firebase && window.MZJ_FIREBASE_CONFIG && firebase.firestore) {
       try {
         if (!firebase.apps.length) firebase.initializeApp(window.MZJ_FIREBASE_CONFIG);
@@ -905,7 +908,8 @@ initCreateTaskFromTemplate();
         const docId = target?.firestoreId || target?.docId || target?.id;
         if (docId) await firebase.firestore().collection(collectionName).doc(String(docId)).delete();
       } catch (error) {
-        console.warn('workspace_tasks delete fallback:', error);
+        console.error('workspace_tasks delete failed:', error);
+        alert('فشل مسح الحملة من Firebase: ' + (error?.message || error?.code || error));
       }
     }
     firestoreTaskCache = firestoreTaskCache.filter((task) => String(task.id || task.firestoreId) !== String(taskId));
@@ -943,6 +947,15 @@ initCreateTaskFromTemplate();
     const total = depts.reduce((sum, d) => sum + taskDeptProgress(task, d), 0);
     return Math.round(total / depts.length);
   }
+  function taskReceiptProgress(task){
+    const depts = (task.departmentTasks || []).filter((d) => d && d.enabled !== false);
+    if (!depts.length) return 0;
+    const done = depts.filter((d) => Boolean(d.receivedConfirmed || d.received || d.receivedAt)).length;
+    return Math.round((done / depts.length) * 100);
+  }
+  function deptIdentity(dept){
+    return String(dept.departmentId || dept.departmentName || dept.userId || dept.userEmail || dept.userName || '');
+  }
   function autoStage(task){
     if (!task.stage) task.stage = 'required';
     const ready = taskReadiness(task);
@@ -968,10 +981,15 @@ initCreateTaskFromTemplate();
     return `${esc(task.taskTypeLabel)} — ${esc(task.campaignCode || 'بدون كود')} — ${esc(task.launchDate || task.taskDate || 'بدون تاريخ')}`;
   }
   function requiredCard(task){
+    const receipt = taskReceiptProgress(task);
+    const receivedCount = (task.departmentTasks || []).filter((d) => d.receivedConfirmed || d.receivedAt).length;
+    const totalCount = (task.departmentTasks || []).length || 0;
     return `<article class="task-template-card dynamic-dashboard-card" data-dash-task-id="${esc(task.id)}">
       <div class="task-template-top"><strong>${esc(taskTitle(task))}</strong><span>${meta(task)}</span></div>
-      <div class="receipt-strip">${(task.departmentTasks||[]).map(d=>`<span>${esc(d.departmentName || 'قسم')}</span>`).join('')}</div>
-      <div class="task-card-actions"><button class="danger-btn" type="button" data-delete-task="${esc(task.id)}" data-admin-only>مسح الحملة</button></div><div class="task-empty-note">المطلوب اتسجل، وهيظهر لكل يوزر حسب القسم والمسؤول المختار.</div>
+      <div class="department-progress-row"><div class="department-progress-box"><small>نسبة تم الاستلام</small><strong>${receipt}%</strong></div><div class="department-progress-box"><small>الأقسام المستلمة</small><strong>${receivedCount} / ${totalCount}</strong></div></div>
+      <div class="mini-progress"><span style="width:${receipt}%"></span></div>
+      <div class="receipt-strip">${(task.departmentTasks||[]).map(d=>`<span class="${(d.receivedConfirmed || d.receivedAt) ? 'is-done' : ''}">${esc(d.departmentName || 'قسم')} — ${(d.receivedConfirmed || d.receivedAt) ? 'تم الاستلام' : 'لم يتم الاستلام'}</span>`).join('')}</div>
+      <div class="task-card-actions"><button class="danger-btn" type="button" data-delete-task="${esc(task.id)}" data-admin-only>مسح الحملة</button></div><div class="task-empty-note">المطلوب يختفي من هنا تلقائياً لما كل الأقسام تضغط تم الاستلام.</div>
     </article>`;
   }
   function readinessCard(task){
@@ -1014,14 +1032,13 @@ initCreateTaskFromTemplate();
       <div class="department-task-meta"><span>${esc(deptTask.userDisplayName || deptTask.userName || deptTask.userEmail || 'بدون مسؤول')}</span><span>${esc(deptTask.receiveDate || '—')}</span><span>${esc(deptTask.requiredDate || '—')}</span><span>${esc(deptTask.deliveryDate || '—')}</span><span>—</span></div>
       <div class="department-progress-row"><div class="department-progress-box"><small>اكتمال التاسك</small><strong data-task-percent>${p}%</strong></div><div class="department-progress-box"><small>نسبة الحملة</small><strong data-campaign-percent>${Math.round(p / Math.max((task.departmentTasks||[]).length,1))}%</strong></div></div>
       <div class="mini-progress"><span data-task-bar style="width:${p}%"></span></div>
-      <div class="task-card-actions"><button class="details-btn" type="button" data-open-task-details data-dept-key="${esc(dkey)}" data-dept="${esc(deptTask.departmentName || 'قسم')}" data-task-title="${esc(taskTitle(task))}" data-required="${esc(deptTask.requiredText || 'لا يوجد مطلوب مكتوب')}" data-steps="${esc(steps)}">تفاصيل</button></div>
+      <div class="task-card-actions"><button class="details-btn" type="button" data-open-task-details data-dept-key="${esc(dkey)}" data-dept="${esc(deptTask.departmentName || 'قسم')}" data-task-title="${esc(taskTitle(task))}" data-required="${esc(deptTask.requiredText || 'لا يوجد مطلوب مكتوب')}" data-steps="${esc(steps)}">تفاصيل</button><button class="soft-btn receive-task-btn ${(deptTask.receivedConfirmed || deptTask.receivedAt) ? 'is-done' : ''}" type="button" data-receive-task data-task-id="${esc(task.id)}" data-dept-identity="${esc(deptIdentity(deptTask))}" ${(deptTask.receivedConfirmed || deptTask.receivedAt) ? 'disabled' : ''}>${(deptTask.receivedConfirmed || deptTask.receivedAt) ? 'تم الاستلام' : 'تم الاستلام'}</button></div>
     </article>`;
   }
 
   window.renderDashboardTasks = function renderDashboardTasks(){
     if (!document.getElementById('adminRequiredTasks') && !document.getElementById('userShootingTasks')) return;
     const tasks = readTasks().map(autoStage);
-    writeTasks(tasks);
     const required = clearList('adminRequiredTasks','لا توجد تاسكات مطلوبة حالياً.');
     const readiness = clearList('adminReadinessTasks','لا توجد حملات في جاهزية المطلوب حالياً.');
     const publishing = clearList('adminPublishingTasks','لا توجد حملات جاهزة للنشر حالياً.');
@@ -1038,7 +1055,7 @@ initCreateTaskFromTemplate();
       if (task.stage === 'archive') appendCard(archive, archiveCard(task));
       else if (task.stage === 'publish') appendCard(publishing, publishCard(task));
       else {
-        appendCard(required, requiredCard(task));
+        if (taskReceiptProgress(task) < 100) appendCard(required, requiredCard(task));
         appendCard(readiness, readinessCard(task));
       }
       (task.departmentTasks || []).forEach(dept => {
@@ -1061,8 +1078,8 @@ initCreateTaskFromTemplate();
       task.publishSteps = Array.isArray(task.publishSteps) ? task.publishSteps : [];
       if (!task.publishSteps.includes(idx)) task.publishSteps.push(idx);
       if (task.publishSteps.length >= 5) task.stage = 'archive';
-      writeTasks(tasks.map(autoStage));
-      window.renderDashboardTasks();
+      autoStage(task);
+      saveTaskToFirestore(task).then(() => window.renderDashboardTasks()).catch((error) => alert('فشل تحديث النشر في Firebase: ' + (error?.message || error?.code || error)));
       return;
     }
   });
@@ -1078,9 +1095,34 @@ initCreateTaskFromTemplate();
       task.readiness = task.readiness || {};
       task.readiness[key] = (activeTaskCard.dataset.completedSteps || '').split(',').filter(Boolean).map(Number);
       autoStage(task);
-      writeTasks(tasks.map(autoStage));
-      window.renderDashboardTasks();
+      saveTaskToFirestore(task).then(() => window.renderDashboardTasks()).catch((error) => alert('فشل تحديث تفاصيل التاسك في Firebase: ' + (error?.message || error?.code || error)));
     }, 0);
+  });
+
+  document.addEventListener('click', async function(event){
+    const receive = event.target.closest('[data-receive-task]');
+    if (!receive) return;
+    const tasks = readTasks();
+    const task = tasks.find(t => String(t.id) === String(receive.dataset.taskId));
+    if (!task) return;
+    const current = user();
+    const identity = String(receive.dataset.deptIdentity || '');
+    const dept = (task.departmentTasks || []).find((d) => String(deptIdentity(d)) === identity);
+    if (!dept) return;
+    if (!assignedToCurrentUser(dept, current)) {
+      alert('التاسك ده مش مسند لحسابك.');
+      return;
+    }
+    dept.receivedConfirmed = true;
+    dept.receivedAt = new Date().toISOString();
+    dept.receivedBy = current?.email || current?.uid || current?.id || current?.name || '';
+    task.receiptProgress = taskReceiptProgress(task);
+    try {
+      await saveTaskToFirestore(task);
+      window.renderDashboardTasks();
+    } catch (error) {
+      alert('فشل تأكيد الاستلام في Firebase: ' + (error?.message || error?.code || error));
+    }
   });
 
   document.addEventListener('click', async function(event){

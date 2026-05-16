@@ -2361,3 +2361,12 @@ body:has(#createTaskModal.is-open) {
 #templateFieldsForm[hidden] {
   display: none !important;
 }
+
+/* Hide campaign template sheet preview inside create campaign flow.
+   The selected template is only used as a saved campaign shape reference. */
+#createTaskTemplatePreview,
+#templateFieldsForm,
+.template-preview-box.is-hidden,
+.template-fields-form.is-hidden {
+  display: none !important;
+}

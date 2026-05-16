@@ -647,27 +647,19 @@ function initCreateTaskFromTemplate() {
 
     templateSelect.value = '';
 
+    if (preview) {
+      preview.hidden = true;
+      preview.innerHTML = '';
+    }
+    renderTemplateFieldInputs(null);
+
     if (!showTemplates) {
       templateSelect.innerHTML = '<option value="">اختار قالب حملة محفوظ</option>';
-      if (preview) {
-        if (taskType === 'agenda') {
-          preview.innerHTML = '<strong>الأجندة</strong><p>الأجندة لا تحتاج اختيار قالب حملة. اكتب بيانات الأجندة وحدد الأقسام فقط.</p>';
-        } else {
-          preview.innerHTML = '<strong>شكل الحملة</strong><p>اختار نوع التاسك. القوالب تظهر فقط عند اختيار حملة.</p>';
-        }
-      }
-      renderTemplateFieldInputs(null);
       return;
     }
 
     const matching = loadTaskTemplates().filter((template) => templateMatchesType(template, 'campaign'));
     templateSelect.innerHTML = '<option value="">اختار قالب حملة محفوظ</option>' + matching.map((template) => `<option value="${escapeHTML(template.id)}">${escapeHTML(template.name)}</option>`).join('');
-    if (preview) preview.innerHTML = '<strong>شكل الحملة</strong><p>اختار قالب حملة محفوظ علشان يظهر شكل الشيت كما هو.</p>';
-    renderTemplateFieldInputs(null);
-
-    if (!matching.length && preview) {
-      preview.innerHTML = '<strong>قوالب الحملات</strong><p>لا يوجد قوالب حملات محفوظة حالياً. ارفع شيت الحملة من صفحة قوالب الحملات.</p>';
-    }
   }
 
   function getSelectedTemplate() {
@@ -675,35 +667,14 @@ function initCreateTaskFromTemplate() {
   }
 
   function renderTemplateFieldInputs(template) {
-    if (!templateFieldsForm || !templateFieldsInputGrid) return;
-    const rows = getTemplateRows(template);
-    if (!rows.length) {
-      templateFieldsForm.hidden = true;
-      templateFieldsInputGrid.innerHTML = '';
-      return;
-    }
-    templateFieldsForm.hidden = false;
-    renderTemplateSheet(templateFieldsInputGrid, template, { title: 'بيانات الحملة حسب الشيت', editable: true });
+    // القالب هنا يستخدم فقط كاختيار لنوع/شكل الحملة.
+    // لا نعرض شكل الشيت ولا نطلب ملء خاناته داخل إنشاء الحملة؛ اليوزرات هترفع شغلها لاحقًا حسب المطلوب.
+    if (templateFieldsForm) templateFieldsForm.hidden = true;
+    if (templateFieldsInputGrid) templateFieldsInputGrid.innerHTML = '';
   }
 
   function collectTemplateValues() {
-    if (!templateFieldsInputGrid) return { rows: [], flat: [] };
-    const cells = Array.from(templateFieldsInputGrid.querySelectorAll('[data-template-cell]'));
-    const rows = [];
-    cells.forEach((input) => {
-      const rowIndex = Number(input.dataset.templateRow || 0);
-      const colIndex = Number(input.dataset.templateCol || 0);
-      if (!rows[rowIndex]) rows[rowIndex] = [];
-      rows[rowIndex][colIndex] = input.value || '';
-    });
-    return {
-      rows: rows.filter((row) => row && row.some((cell) => String(cell || '').trim())),
-      flat: cells.map((input) => ({
-        row: Number(input.dataset.templateRow || 0),
-        col: Number(input.dataset.templateCol || 0),
-        value: input.value || ''
-      }))
-    };
+    return { rows: [], flat: [] };
   }
 
   function createDepartmentRow(dept) {
@@ -956,9 +927,11 @@ function initCreateTaskFromTemplate() {
   typeSelect.addEventListener('change', fillTemplateOptions);
 
   templateSelect.addEventListener('change', () => {
-    const selected = getSelectedTemplate();
-    renderTemplatePreview(preview, selected, 'شكل الحملة من القالب');
-    renderTemplateFieldInputs(typeSelect.value === 'campaign' ? selected : null);
+    if (preview) {
+      preview.hidden = true;
+      preview.innerHTML = '';
+    }
+    renderTemplateFieldInputs(null);
   });
 
   departmentsList.addEventListener('click', (event) => {
@@ -1087,7 +1060,10 @@ function initCreateTaskFromTemplate() {
     }
 
     if (note) note.textContent = '✅ تم حفظ التاسك في Firebase داخل مسار workspace_tasks.';
-    renderTemplatePreview(preview, selectedTemplate, '✅ تم حفظ التاسك من القالب');
+    if (preview) {
+      preview.hidden = true;
+      preview.innerHTML = '';
+    }
     if (typeof window.refreshWorkspaceTasksFromFirestore === 'function') await window.refreshWorkspaceTasksFromFirestore();
     else if (typeof window.renderDashboardTasks === 'function') window.renderDashboardTasks();
   });

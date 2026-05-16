@@ -3671,3 +3671,61 @@ body.sidebar-collapsed .database-main {
   font-size: 9.5px !important;
   line-height: 1.38 !important;
 }
+
+/* Task details uploaded files */
+.task-attachment-box {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 12px;
+}
+.task-attachment-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid rgba(255,255,255,.12);
+  border-radius: 14px;
+  background: rgba(255,255,255,.04);
+}
+.task-attachment-list > strong {
+  font-size: 12px;
+  color: var(--muted, #9ca3af);
+  margin-bottom: 2px;
+}
+.task-attachment-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 10px;
+  border-radius: 12px;
+  text-decoration: none;
+  background: rgba(255,255,255,.06);
+  color: inherit;
+  border: 1px solid rgba(255,255,255,.08);
+}
+.task-attachment-link span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.task-attachment-link small {
+  flex: 0 0 auto;
+  color: var(--muted, #9ca3af);
+  font-size: 11px;
+}
+.task-attachment-link:hover {
+  background: rgba(255,255,255,.1);
+}
+.task-attachment-link.is-disabled {
+  opacity: .75;
+}
+.task-attachment-empty {
+  padding: 10px;
+  border-radius: 12px;
+  background: rgba(255,255,255,.04);
+  border: 1px dashed rgba(255,255,255,.14);
+  color: var(--muted, #9ca3af);
+  font-size: 12px;
+}

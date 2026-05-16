@@ -243,6 +243,57 @@ function renderTaskRequirementDetails(requiredText, deptKeyValue) {
   return parts.map(x => `<span class="task-required-line">${safe(x)}</span>`).join('');
 }
 
+
+function normalizeTaskFileRecord(file, index) {
+  if (!file) return null;
+  if (typeof file === 'string') return { name: file, fileName: file, url: file, fileUrl: file, index };
+  const url = file.fileUrl || file.url || file.webViewLink || file.attachmentUrl || file.link || '';
+  const name = file.fileName || file.name || file.title || file.label || (url ? 'ملف مرفق' : 'مرفق');
+  return { ...file, name, fileName: name, url, fileUrl: url, index };
+}
+
+function getTaskDeptByMeta(meta) {
+  if (!meta?.taskId) return null;
+  const task = readTasks().find((item) => String(item.id || item.firestoreId || item.docId) === String(meta.taskId));
+  if (!task) return null;
+  const departments = Array.isArray(task.departmentTasks) ? task.departmentTasks : [];
+  return departments.find((dept) => rawDeptIdentity(dept) === String(meta.deptIdentity || '') || deptIdentity(dept) === String(meta.deptIdentity || '')) || null;
+}
+
+function getDeptAttachmentFiles(dept) {
+  if (!dept) return [];
+  const combined = [];
+  ['driveFiles', 'attachments', 'files', 'links'].forEach((key) => {
+    const value = dept[key];
+    if (Array.isArray(value)) value.forEach((file) => combined.push(file));
+  });
+  if (dept.fileUrl || dept.attachmentUrl) {
+    combined.push({ name: dept.attachmentLabel || 'ملف مرفق', fileUrl: dept.fileUrl || dept.attachmentUrl });
+  }
+  const seen = new Set();
+  return combined.map(normalizeTaskFileRecord).filter(Boolean).filter((file) => {
+    const key = String(file.fileId || file.fileUrl || file.url || file.name || file.index || '').trim();
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function renderTaskAttachmentList(meta) {
+  const dept = getTaskDeptByMeta(meta);
+  const files = getDeptAttachmentFiles(dept);
+  if (!files.length) {
+    return '<div class="task-attachment-empty">لم يتم رفع ملفات لهذا القسم حتى الآن.</div>';
+  }
+  return `<div class="task-attachment-list"><strong>الملفات المرفوعة</strong>${files.map((file) => {
+    const url = file.fileUrl || file.url || '';
+    const name = file.fileName || file.name || 'ملف مرفق';
+    const date = file.uploadedAt ? String(file.uploadedAt).slice(0, 10) : '';
+    if (url) return `<a class="task-attachment-link" href="${escapeHTML(url)}" target="_blank" rel="noopener"><span>${escapeHTML(name)}</span>${date ? `<small>${escapeHTML(date)}</small>` : ''}</a>`;
+    return `<span class="task-attachment-link is-disabled"><span>${escapeHTML(name)}</span>${date ? `<small>${escapeHTML(date)}</small>` : ''}</span>`;
+  }).join('')}</div>`;
+}
+
 function attachmentLabelForDeptKey(deptKeyValue) {
   if (deptKeyValue === 'shooting') return 'إرفاق ملف التصوير';
   if (deptKeyValue === 'design') return 'إرفاق ملف الصور';
@@ -356,6 +407,15 @@ async function saveTaskAttachmentToFirebase(meta, fileRecord) {
     departmentTasks: updatedDepartments,
     updatedAt: new Date().toISOString()
   }, { merge: true });
+
+  const cacheIndex = firestoreTaskCache.findIndex((item) => String(item.id || item.firestoreId || item.docId) === String(meta.taskId));
+  if (cacheIndex >= 0) {
+    firestoreTaskCache[cacheIndex] = {
+      ...firestoreTaskCache[cacheIndex],
+      departmentTasks: updatedDepartments,
+      updatedAt: new Date().toISOString()
+    };
+  }
 }
 
 async function handleTaskAttachmentSelected(event) {
@@ -369,7 +429,11 @@ async function handleTaskAttachmentSelected(event) {
     if (uploadButton) { uploadButton.disabled = true; uploadButton.textContent = 'جاري الرفع...'; }
     const fileRecord = await uploadTaskFileToDrive(file, activeTaskDetailsMeta);
     await saveTaskAttachmentToFirebase(activeTaskDetailsMeta, fileRecord);
-    alert('تم رفع الملف وحفظ الرابط في قاعدة البيانات.');
+    alert('تم رفع الملف بنجاح.');
+    const attachBox = taskDetailsModal?.querySelector('[data-task-attachment-box]');
+    if (attachBox) {
+      attachBox.innerHTML = `<button class="soft-btn upload-task-file-btn" type="button" data-upload-task-attachment>${attachmentLabelForDeptKey(activeTaskDetailsMeta?.deptKey || '')}</button>${renderTaskAttachmentList(activeTaskDetailsMeta)}`;
+    }
     if (window.renderDashboardTasks) window.renderDashboardTasks();
   } catch (error) {
     console.error('task attachment upload failed:', error);
@@ -420,7 +484,7 @@ function openTaskDetails(button) {
       stepButton.classList.add('is-approval-step');
       if (!isAdminUser()) {
         stepButton.disabled = true;
-        stepButton.title = 'زر الاعتماد خاص بالأدمن فقط';
+        stepButton.title = 'أدمن فقط';
       }
     }
 
@@ -437,7 +501,7 @@ function openTaskDetails(button) {
     taskStepButtons.insertAdjacentElement('afterend', attachBox);
   }
   if (attachBox) {
-    attachBox.innerHTML = `<button class="soft-btn upload-task-file-btn" type="button" data-upload-task-attachment>${attachmentLabelForDeptKey(button.dataset.deptKey || '')}</button><small>يتم رفع الملف على Google Drive وحفظ الرابط تلقائياً في قاعدة البيانات.</small>`;
+    attachBox.innerHTML = `<button class="soft-btn upload-task-file-btn" type="button" data-upload-task-attachment>${attachmentLabelForDeptKey(button.dataset.deptKey || '')}</button>${renderTaskAttachmentList(activeTaskDetailsMeta)}`;
   }
   taskDetailsModal.classList.add('is-open');
   taskDetailsModal.setAttribute('aria-hidden', 'false');

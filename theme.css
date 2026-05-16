@@ -2286,3 +2286,78 @@ body:has(#createTaskModal.is-open) {
     width: 100%;
   }
 }
+
+/* Campaign template sheet view - same shape as uploaded Excel */
+.template-sheet-head {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+.template-sheet-head strong {
+  color: var(--ink);
+  font-size: 18px;
+  font-weight: 900;
+}
+.template-sheet-head p {
+  margin: 0;
+  color: var(--muted);
+  font-weight: 800;
+}
+.template-sheet-scroll {
+  width: 100%;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: rgba(255,255,255,.58);
+  padding: 10px;
+}
+.template-sheet-table {
+  width: max-content;
+  min-width: 100%;
+  border-collapse: separate;
+  border-spacing: 8px;
+  direction: rtl;
+}
+.template-sheet-table td {
+  min-width: 180px;
+  max-width: 360px;
+  padding: 13px 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(255, 248, 239, .9);
+  color: var(--ink);
+  font-weight: 900;
+  vertical-align: top;
+  white-space: pre-wrap;
+}
+.template-sheet-table.is-editable td {
+  padding: 0;
+  background: transparent;
+  border: 0;
+}
+.template-sheet-table.is-editable input {
+  width: 100%;
+  min-width: 180px;
+  height: 48px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: rgba(255,255,255,.82);
+  padding: 0 14px;
+  font: inherit;
+  font-weight: 800;
+  color: var(--ink);
+  outline: none;
+}
+.template-sheet-table.is-editable input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(198, 151, 118, .16);
+}
+.template-fields-input-grid {
+  display: block;
+}
+#createTaskTemplatePreview[hidden],
+#templateSelectWrap[hidden],
+#templateFieldsForm[hidden] {
+  display: none !important;
+}

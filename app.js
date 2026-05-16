@@ -218,24 +218,55 @@ function typeLabel(type) {
   return 'الحملات والأجندات';
 }
 
-function renderTemplatePreview(container, template, titlePrefix = 'شكل القالب') {
+function getTemplateRows(template) {
+  if (!template) return [];
+  if (Array.isArray(template.rows) && template.rows.length) {
+    return template.rows
+      .map((row) => Array.isArray(row) ? row.map((cell) => String(cell ?? '').trim()) : [])
+      .filter((row) => row.some(Boolean));
+  }
+  const headers = Array.isArray(template.headers) ? template.headers : [];
+  const sample = Array.isArray(template.sampleRow) ? template.sampleRow : [];
+  return [headers, sample].filter((row) => row && row.some((cell) => String(cell ?? '').trim()));
+}
+
+function renderTemplateSheet(container, template, options = {}) {
   if (!container) return;
-  if (!template || !Array.isArray(template.headers) || !template.headers.length) {
-    container.innerHTML = '<strong>' + titlePrefix + '</strong><p>لا يوجد Template مختار حالياً.</p>';
+  const title = options.title || 'معاينة القالب';
+  const editable = Boolean(options.editable);
+  const rows = getTemplateRows(template);
+  if (!template || !rows.length) {
+    container.innerHTML = `<strong>${title}</strong><p>لا يوجد قالب حملة مختار حالياً.</p>`;
     return;
   }
 
-  const chips = template.headers.map((header, index) => {
-    const safeHeader = String(header || ('Field ' + (index + 1))).replace(/[<>&]/g, (ch) => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[ch]));
-    const sample = template.sampleRow && template.sampleRow[index] ? String(template.sampleRow[index]).replace(/[<>&]/g, (ch) => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[ch])) : 'خانة في النموذج';
-    return `<div class="template-field-chip"><small>${index + 1}</small><strong>${safeHeader}</strong><small>${sample}</small></div>`;
+  const maxCols = Math.max(...rows.map((row) => row.length), 1);
+  const rowsHtml = rows.map((row, rowIndex) => {
+    const cells = Array.from({ length: maxCols }).map((_, colIndex) => {
+      const value = row[colIndex] || '';
+      if (editable) {
+        return `<td><input type="text" data-template-cell data-template-row="${rowIndex}" data-template-col="${colIndex}" value="${escapeHTML(value)}" placeholder="اكتب هنا"></td>`;
+      }
+      return `<td>${escapeHTML(value)}</td>`;
+    }).join('');
+    return `<tr>${cells}</tr>`;
   }).join('');
 
   container.innerHTML = `
-    <strong>${titlePrefix}: ${template.name}</strong>
-    <p>${template.fileName || 'Excel Template'} — ${typeLabel(template.type)}</p>
-    <div class="template-fields-grid">${chips}</div>
+    <div class="template-sheet-head">
+      <strong>${escapeHTML(title)}</strong>
+      <p>${escapeHTML(template.name || 'قالب حملة')} ${template.fileName ? '— ' + escapeHTML(template.fileName) : ''}</p>
+    </div>
+    <div class="template-sheet-scroll">
+      <table class="template-sheet-table ${editable ? 'is-editable' : ''}">
+        <tbody>${rowsHtml}</tbody>
+      </table>
+    </div>
   `;
+}
+
+function renderTemplatePreview(container, template, titlePrefix = 'شكل القالب') {
+  renderTemplateSheet(container, template, { title: titlePrefix, editable: false });
 }
 
 function initTemplatesPage() {
@@ -279,11 +310,14 @@ function initTemplatesPage() {
     const workbook = XLSX.read(buffer, { type: 'array' });
     const firstSheetName = workbook.SheetNames[0];
     const sheet = workbook.Sheets[firstSheetName];
-    const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
-    const headerRow = (rows[0] || []).map((cell) => String(cell).trim()).filter(Boolean);
-    if (!headerRow.length) throw new Error('الشيت لازم يكون فيه أسماء أعمدة في أول صف.');
-    const sampleRow = (rows[1] || []).map((cell) => String(cell).trim());
-    return { sheetName: firstSheetName, headers: headerRow, sampleRow, rowsCount: rows.length };
+    const rawRows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+    const cleanRows = rawRows
+      .map((row) => (row || []).map((cell) => String(cell ?? '').trim()))
+      .filter((row) => row.some(Boolean));
+    const headerRow = (cleanRows[0] || []).map((cell) => String(cell).trim()).filter(Boolean);
+    if (!headerRow.length) throw new Error('الشيت لازم يكون فيه بيانات في أول صف.');
+    const sampleRow = (cleanRows[1] || []).map((cell) => String(cell).trim());
+    return { sheetName: firstSheetName, headers: headerRow, sampleRow, rows: cleanRows, rowsCount: cleanRows.length };
   }
 
   fileInput.addEventListener('change', async () => {
@@ -324,6 +358,7 @@ function initTemplatesPage() {
         sheetName: pendingTemplateData.sheetName,
         headers: pendingTemplateData.headers,
         sampleRow: pendingTemplateData.sampleRow,
+        rows: pendingTemplateData.rows || [],
         rowsCount: pendingTemplateData.rowsCount,
         createdAt: new Date().toISOString()
       };
@@ -607,24 +642,31 @@ function initCreateTaskFromTemplate() {
 
   function fillTemplateOptions() {
     const taskType = typeSelect.value;
-    const showTemplates = taskType === 'campaign' || taskType === 'agenda';
+    const showTemplates = taskType === 'campaign';
     if (templateWrap) templateWrap.hidden = !showTemplates;
 
+    templateSelect.value = '';
+
     if (!showTemplates) {
-      templateSelect.innerHTML = '<option value="">اختار Template محفوظ</option>';
-      renderTemplatePreview(preview, null, 'شكل الحملة / الأجندة');
+      templateSelect.innerHTML = '<option value="">اختار قالب حملة محفوظ</option>';
+      if (preview) {
+        if (taskType === 'agenda') {
+          preview.innerHTML = '<strong>الأجندة</strong><p>الأجندة لا تحتاج اختيار قالب حملة. اكتب بيانات الأجندة وحدد الأقسام فقط.</p>';
+        } else {
+          preview.innerHTML = '<strong>شكل الحملة</strong><p>اختار نوع التاسك. القوالب تظهر فقط عند اختيار حملة.</p>';
+        }
+      }
       renderTemplateFieldInputs(null);
       return;
     }
 
-    const matching = loadTaskTemplates().filter((template) => templateMatchesType(template, taskType));
-    const label = taskType === 'campaign' ? 'اختار قالب حملة محفوظ' : 'اختار قالب أجندة محفوظ';
-    templateSelect.innerHTML = `<option value="">${label}</option>` + matching.map((template) => `<option value="${escapeHTML(template.id)}">${escapeHTML(template.name)}</option>`).join('');
-    renderTemplatePreview(preview, null, taskType === 'campaign' ? 'شكل الحملة' : 'شكل الأجندة');
+    const matching = loadTaskTemplates().filter((template) => templateMatchesType(template, 'campaign'));
+    templateSelect.innerHTML = '<option value="">اختار قالب حملة محفوظ</option>' + matching.map((template) => `<option value="${escapeHTML(template.id)}">${escapeHTML(template.name)}</option>`).join('');
+    if (preview) preview.innerHTML = '<strong>شكل الحملة</strong><p>اختار قالب حملة محفوظ علشان يظهر شكل الشيت كما هو.</p>';
     renderTemplateFieldInputs(null);
 
-    if (!matching.length) {
-      preview.innerHTML = `<strong>${taskType === 'campaign' ? 'قوالب الحملات' : 'قوالب الأجندات'}</strong><p>لا يوجد قوالب محفوظة لهذا النوع حالياً. ارفع Template من صفحة قوالب الحملات.</p>`;
+    if (!matching.length && preview) {
+      preview.innerHTML = '<strong>قوالب الحملات</strong><p>لا يوجد قوالب حملات محفوظة حالياً. ارفع شيت الحملة من صفحة قوالب الحملات.</p>';
     }
   }
 
@@ -634,25 +676,34 @@ function initCreateTaskFromTemplate() {
 
   function renderTemplateFieldInputs(template) {
     if (!templateFieldsForm || !templateFieldsInputGrid) return;
-    const headers = Array.isArray(template?.headers) ? template.headers.filter(Boolean) : [];
-    if (!headers.length) {
+    const rows = getTemplateRows(template);
+    if (!rows.length) {
       templateFieldsForm.hidden = true;
       templateFieldsInputGrid.innerHTML = '';
       return;
     }
     templateFieldsForm.hidden = false;
-    templateFieldsInputGrid.innerHTML = headers.map((header, index) => {
-      const value = template.sampleRow && template.sampleRow[index] ? template.sampleRow[index] : '';
-      return `<label class="mzj-field template-dynamic-field"><span>${escapeHTML(header)}</span><input type="text" data-template-field="${index}" data-template-header="${escapeHTML(header)}" placeholder="اكتب ${escapeHTML(header)}" value="${escapeHTML(value)}"></label>`;
-    }).join('');
+    renderTemplateSheet(templateFieldsInputGrid, template, { title: 'بيانات الحملة حسب الشيت', editable: true });
   }
 
   function collectTemplateValues() {
-    if (!templateFieldsInputGrid) return [];
-    return Array.from(templateFieldsInputGrid.querySelectorAll('[data-template-field]')).map((input) => ({
-      header: input.dataset.templateHeader || '',
-      value: input.value || ''
-    }));
+    if (!templateFieldsInputGrid) return { rows: [], flat: [] };
+    const cells = Array.from(templateFieldsInputGrid.querySelectorAll('[data-template-cell]'));
+    const rows = [];
+    cells.forEach((input) => {
+      const rowIndex = Number(input.dataset.templateRow || 0);
+      const colIndex = Number(input.dataset.templateCol || 0);
+      if (!rows[rowIndex]) rows[rowIndex] = [];
+      rows[rowIndex][colIndex] = input.value || '';
+    });
+    return {
+      rows: rows.filter((row) => row && row.some((cell) => String(cell || '').trim())),
+      flat: cells.map((input) => ({
+        row: Number(input.dataset.templateRow || 0),
+        col: Number(input.dataset.templateCol || 0),
+        value: input.value || ''
+      }))
+    };
   }
 
   function createDepartmentRow(dept) {
@@ -906,8 +957,8 @@ function initCreateTaskFromTemplate() {
 
   templateSelect.addEventListener('change', () => {
     const selected = getSelectedTemplate();
-    renderTemplatePreview(preview, selected, typeSelect.value === 'campaign' ? 'شكل الحملة' : 'شكل الأجندة');
-    renderTemplateFieldInputs(selected);
+    renderTemplatePreview(preview, selected, 'شكل الحملة من القالب');
+    renderTemplateFieldInputs(typeSelect.value === 'campaign' ? selected : null);
   });
 
   departmentsList.addEventListener('click', (event) => {

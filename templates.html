@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MZJ Marketing System - قوالب الحملات</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="theme.css" />
+</head>
+<body data-user-role="admin">
+  <aside class="sidebar" id="sidebar">
+    <div class="brand-block">
+      <button class="menu-toggle" id="sidebarToggle" type="button" aria-label="فتح وإغلاق القائمة">
+        <span></span><span></span><span></span>
+      </button>
+      <div class="brand-copy">
+        <strong>MZJ Workspace</strong>
+        <small>Marketing System</small>
+      </div>
+      <div class="brand-avatar">M</div>
+    </div>
+
+    <nav class="side-nav" aria-label="صفحات السيستم">
+      <a class="nav-link" href="admin.html" data-route="admin"><span class="nav-icon">01</span><span class="nav-text">صفحة الإدارة</span></a>
+      <a class="nav-link" href="stock.html" data-route="stock"><span class="nav-icon">02</span><span class="nav-text">صفحة الاستوك</span></a>
+      <a class="nav-link" href="daily-tasks.html" data-route="dailyTasks"><span class="nav-icon">03</span><span class="nav-text">تاسكات يومية</span></a>
+      <a class="nav-link" href="content.html" data-route="content"><span class="nav-icon">04</span><span class="nav-text">المحتوى</span></a>
+      <a class="nav-link" href="departments.html" data-route="departments"><span class="nav-icon">05</span><span class="nav-text">الأقسام</span></a>
+      <a class="nav-link" href="database.html" data-route="database"><span class="nav-icon">06</span><span class="nav-text">قاعدة البيانات</span></a>
+      <a class="nav-link" href="dashboard.html" data-route="dashboard"><span class="nav-icon">07</span><span class="nav-text">الداش بورد</span></a>
+      <a class="nav-link" href="campaigns-calendar.html" data-route="campaignsCalendar"><span class="nav-icon">08</span><span class="nav-text">الحملات والأجندات</span></a>
+      <a class="nav-link" href="templates.html" data-route="taskTemplates"><span class="nav-icon">09</span><span class="nav-text">قوالب الحملات</span></a>
+    </nav>
+
+    <div class="sidebar-card">
+      <span class="status-dot"></span>
+      <div>
+        <strong>Templates</strong>
+        <small>قوالب شكل الحملات والأجندات</small>
+      </div>
+    </div>
+  </aside>
+
+  <main class="main-shell templates-main">
+    <header class="topbar">
+      <div class="page-title">
+        <p>TEMPLATES</p>
+        <h1>قوالب الحملات والأجندات</h1>
+      </div>
+      <div class="topbar-actions">
+        <a class="ghost-btn" href="dashboard.html">الداش بورد</a>
+        <button class="primary-btn" type="button" id="clearTemplateForm">قالب جديد</button>
+      </div>
+    </header>
+
+    <section class="workspace-card dashboard-intro">
+      <div>
+        <span class="eyebrow">Template Library</span>
+        <h2>ارفع Excel Template واحفظه باسم داخل السيستم</h2>
+        <p>كل Template بيتحفظ باسمه ونوعه. لما تفتح نموذج إنشاء تاسك في الداش بورد وتختار حملة أو أجندة، هيظهر القالب المناسب ويتبني شكل النموذج من أعمدة الشيت.</p>
+      </div>
+      <div class="template-help-card">
+        <strong>طريقة القراءة</strong>
+        <small>أول صف في الشيت = أسماء الخانات</small>
+        <small>باقي الصفوف = أمثلة/بيانات مبدئية</small>
+      </div>
+    </section>
+
+    <section class="template-layout">
+      <article class="workspace-card template-form-card">
+        <div class="board-head">
+          <h3>رفع Template</h3>
+          <span class="column-hint">Excel: xlsx / xls / csv</span>
+        </div>
+        <form id="templateUploadForm" class="template-upload-form">
+          <label class="mzj-field">
+            <span>اسم الـ Template</span>
+            <input id="templateName" type="text" placeholder="مثال: حملة ثقة - Brand Reel" required />
+          </label>
+          <label class="mzj-field">
+            <span>يظهر في</span>
+            <select id="templateType" required>
+              <option value="campaign">الحملات فقط</option>
+              <option value="agenda">الأجندات فقط</option>
+              <option value="both">الحملات والأجندات</option>
+            </select>
+          </label>
+          <label class="mzj-field file-field">
+            <span>Excel Template</span>
+            <input id="templateFile" type="file" accept=".xlsx,.xls,.csv" required />
+          </label>
+          <button class="primary-btn" type="submit">حفظ Template في السيستم</button>
+          <p class="form-note" id="templateFormNote">القوالب محفوظة محليًا حاليًا داخل المتصفح، وجاهزة للربط مع Firebase بعد تحديد Collection.</p>
+        </form>
+      </article>
+
+      <article class="workspace-card template-preview-card">
+        <div class="board-head">
+          <h3>معاينة شكل القالب</h3>
+          <span class="column-hint" id="templateSheetName">لم يتم رفع ملف</span>
+        </div>
+        <div class="template-preview-box" id="templatePreviewBox">
+          <strong>شكل الحملة حسب الشيت</strong>
+          <p>بعد رفع الشيت، هتظهر أسماء الأعمدة هنا كخانات نموذج.</p>
+        </div>
+      </article>
+    </section>
+
+    <section class="workspace-card saved-templates-card">
+      <div class="board-head">
+        <h3>Templates محفوظة</h3>
+        <span class="column-hint">تظهر تلقائيًا في إنشاء التاسك</span>
+      </div>
+      <div class="saved-template-list" id="savedTemplateList"></div>
+    </section>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="firebase-config.js"></script>
+  <script src="routes.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

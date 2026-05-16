@@ -31,6 +31,7 @@
       <a class="nav-link" href="database.html" data-route="database"><span class="nav-icon">06</span><span class="nav-text">قاعدة البيانات</span></a>
       <a class="nav-link" href="dashboard.html" data-route="dashboard"><span class="nav-icon">07</span><span class="nav-text">الداش بورد</span></a>
       <a class="nav-link" href="campaigns-calendar.html" data-route="campaignsCalendar"><span class="nav-icon">08</span><span class="nav-text">الحملات والأجندات</span></a>
+      <a class="nav-link" href="templates.html" data-route="taskTemplates"><span class="nav-icon">09</span><span class="nav-text">قوالب الحملات</span></a>
     </nav>
 
     <div class="sidebar-card">
@@ -50,7 +51,7 @@
       </div>
       <div class="topbar-actions">
         <button class="ghost-btn">⟳ تحديث</button>
-        <button class="primary-btn">➕ إنشاء تاسك</button>
+        <button class="primary-btn" id="createTaskOpen" type="button">➕ إنشاء تاسك</button>
       </div>
     </header>
 
@@ -419,6 +420,46 @@
       </div>
       <div class="task-steps-grid" id="taskStepButtons"></div>
       <p class="admin-only-note">زر الاعتماد خاص بالأدمن فقط، وسيتم تعطيله تلقائيًا لليوزر العادي.</p>
+    </section>
+  </div>
+
+
+  <div class="task-details-modal create-task-modal" id="createTaskModal" aria-hidden="true">
+    <section class="task-details-dialog create-task-dialog" role="dialog" aria-modal="true" aria-labelledby="createTaskTitle">
+      <div class="task-details-head">
+        <div>
+          <p>إنشاء تاسك من Template</p>
+          <h3 id="createTaskTitle">اختار حملة أو أجندة ثم اختار القالب</h3>
+        </div>
+        <button class="modal-close-btn" type="button" data-close-create-task aria-label="إغلاق">×</button>
+      </div>
+
+      <div class="create-task-grid">
+        <label class="mzj-field">
+          <span>نوع التاسك</span>
+          <select id="createTaskType">
+            <option value="campaign">حملة</option>
+            <option value="agenda">أجندة</option>
+          </select>
+        </label>
+        <label class="mzj-field">
+          <span>Template</span>
+          <select id="createTaskTemplate">
+            <option value="">اختار Template محفوظ</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="template-preview-box" id="createTaskTemplatePreview">
+        <strong>شكل الحملة / الأجندة</strong>
+        <p>ارفع Template من صفحة قوالب الحملات، وبعدها هيظهر هنا حسب الاسم والنوع اللي اخترته.</p>
+      </div>
+
+      <div class="task-card-actions create-task-actions">
+        <a class="soft-btn" href="templates.html">إدارة الـ Templates</a>
+        <button class="primary-btn" type="button" id="saveTaskFromTemplate">حفظ التاسك</button>
+      </div>
+      <p class="admin-only-note">الحفظ هنا مجهز على localStorage كمرحلة أولى، وبعد ربط Firestore نفس البيانات تترفع في Collection للقوالب والتاسكات.</p>
     </section>
   </div>
 

@@ -3597,3 +3597,17 @@ body.sidebar-collapsed .database-main {
 @media(max-width: 900px){
   .db-edit-required-fields .multi-choice-grid{grid-template-columns: 1fr !important;}
 }
+
+
+/* Final database table tuning */
+.campaign-db-final-table{min-width:2100px;}
+.campaign-db-final-table th,.campaign-db-final-table td{font-size:11px;line-height:1.45;padding:8px 7px;vertical-align:top;}
+.campaign-db-final-table .db-dept-mini{min-width:132px;padding:7px 8px;border-radius:12px;}
+.campaign-db-final-table .db-dept-mini strong{font-size:11px;}
+.campaign-db-final-table .db-dept-mini small{font-size:10px;white-space:nowrap;}
+.campaign-db-final-table .view-btn{padding:8px 11px;font-size:11px;border-radius:12px;white-space:nowrap;}
+.publish-info-box{background:rgba(255,246,227,.75);border:1px solid rgba(80,43,36,.12);border-radius:16px;padding:10px 12px;margin:10px 0;display:grid;gap:6px;text-align:right;}
+.publish-info-box strong{font-size:13px;color:var(--brown,#4b241f);}
+.publish-info-box small{font-size:11px;color:rgba(80,43,36,.75);line-height:1.8;}
+.publish-actions-grid .task-step-btn small{font-weight:800;}
+@media (max-width:900px){.campaign-db-final-table{min-width:1800px}.campaign-db-final-table th,.campaign-db-final-table td{font-size:10px;padding:7px 6px}}

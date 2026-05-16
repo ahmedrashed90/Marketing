@@ -98,7 +98,9 @@
       name: r.name || r.campaignName || r.title || r.agendaName || r.taskName || 'حملة / أجندة',
       code: r.code || r.campaignCode || r.taskCode || r.campaignSerial || '',
       goal: r.goal || r.campaignGoal || r.taskGoal || r.objective || '',
-      launchDate: r.launchDate || r.campaignLaunchDate || r.publishDate || r.date || r.dueDate || '',
+      launchDate: r.launchDate || r.campaignStartDate || r.startDate || r.campaignLaunchDate || r.publishDate || r.date || r.dueDate || '',
+      startDate: r.startDate || r.campaignStartDate || r.launchDate || r.campaignLaunchDate || '',
+      endDate: r.endDate || r.campaignEndDate || r.finishDate || '',
       requiredDate: r.requiredDate || r.deadline || r.launchDate || r.dueDate || '',
       deliveryDate: r.deliveryDate || r.completedAt || r.deliveredAt || '',
       createdAt: r.createdAt || r.created || '',
@@ -173,7 +175,7 @@
 
   function taskReceiveDate(task){ return task.receiveDate || task.startDate || task.receivedAt || task.acceptedAt || task.taskReceiveDate || ''; }
   function taskRequiredDate(task, record){ return task.requiredDate || task.deadline || task.dueDate || record.requiredDate || record.launchDate || ''; }
-  function taskDeliveryDate(task){ return task.deliveryDate || task.submittedAt || task.doneAt || task.deliveredAt || ''; }
+  function taskDeliveryDate(task){ return task.deliveryDate || task.publishDate || task.submittedAt || task.doneAt || task.deliveredAt || ''; }
 
   function dateForInput(value){
     const raw = normalizeDate(value);
@@ -188,19 +190,25 @@
   function renderDeptSummary(record, key){
     const tasks = record.departmentTasks.filter(t => deptKey(t) === key);
     if(!tasks.length) return '<span class="db-muted">--</span>';
-    return tasks.map((task) => `
+    return tasks.map((task) => {
+      const deliveryLabel = key === 'publish' ? 'نشر' : 'تسليم';
+      return `
       <div class="db-dept-mini">
-        <strong>${esc(personLabel(task))}</strong>
-        <small>استلام: ${esc(formatDate(taskReceiveDate(task)))}</small>
-        <small>مطلوب: ${esc(formatDate(taskRequiredDate(task, record)))}</small>
-        <small>تسليم: ${esc(formatDate(taskDeliveryDate(task)))}</small>
+        <strong>اسم المسئول / ${esc(personLabel(task))}</strong>
+        <small>تاريخ الاستلام / ${esc(formatDate(taskReceiveDate(task)))}</small>
+        <small>التاريخ المطلوب / ${esc(formatDate(taskRequiredDate(task, record)))}</small>
+        <small>تاريخ ${deliveryLabel} / ${esc(formatDate(taskDeliveryDate(task)))}</small>
         <small class="${calcDelay(taskRequiredDate(task, record), taskDeliveryDate(task)).includes('تأخير') ? 'is-late' : ''}">وقت التأخير: ${esc(calcDelay(taskRequiredDate(task, record), taskDeliveryDate(task)))}</small>
-      </div>
-    `).join('');
+      </div>`;
+    }).join('');
+  }
+
+  function renderSectionButton(record, section, label){
+    return `<button class="view-btn db-one-view-btn" type="button" data-db-details="${esc(record.id)}" data-db-section="${esc(section)}">${esc(label)}</button>`;
   }
 
   function renderCellButton(record){
-    return `<button class="view-btn db-one-view-btn" type="button" data-db-details="${esc(record.id)}">عرض البيانات</button>`;
+    return renderSectionButton(record, 'all', 'عرض البيانات');
   }
 
   function scheduleHtml(record){
@@ -232,7 +240,7 @@
     return tasks.map((task) => {
       const files = task.files || task.attachments || task.links || task.fileUrls || task.attachmentUrls || [];
       const fileList = Array.isArray(files) ? files : (files ? [files] : []);
-      return `<article class="db-section-task"><h4>${esc(label)} — ${esc(departmentLabel(task))}</h4><div class="db-info-grid"><span>اسم المسئول: <b>${esc(personLabel(task))}</b></span><span>تاريخ الاستلام: <b>${esc(formatDate(taskReceiveDate(task)))}</b></span><span>التاريخ المطلوب: <b>${esc(formatDate(taskRequiredDate(task, record)))}</b></span><span>تاريخ التسليم: <b>${esc(formatDate(taskDeliveryDate(task)))}</b></span><span>وقت التأخير: <b>${esc(calcDelay(taskRequiredDate(task, record), taskDeliveryDate(task)))}</b></span><span>المطلوب: <b>${esc(task.requiredText || '--')}</b></span></div>${fileList.length ? `<div class="db-files-list">${fileList.map((f, i) => {
+      return `<article class="db-section-task"><h4>${esc(label)} — ${esc(departmentLabel(task))}</h4><div class="db-info-grid"><span>اسم المسئول: <b>${esc(personLabel(task))}</b></span><span>تاريخ الاستلام: <b>${esc(formatDate(taskReceiveDate(task)))}</b></span><span>التاريخ المطلوب: <b>${esc(formatDate(taskRequiredDate(task, record)))}</b></span><span>${key === 'publish' ? 'تاريخ النشر' : 'تاريخ التسليم'}: <b>${esc(formatDate(taskDeliveryDate(task)))}</b></span><span>وقت التأخير: <b>${esc(calcDelay(taskRequiredDate(task, record), taskDeliveryDate(task)))}</b></span><span>المطلوب: <b>${esc(task.requiredText || '--')}</b></span></div>${fileList.length ? `<div class="db-files-list">${fileList.map((f, i) => {
         const url = typeof f === 'string' ? f : (f.url || f.fileUrl || f.downloadURL || '');
         const name = typeof f === 'string' ? `ملف ${i+1}` : (f.name || f.fileName || `ملف ${i+1}`);
         return url ? `<a href="${esc(url)}" target="_blank" rel="noopener">${esc(name)}</a>` : `<span>${esc(name)}</span>`;
@@ -248,18 +256,25 @@
     return `<div class="db-inner-table"><table><tbody>${Object.entries(results).map(([k,v]) => `<tr><th>${esc(k)}</th><td>${esc(typeof v === 'object' ? JSON.stringify(v) : v)}</td></tr>`).join('')}</tbody></table></div>`;
   }
 
-  function detailsHtml(record){
-    return `<div class="db-modal-summary"><strong>${esc(record.name)}</strong><span>${esc(record.type)} · كود: ${esc(record.code || '--')}</span></div>
-      <section class="db-detail-section"><h3>عرض التصوير</h3>${attachmentsHtml(record, 'photography')}</section>
-      <section class="db-detail-section"><h3>عرض المحتوى</h3>${attachmentsHtml(record, 'content')}</section>
-      <section class="db-detail-section"><h3>عرض التصميم</h3>${attachmentsHtml(record, 'design')}</section>
-      <section class="db-detail-section"><h3>عرض الفيديو</h3>${attachmentsHtml(record, 'video')}</section>
-      <section class="db-detail-section"><h3>عرض جدول النشر</h3>${scheduleHtml(record)}</section>
-      <section class="db-detail-section"><h3>عرض الميزانية</h3>${budgetHtml(record)}</section>
-      <section class="db-detail-section"><h3>عرض نتائج الحملة</h3>${resultsHtml(record)}</section>`;
+  function detailSectionHtml(record, section){
+    const sections = {
+      photography: `<section class="db-detail-section"><h3>عرض التصوير</h3>${attachmentsHtml(record, 'photography')}</section>`,
+      content: `<section class="db-detail-section"><h3>عرض المحتوى</h3>${attachmentsHtml(record, 'content')}</section>`,
+      design: `<section class="db-detail-section"><h3>عرض التصميم</h3>${attachmentsHtml(record, 'design')}</section>`,
+      video: `<section class="db-detail-section"><h3>عرض الفيديو</h3>${attachmentsHtml(record, 'video')}</section>`,
+      schedule: `<section class="db-detail-section"><h3>عرض جدول النشر</h3>${scheduleHtml(record)}</section>`,
+      budget: `<section class="db-detail-section"><h3>عرض الميزانية</h3>${budgetHtml(record)}</section>`,
+      results: `<section class="db-detail-section"><h3>عرض نتائج الحملة</h3>${resultsHtml(record)}</section>`
+    };
+    if(section && section !== 'all' && sections[section]) return sections[section];
+    return Object.values(sections).join('');
   }
 
-  function openDbDetails(recordId){
+  function detailsHtml(record, section){
+    return `<div class="db-modal-summary"><strong>${esc(record.name)}</strong><span>${esc(record.type)} · كود: ${esc(record.code || '--')}</span></div>${detailSectionHtml(record, section)}`;
+  }
+
+  function openDbDetails(recordId, section){
     const record = loadRecords().find(r => String(r.id) === String(recordId));
     if(!record) return;
     const modal = document.getElementById('detailsModal');
@@ -458,7 +473,7 @@
           <label class="mzj-field"><span>إيميل المسؤول</span><input type="email" data-edit-user-email value="${escAttr(task.userEmail || task.assigneeEmail || '')}" placeholder="يتحدد تلقائيًا من اليوزر"></label>
           <label class="mzj-field"><span>تاريخ الاستلام</span><input type="date" data-edit-receive-date value="${escAttr(dateForInput(taskReceiveDate(task)))}"></label>
           <label class="mzj-field"><span>التاريخ المطلوب</span><input type="date" data-edit-required-date value="${escAttr(dateForInput(taskRequiredDate(task, record)))}"></label>
-          <label class="mzj-field"><span>تاريخ التسليم</span><input type="date" data-edit-delivery-date value="${escAttr(dateForInput(taskDeliveryDate(task)))}"></label>
+          <label class="mzj-field"><span>${dept.key === 'publish' ? 'تاريخ النشر' : 'تاريخ التسليم'}</span><input type="date" data-edit-delivery-date value="${escAttr(dateForInput(taskDeliveryDate(task)))}"></label>
         </div>
         ${renderEditRequirementsFields(dept.key, task)}
       </article>`;
@@ -613,17 +628,15 @@
       holder.innerHTML='<article class="empty-database-state"><div class="empty-icon">DB</div><div><span class="eyebrow">قاعدة البيانات جاهزة</span><h4>لا توجد حملات أو أجندات مطابقة</h4><p>الحملات والأجندات تظهر هنا من Firebase من مسار workspace_tasks فقط.</p></div></article>';
       return;
     }
-    holder.innerHTML = `<div class="campaign-db-table-wrap"><table class="campaign-db-table"><thead><tr>
-      <th>م</th><th>نوع الحملة</th><th>اسم الحملة</th><th>كود الحملة</th><th>الهدف من الحملة</th><th>تاريخ نزول الحملة</th>
+    holder.innerHTML = `<div class="campaign-db-table-wrap"><table class="campaign-db-table campaign-db-final-table"><thead><tr>
+      <th>م</th><th>التاريخ</th><th>كود الحملة</th><th>اسم الحملة</th><th>نوع الحملة</th><th>الهدف من الحملة</th><th>تاريخ بداية الحملة</th><th>تاريخ نهاية الحملة</th>
       <th>قسم التصوير</th><th>قسم المحتوى</th><th>قسم التصميم</th><th>قسم المونتاج</th><th>قسم النشر</th>
-      <th>تاريخ التسليم</th><th>وقت التأخير</th><th>عرض البيانات</th><th>إجراءات</th>
+      <th>عرض التصوير</th><th>عرض المحتوى</th><th>عرض التصميم</th><th>عرض الفيديو</th><th>عرض جدول النشر</th><th>عرض الميزانية</th><th>عرض نتائج الحملة</th><th>إجراءات</th>
     </tr></thead><tbody>${records.map((r, idx) => {
-      const req = r.requiredDate || r.launchDate || r.deadline;
-      const del = r.deliveryDate || r.completedAt;
       return `<tr data-record-id="${esc(r.id)}">
-        <td>${idx+1}</td><td>${esc(r.type)}</td><td>${esc(r.name)}</td><td>${esc(r.code || '--')}</td><td>${esc(r.goal || '--')}</td><td>${esc(formatDate(r.launchDate))}</td>
+        <td>${idx+1}</td><td>${esc(formatDate(r.taskDate || r.createdAt || r.launchDate))}</td><td>${esc(r.code || '--')}</td><td>${esc(r.name)}</td><td>${esc(r.campaignTypeName || r.type)}</td><td>${esc(r.goal || '--')}</td><td>${esc(formatDate(r.startDate || r.launchDate))}</td><td>${esc(formatDate(r.endDate))}</td>
         <td>${renderDeptSummary(r,'photography')}</td><td>${renderDeptSummary(r,'content')}</td><td>${renderDeptSummary(r,'design')}</td><td>${renderDeptSummary(r,'video')}</td><td>${renderDeptSummary(r,'publish')}</td>
-        <td>${esc(formatDate(del))}</td><td>${esc(calcDelay(req, del))}</td><td>${renderCellButton(r)}</td><td>${isAdmin() ? `<div class="db-action-stack"><button class="soft-btn db-edit-btn" type="button" data-edit-record="${esc(r.id)}" onclick="window.openDatabaseEditCampaign && window.openDatabaseEditCampaign(this.dataset.editRecord)">تعديل</button><button class="danger-btn db-delete-btn" type="button" data-delete-record="${esc(r.id)}">مسح</button></div>` : '--'}</td>
+        <td>${renderSectionButton(r,'photography','عرض')}</td><td>${renderSectionButton(r,'content','عرض')}</td><td>${renderSectionButton(r,'design','عرض')}</td><td>${renderSectionButton(r,'video','عرض')}</td><td>${renderSectionButton(r,'schedule','عرض')}</td><td>${renderSectionButton(r,'budget','عرض')}</td><td>${renderSectionButton(r,'results','عرض')}</td><td>${isAdmin() ? `<div class="db-action-stack"><button class="soft-btn db-edit-btn" type="button" data-edit-record="${esc(r.id)}" onclick="window.openDatabaseEditCampaign && window.openDatabaseEditCampaign(this.dataset.editRecord)">تعديل</button><button class="danger-btn db-delete-btn" type="button" data-delete-record="${esc(r.id)}">مسح</button></div>` : '--'}</td>
       </tr>`;
     }).join('')}</tbody></table></div>`;
   }
@@ -649,7 +662,7 @@
     if(detailsBtn){
       e.preventDefault();
       e.stopPropagation();
-      openDbDetails(detailsBtn.dataset.dbDetails);
+      openDbDetails(detailsBtn.dataset.dbDetails, detailsBtn.dataset.dbSection || 'all');
       return;
     }
     const editBtn = e.target.closest('[data-edit-record]');

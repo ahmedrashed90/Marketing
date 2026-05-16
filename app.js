@@ -1047,7 +1047,7 @@ function initCreateTaskFromTemplate() {
           </label>
 
           <label class="mzj-field">
-            <span>تاريخ التسليم</span>
+            <span>${kind === 'publish' ? 'تاريخ النشر' : 'تاريخ التسليم'}</span>
             <input type="date" data-delivery-date>
           </label>
         </div>
@@ -1529,7 +1529,11 @@ initCreateTaskFromTemplate();
     design: ['تصميم','التصميم','design'],
     montage: ['مونتاج','المونتاج','montage']
   };
-  const PUBLISH_STEPS = ['التجهيز 1','التجهيز 2','التجهيز 3','الاعتماد','النشر'];
+  const PUBLISH_STEPS = [
+    { label: 'التجهيز 1', value: 35 },
+    { label: 'الاعتماد', value: 30, adminOnly: true },
+    { label: 'النشر', value: 35 }
+  ];
 
   function normalizeWorkspaceTask(task, fallbackId){
     if (!task || typeof task !== 'object') return null;
@@ -1658,7 +1662,7 @@ initCreateTaskFromTemplate();
     return Math.min(100, Math.round(total));
   }
   function taskReadiness(task){
-    const depts = task.departmentTasks || [];
+    const depts = (task.departmentTasks || []).filter((d) => d && d.enabled !== false);
     if (!depts.length) return 0;
     const total = depts.reduce((sum, d) => sum + taskDeptProgress(task, d), 0);
     return Math.round(total / depts.length);
@@ -1676,7 +1680,7 @@ initCreateTaskFromTemplate();
     if (!task.stage) task.stage = 'required';
     const ready = taskReadiness(task);
     if (task.stage !== 'archive' && ready >= 100) task.stage = 'publish';
-    if ((task.publishSteps || []).length >= 5) task.stage = 'archive';
+    if ((task.publishSteps || []).length >= PUBLISH_STEPS.length) task.stage = 'archive';
     return task;
   }
   function clearList(id, emptyText){
@@ -1719,13 +1723,19 @@ initCreateTaskFromTemplate();
     </article>`;
   }
   function publishCard(task){
-    const done = task.publishSteps || [];
-    const percent = done.length * 20;
+    const done = Array.isArray(task.publishSteps) ? task.publishSteps : [];
+    const percent = Math.min(100, PUBLISH_STEPS.reduce((sum, step, i) => sum + (done.includes(i) ? Number(step.value || 0) : 0), 0));
+    const publishDept = (task.departmentTasks || []).find((d) => deptKey(d.departmentName) === 'publish') || {};
+    const publishInfo = publishDept.departmentName ? `<div class="publish-info-box">
+      <strong>${esc(task.taskTypeLabel || 'حملة')} — كود الحملة: ${esc(task.campaignCode || '--')} — تاريخ نزول الحملة: ${esc(task.launchDate || task.campaignStartDate || '--')}</strong>
+      <small>اسم المسئول / ${esc(publishDept.userDisplayName || publishDept.userName || publishDept.userEmail || '--')}، تاريخ الاستلام / ${esc(publishDept.receiveDate || (publishDept.receivedAt ? String(publishDept.receivedAt).slice(0,10) : '--'))}، التاريخ المطلوب / ${esc(publishDept.requiredDate || '--')}، تاريخ النشر / ${esc(publishDept.deliveryDate || publishDept.publishDate || '--')}</small>
+    </div>` : '';
     return `<article class="dept-card-template dynamic-dashboard-card" data-dash-task-id="${esc(task.id)}">
       <div class="task-template-top"><strong>${esc(taskTitle(task))}</strong><span>${meta(task)} — جاهزية النشر ${percent}%</span></div>
+      ${publishInfo}
       <div class="mini-progress"><span style="width:${percent}%"></span></div>
       <div class="publish-actions-grid">
-        ${PUBLISH_STEPS.map((step,i)=>`<button type="button" class="task-step-btn ${done.includes(i) ? 'is-done' : ''}" data-publish-step data-task-id="${esc(task.id)}" data-step-index="${i}" ${!userIsAdmin()?'disabled':''}><span>${esc(step)}</span><small>20%</small></button>`).join('')}
+        ${PUBLISH_STEPS.map((step,i)=>`<button type="button" class="task-step-btn ${done.includes(i) ? 'is-done' : ''}" data-publish-step data-task-id="${esc(task.id)}" data-step-index="${i}" ${!userIsAdmin()?'disabled':''}><span>${esc(step.label)}</span><small>${esc(step.value)}%</small></button>`).join('')}
       </div><div class="task-card-actions"><button class="danger-btn" type="button" data-delete-task="${esc(task.id)}" data-admin-only>مسح الحملة</button></div>
     </article>`;
   }
@@ -1779,7 +1789,7 @@ initCreateTaskFromTemplate();
         <span class="meta-person"><small>المسؤول</small><strong>${esc(deptTask.userDisplayName || deptTask.userName || deptTask.userEmail || 'بدون مسؤول')}</strong></span>
         <span class="meta-receive"><small>تاريخ الاستلام</small><strong>${esc(deptTask.receiveDate || (deptTask.receivedAt ? String(deptTask.receivedAt).slice(0,10) : '—'))}</strong></span>
         <span class="meta-date meta-required"><small>التاريخ المطلوب</small><strong>${esc(deptTask.requiredDate || '—')}</strong></span>
-        <span class="meta-date meta-delivery"><small>تاريخ التسليم</small><strong>${esc(deptTask.deliveryDate || '—')}</strong></span>
+        <span class="meta-date meta-delivery"><small>${dkey === 'publish' ? 'تاريخ النشر' : 'تاريخ التسليم'}</small><strong>${esc(deptTask.deliveryDate || deptTask.publishDate || '—')}</strong></span>
         <span class="meta-status"><small>حالة الاستلام</small><strong>${(deptTask.receivedConfirmed || deptTask.received || deptTask.receivedAt) ? 'تم الاستلام' : 'لم يتم الاستلام'}</strong></span>
       </div>
       <div class="department-progress-row"><div class="department-progress-box"><small>اكتمال التاسك</small><strong data-task-percent>${p}%</strong></div><div class="department-progress-box"><small>نسبة الحملة</small><strong data-campaign-percent>${Math.round(p / Math.max((task.departmentTasks||[]).length,1))}%</strong></div></div>
@@ -1830,7 +1840,7 @@ initCreateTaskFromTemplate();
       const idx = Number(pub.dataset.stepIndex);
       task.publishSteps = Array.isArray(task.publishSteps) ? task.publishSteps : [];
       if (!task.publishSteps.includes(idx)) task.publishSteps.push(idx);
-      if (task.publishSteps.length >= 5) task.stage = 'archive';
+      if (task.publishSteps.length >= PUBLISH_STEPS.length) task.stage = 'archive';
       autoStage(task);
       saveTaskToFirestore(task).then(() => window.renderDashboardTasks()).catch((error) => alert('فشل تحديث النشر في Firebase: ' + (error?.message || error?.code || error)));
       return;

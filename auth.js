@@ -3,33 +3,124 @@
   const USER_COLLECTION = 'users';
   const LEGACY_USER_COLLECTION = 'user';
   const TEST_USERS = [
-    { email: 'admin@mzj.local', password: '123456', name: 'مدير النظام', role: 'admin', department: 'management' },
-    { email: 'user@mzj.local', password: '123456', name: 'يوزر عادي', role: 'user', department: 'photography' }
+    { email: 'admin@mzj.local', password: '123456', name: 'مدير النظام', role: 'admin', department: 'management', pagesAccess: ['admin','dashboard','database','departments','taskTemplates','campaignsCalendar','stock','dailyTasks','content'] },
+    { email: 'user@mzj.local', password: '123456', name: 'يوزر عادي', role: 'user', department: 'photography', pagesAccess: ['dashboard'] }
   ];
 
-  function getUser(){ try { return JSON.parse(localStorage.getItem(AUTH_KEY) || 'null'); } catch(e){ return null; } }
-  function setUser(user){ localStorage.setItem(AUTH_KEY, JSON.stringify(user)); }
-  function logout(){ localStorage.removeItem(AUTH_KEY); location.href = 'login.html'; }
+  const PAGE_NAME_TO_ROUTE = {
+    'admin.html': 'admin',
+    'test.html': 'admin',
+    'stock.html': 'stock',
+    'daily-tasks.html': 'dailyTasks',
+    'content.html': 'content',
+    'departments.html': 'departments',
+    'database.html': 'database',
+    'dashboard.html': 'dashboard',
+    'campaigns-calendar.html': 'campaignsCalendar',
+    'templates.html': 'taskTemplates',
+    'login.html': 'login'
+  };
+
+  const ROUTE_ALIASES = {
+    admin: 'admin',
+    administration: 'admin',
+    'صفحة الإدارة': 'admin',
+    'الادارة': 'admin',
+    stock: 'stock',
+    'صفحة الاستوك': 'stock',
+    dailyTasks: 'dailyTasks',
+    daily_tasks: 'dailyTasks',
+    'تاسكات يومية': 'dailyTasks',
+    content: 'content',
+    'المحتوى': 'content',
+    departments: 'departments',
+    'الأقسام': 'departments',
+    'الاقسام': 'departments',
+    database: 'database',
+    'قاعدة البيانات': 'database',
+    dashboard: 'dashboard',
+    'الداش بورد': 'dashboard',
+    campaignsCalendar: 'campaignsCalendar',
+    campaigns_calendar: 'campaignsCalendar',
+    'الحملات والأجندات': 'campaignsCalendar',
+    'الحملات والاجندات': 'campaignsCalendar',
+    taskTemplates: 'taskTemplates',
+    templates: 'taskTemplates',
+    'قوالب الحملات': 'taskTemplates',
+    login: 'login',
+    'تسجيل الدخول': 'login'
+  };
+
+  function getUser(){
+    try { return JSON.parse(localStorage.getItem(AUTH_KEY) || 'null'); } catch(e){ return null; }
+  }
+
+  function setUser(user){
+    localStorage.setItem(AUTH_KEY, JSON.stringify(user));
+  }
+
+  function logout(){
+    localStorage.removeItem(AUTH_KEY);
+    location.href = 'login.html';
+  }
+
   function normalizeRole(role){
-    const r = String(role || 'user').toLowerCase();
-    if (r === 'admin' || r === 'owner' || r === 'super_admin') return 'admin';
-    if (r === 'marketing_manager' || r === 'manager' || r === 'marketing') return 'marketing_manager';
+    const r = String(role || 'user').trim().toLowerCase();
+    if (['admin','owner','super_admin','superadmin','administrator'].includes(r)) return 'admin';
+    if (['marketing_manager','manager','marketing','مدير تسويق','مدير التسويق'].includes(r)) return 'marketing_manager';
     return 'user';
   }
+
+  function normalizePageKey(value){
+    const raw = String(value || '').trim();
+    if (!raw) return '';
+    if (ROUTE_ALIASES[raw]) return ROUTE_ALIASES[raw];
+    const lower = raw.toLowerCase();
+    if (ROUTE_ALIASES[lower]) return ROUTE_ALIASES[lower];
+    const fileName = raw.split('/').pop();
+    if (PAGE_NAME_TO_ROUTE[fileName]) return PAGE_NAME_TO_ROUTE[fileName];
+    return raw;
+  }
+
+  function normalizePages(value){
+    let list = [];
+    if (Array.isArray(value)) {
+      list = value;
+    } else if (value && typeof value === 'object') {
+      list = Object.entries(value).filter(([,v]) => !!v).map(([k]) => k);
+    } else if (typeof value === 'string') {
+      list = value.split(',').map(v => v.trim()).filter(Boolean);
+    }
+    return Array.from(new Set(list.map(normalizePageKey).filter(Boolean)));
+  }
+
+  function getAllowedPages(row){
+    const sources = [row?.pagesAccess, row?.pages, row?.allowedPages, row?.permissions];
+    for (const source of sources) {
+      const pages = normalizePages(source);
+      if (pages.length) return pages;
+    }
+    return [];
+  }
+
   function normalizeUserDoc(data, id, fallbackEmail){
     const row = data || {};
-    const email = String(row.email || fallbackEmail || '').trim();
-    return {
+    const email = String(row.email || row.mail || row.userEmail || fallbackEmail || '').trim();
+    const normalized = {
       id: id || row.id || row.uid || '',
+      uid: row.uid || id || '',
       email,
       name: row.name || row.displayName || row.fullName || email,
       role: normalizeRole(row.role || row.type),
       department: row.department || row.departmentId || row.section || '',
-      pagesAccess: row.pagesAccess || row.pages || row.allowedPages || row.permissions || [],
+      pagesAccess: getAllowedPages(row),
       password: row.password || row.pass || '',
+      status: row.status || 'active',
       source: row.source || 'firestore:users'
     };
+    return normalized;
   }
+
   function loadLocalManagedUsers(){
     const keys = ['mzj_admin_users_cache_v1','users','user'];
     const out = [];
@@ -56,7 +147,6 @@
       if (!firebase.apps.length) firebase.initializeApp(window.MZJ_FIREBASE_CONFIG);
       const db = firebase.firestore();
       for (const collectionName of [USER_COLLECTION, LEGACY_USER_COLLECTION]) {
-        // 1) Fast exact query on the email field.
         try {
           const exactSnap = await db.collection(collectionName).where('email','==', email).limit(1).get();
           if (!exactSnap.empty) {
@@ -67,11 +157,9 @@
             return { user, error: null };
           }
         } catch(queryErr) {
-          // If where queries are blocked by rules, try a direct list below. If list is also blocked, we surface the error.
           console.warn('Firestore exact query failed:', queryErr);
         }
 
-        // 2) Full collection scan fallback: supports old users with email casing differences or alternate fields.
         const snap = await db.collection(collectionName).get();
         let matched = null;
         snap.forEach((doc) => {
@@ -95,24 +183,138 @@
     }
   }
 
-  window.MZJAuth = { getUser, logout, users: TEST_USERS, getFirestoreUser, loadLocalManagedUsers, normalizeRole, normalizeUserDoc, USER_COLLECTION, LEGACY_USER_COLLECTION };
+  async function refreshCurrentUserFromFirestore(currentUser){
+    if (!currentUser || !currentUser.email) return currentUser;
+    const result = await getFirestoreUser(currentUser.email);
+    if (result && result.user) {
+      const fresh = {
+        ...currentUser,
+        ...result.user,
+        role: normalizeRole(result.user.role),
+        pagesAccess: result.user.pagesAccess || [],
+        loginAt: currentUser.loginAt || new Date().toISOString(),
+        refreshedAt: new Date().toISOString()
+      };
+      setUser(fresh);
+      return fresh;
+    }
+    return currentUser;
+  }
 
-  document.addEventListener('DOMContentLoaded', function(){
+  function isAdminLike(user){
+    return user && ['admin','marketing_manager'].includes(normalizeRole(user.role));
+  }
+
+  function currentRouteKey(){
     const page = location.pathname.split('/').pop() || 'login.html';
-    const user = getUser();
+    return PAGE_NAME_TO_ROUTE[page] || page;
+  }
+
+  function firstAllowedHref(user){
+    const routes = window.MZJ_ROUTES || {};
+    const pages = normalizePages(user?.pagesAccess);
+    const first = pages[0] || 'dashboard';
+    return routes[first] || 'dashboard.html';
+  }
+
+  function enforcePageAccess(user){
+    if (!user || isAdminLike(user)) return true;
+    const allowed = new Set(normalizePages(user.pagesAccess));
+    if (!allowed.size) allowed.add('dashboard');
+    const route = currentRouteKey();
+    if (route !== 'login' && !allowed.has(route)) {
+      document.body.innerHTML = '<main class="main-shell"><section class="workspace-card access-denied-card"><h1>غير مسموح بالدخول</h1><p>الصفحة دي مش ضمن صلاحيات اليوزر الحالي.</p><a class="primary-btn" href="' + firstAllowedHref(user) + '">الرجوع للصفحة المسموحة</a></section></main>';
+      return false;
+    }
+    return true;
+  }
+
+  function applyNavigationAccess(user){
+    const links = document.querySelectorAll('[data-route]');
+    if (!user) return;
+
+    const adminLike = isAdminLike(user);
+    const allowed = new Set(normalizePages(user.pagesAccess));
+    if (!adminLike && !allowed.size) allowed.add('dashboard');
+
+    links.forEach(link => {
+      const route = normalizePageKey(link.dataset.route);
+      const show = adminLike ? route !== 'login' : allowed.has(route);
+      link.style.display = show ? '' : 'none';
+      link.toggleAttribute('aria-hidden', !show);
+    });
+  }
+
+  function applyRolePanels(user){
+    document.querySelectorAll('[data-role-panel]').forEach(panel => {
+      const target = isAdminLike(user) ? 'admin' : 'user';
+      panel.classList.toggle('is-active', panel.dataset.rolePanel === target);
+    });
+    document.querySelectorAll('.role-switcher').forEach(el => el.remove());
+  }
+
+  function applyAdminOnly(user){
+    document.querySelectorAll('[data-admin-only]').forEach(el => {
+      if(!isAdminLike(user)) {
+        el.setAttribute('disabled','disabled');
+        el.style.display = 'none';
+      } else {
+        el.removeAttribute('disabled');
+      }
+    });
+  }
+
+  function renderUserBadge(user){
+    document.querySelectorAll('.auth-user-badge').forEach(el => el.remove());
+    const badge = document.createElement('div');
+    badge.className = 'auth-user-badge';
+    const roleLabel = isAdminLike(user) ? (user.role === 'marketing_manager' ? 'Marketing Manager' : 'Admin') : 'User';
+    badge.innerHTML = `<button type="button" data-auth-logout>خروج</button><span>${roleLabel}</span><strong>${user.name || user.email}</strong>`;
+    document.body.appendChild(badge);
+    badge.querySelector('[data-auth-logout]').addEventListener('click', logout);
+  }
+
+  function applyUserSessionToPage(user){
+    document.body.dataset.userRole = user ? normalizeRole(user.role) : 'guest';
+    if (!user) return;
+    if (!enforcePageAccess(user)) return;
+    renderUserBadge(user);
+    applyNavigationAccess(user);
+    applyRolePanels(user);
+    applyAdminOnly(user);
+  }
+
+  window.MZJAuth = {
+    getUser,
+    setUser,
+    logout,
+    users: TEST_USERS,
+    getFirestoreUser,
+    loadLocalManagedUsers,
+    normalizeRole,
+    normalizeUserDoc,
+    normalizePages,
+    applyNavigationAccess,
+    USER_COLLECTION,
+    LEGACY_USER_COLLECTION
+  };
+
+  document.addEventListener('DOMContentLoaded', async function(){
+    const page = location.pathname.split('/').pop() || 'login.html';
+    let user = getUser();
+
     if (page !== 'login.html' && !user) {
       location.href = 'login.html';
       return;
     }
-    document.body.dataset.userRole = user ? user.role : 'guest';
-    if (user && user.role !== 'admin' && Array.isArray(user.pagesAccess) && user.pagesAccess.length) {
-      const routeMap = window.MZJ_ROUTES || {};
-      const currentFile = page;
-      const allowedFiles = user.pagesAccess.map(k => routeMap[k] || k);
-      if (!allowedFiles.includes(currentFile) && currentFile !== 'login.html') {
-        document.body.innerHTML = '<main class="main-shell"><section class="workspace-card access-denied-card"><h1>غير مسموح بالدخول</h1><p>الصفحة دي مش ضمن صلاحيات اليوزر الحالي.</p><a class="primary-btn" href="dashboard.html">الرجوع للداش بورد</a></section></main>';
-        return;
-      }
+
+    if (page !== 'login.html' && user) {
+      user = await refreshCurrentUserFromFirestore(user);
+      applyUserSessionToPage(user);
+    } else if (user) {
+      document.body.dataset.userRole = normalizeRole(user.role);
+    } else {
+      document.body.dataset.userRole = 'guest';
     }
 
     const loginForm = document.getElementById('loginForm');
@@ -148,32 +350,21 @@
 
         if (!found) found = TEST_USERS.find(u => u.email.toLowerCase() === email.toLowerCase() && u.password === password);
         if (!found) { if(msg) msg.textContent = 'الحساب غير موجود في مسار users أو كلمة المرور غير صحيحة.'; return; }
-        setUser({ id: found.id || '', email: found.email, name: found.name || found.email, role: normalizeRole(found.role), department: found.department || '', pagesAccess: found.pagesAccess || found.pages || [], loginAt: new Date().toISOString(), source: found.source || 'local', collectionName: found.collectionName || USER_COLLECTION });
-        location.href = 'dashboard.html';
-      });
-    }
 
-    if (user) {
-      const badge = document.createElement('div');
-      badge.className = 'auth-user-badge';
-      badge.innerHTML = `<strong>${user.name}</strong><span>${user.role === 'admin' ? 'Admin' : (user.role === 'marketing_manager' ? 'Marketing Manager' : 'User')}</span><button type="button" data-auth-logout>خروج</button>`;
-      document.body.appendChild(badge);
-      badge.querySelector('[data-auth-logout]').addEventListener('click', logout);
-
-      document.querySelectorAll('[data-role-panel]').forEach(panel => {
-        panel.classList.toggle('is-active', panel.dataset.rolePanel === user.role);
-      });
-      document.querySelectorAll('.role-switcher').forEach(el => el.remove());
-      if (user && user.role !== 'admin' && Array.isArray(user.pagesAccess) && user.pagesAccess.length) {
-        document.querySelectorAll('[data-route]').forEach(link => {
-          if (!user.pagesAccess.includes(link.dataset.route) && link.dataset.route !== 'login') link.style.display = 'none';
-        });
-      }
-      document.querySelectorAll('[data-admin-only]').forEach(el => {
-        if(user.role !== 'admin' && user.role !== 'marketing_manager') {
-          el.setAttribute('disabled','disabled');
-          el.style.display = 'none';
-        }
+        const loginUser = {
+          id: found.id || found.uid || '',
+          uid: found.uid || found.id || '',
+          email: found.email,
+          name: found.name || found.email,
+          role: normalizeRole(found.role),
+          department: found.department || '',
+          pagesAccess: normalizePages(found.pagesAccess || found.pages || []),
+          loginAt: new Date().toISOString(),
+          source: found.source || 'local',
+          collectionName: found.collectionName || USER_COLLECTION
+        };
+        setUser(loginUser);
+        location.href = isAdminLike(loginUser) ? 'dashboard.html' : firstAllowedHref(loginUser);
       });
     }
   });

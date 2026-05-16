@@ -272,10 +272,26 @@
   function renderUserBadge(user){
     document.querySelectorAll('.auth-user-badge').forEach(el => el.remove());
     const badge = document.createElement('div');
-    badge.className = 'auth-user-badge';
+    badge.className = 'auth-user-badge sidebar-auth-card';
     const roleLabel = isAdminLike(user) ? (user.role === 'marketing_manager' ? 'Marketing Manager' : 'Admin') : 'User';
-    badge.innerHTML = `<button type="button" data-auth-logout>خروج</button><span>${roleLabel}</span><strong>${user.name || user.email}</strong>`;
-    document.body.appendChild(badge);
+    const displayName = user.name || user.displayName || user.email || 'User';
+    badge.innerHTML = `
+      <div class="auth-user-info">
+        <strong>${displayName}</strong>
+        <span>${roleLabel}</span>
+      </div>
+      <button type="button" data-auth-logout>خروج</button>
+    `;
+
+    const sidebar = document.getElementById('sidebar');
+    const sidebarFooter = sidebar?.querySelector('.sidebar-card');
+    if (sidebarFooter) {
+      sidebarFooter.replaceWith(badge);
+    } else if (sidebar) {
+      sidebar.appendChild(badge);
+    } else {
+      document.body.appendChild(badge);
+    }
     badge.querySelector('[data-auth-logout]').addEventListener('click', logout);
   }
 

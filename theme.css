@@ -2458,3 +2458,85 @@ body:has(#createTaskModal.is-open) {
     min-width: 0 !important;
   }
 }
+
+/* Move logged-in user box from bottom-left of page into the sidebar */
+.auth-user-badge.sidebar-auth-card,
+.sidebar .auth-user-badge {
+  position: static !important;
+  left: auto !important;
+  right: auto !important;
+  bottom: auto !important;
+  z-index: auto !important;
+  width: auto !important;
+  margin-top: auto !important;
+  background: rgba(255,248,239,.10) !important;
+  color: var(--cream) !important;
+  border-radius: 22px !important;
+  padding: 14px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 10px !important;
+  box-shadow: none !important;
+  border: 1px solid rgba(255,248,239,.08) !important;
+}
+
+.auth-user-badge.sidebar-auth-card .auth-user-info,
+.sidebar .auth-user-badge .auth-user-info {
+  min-width: 0 !important;
+  display: grid !important;
+  gap: 4px !important;
+  text-align: right !important;
+}
+
+.auth-user-badge.sidebar-auth-card strong,
+.sidebar .auth-user-badge strong {
+  max-width: 130px !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+  font-size: 13px !important;
+  color: var(--cream) !important;
+}
+
+.auth-user-badge.sidebar-auth-card span,
+.sidebar .auth-user-badge span {
+  opacity: .75 !important;
+  font-size: 11px !important;
+  font-weight: 800 !important;
+}
+
+.auth-user-badge.sidebar-auth-card button,
+.sidebar .auth-user-badge button {
+  flex: 0 0 auto !important;
+  border: 0 !important;
+  border-radius: 14px !important;
+  padding: 9px 12px !important;
+  font: inherit !important;
+  font-size: 12px !important;
+  font-weight: 900 !important;
+  cursor: pointer !important;
+  background: var(--cream) !important;
+  color: var(--brown-900) !important;
+}
+
+.sidebar.is-collapsed .auth-user-badge.sidebar-auth-card,
+.sidebar.is-collapsed .auth-user-badge {
+  justify-content: center !important;
+  padding: 12px 8px !important;
+}
+
+.sidebar.is-collapsed .auth-user-badge .auth-user-info {
+  display: none !important;
+}
+
+@media(max-width:760px){
+  .auth-user-badge.sidebar-auth-card,
+  .sidebar .auth-user-badge {
+    left: auto !important;
+    right: auto !important;
+    bottom: auto !important;
+    width: auto !important;
+    justify-content: space-between !important;
+  }
+}

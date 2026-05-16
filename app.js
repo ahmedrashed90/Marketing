@@ -1569,6 +1569,37 @@ initCreateTaskFromTemplate();
       <div class="task-card-actions"><button class="danger-btn" type="button" data-delete-task="${esc(task.id)}" data-admin-only>مسح الحملة</button></div><div class="task-empty-note">الحملة اتنقلت تلقائياً إلى الأرشيف بعد اكتمال أزرار النشر.</div>
     </article>`;
   }
+
+  function normalizeSearchText(value){
+    return String(value || '').toLowerCase().replace(/[\u064B-\u065F]/g,'').trim();
+  }
+  function dashboardSearchHaystack(task){
+    const parts = [];
+    const push = (v) => { if (v !== undefined && v !== null) parts.push(String(v)); };
+    ['id','title','name','taskType','type','campaignType','campaignName','agendaName','campaignCode','campaignSerial','code','goal','campaignGoal','objective','startDate','endDate','campaignStartDate','campaignEndDate','launchDate','campaignLaunchDate'].forEach(k => push(task[k]));
+    (task.departmentTasks || []).forEach((d) => {
+      ['departmentName','departmentId','userName','userDisplayName','userEmail','uid','userId','requiredText','deliveryDetails','requiredType','carType','contentType','requiredDate','deliveryDate','receiveDate'].forEach(k => push(d[k]));
+      if (Array.isArray(d.selectedDeliverables)) d.selectedDeliverables.forEach((item) => {
+        push(item?.title); push(item?.details); push(item?.desc);
+      });
+      if (Array.isArray(d.photoItems)) d.photoItems.forEach((item) => { push(item?.carType); push(item?.contentType); });
+    });
+    if (task.budget) {
+      push(task.budget.totalBudget);
+      (task.budget.items || []).forEach((item) => {
+        ['adType','adName','publishDate','duration','adsCount','contentGoal','expectedGoal','itemTotal'].forEach(k => push(item[k]));
+        (item.platforms || []).forEach((pl) => { push(pl.name); push(pl.amount); });
+      });
+    }
+    (task.publishSchedule || task.publishScheduleItems || []).forEach((item) => { push(item.day); push(item.date); push(item.content); });
+    return normalizeSearchText(parts.join(' '));
+  }
+  function taskMatchesDashboardSearch(task, query){
+    const q = normalizeSearchText(query);
+    if (!q) return true;
+    return dashboardSearchHaystack(task).includes(q);
+  }
+
   function userDeptCard(task, deptTask){
     const p = taskDeptProgress(task, deptTask);
     const dkey = deptKey(deptTask.departmentName);
@@ -1594,7 +1625,8 @@ initCreateTaskFromTemplate();
 
   window.renderDashboardTasks = function renderDashboardTasks(){
     if (!document.getElementById('adminRequiredTasks') && !document.getElementById('userShootingTasks')) return;
-    const tasks = readTasks().map(autoStage);
+    const query = document.getElementById('dashboardTaskSearch')?.value || '';
+    const tasks = readTasks().map(autoStage).filter((task) => taskMatchesDashboardSearch(task, query));
     const required = clearList('adminRequiredTasks','لا توجد تاسكات مطلوبة حالياً.');
     const readiness = clearList('adminReadinessTasks','لا توجد حملات في جاهزية المطلوب حالياً.');
     const publishing = clearList('adminPublishingTasks','لا توجد حملات جاهزة للنشر حالياً.');
@@ -1694,6 +1726,19 @@ initCreateTaskFromTemplate();
     await deleteTaskEverywhere(del.dataset.deleteTask);
     window.renderDashboardTasks();
     if (typeof window.renderCampaignRecordsLive === 'function') window.renderCampaignRecordsLive();
+  });
+
+  document.addEventListener('input', function(event){
+    if (event.target && event.target.id === 'dashboardTaskSearch') {
+      window.renderDashboardTasks?.();
+    }
+  });
+
+  document.addEventListener('click', function(event){
+    const refresh = event.target.closest('#dashboardRefreshBtn');
+    if (!refresh) return;
+    refreshWorkspaceTasksFromFirestore?.();
+    setTimeout(window.renderDashboardTasks, 250);
   });
 
   document.addEventListener('DOMContentLoaded', function(){

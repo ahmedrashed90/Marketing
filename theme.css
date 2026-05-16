@@ -2935,3 +2935,152 @@ body.sidebar-collapsed .database-main {
   .multi-choice-grid{grid-template-columns:1fr}
   .dept-special-head{align-items:flex-start;flex-direction:column}
 }
+
+/* Professional department requirement choices */
+.dashboard-actions-enhanced{
+  display:flex;
+  align-items:center;
+  gap:12px;
+  flex-wrap:wrap;
+}
+.dashboard-search-box{
+  min-width:320px;
+  flex:1 1 360px;
+  max-width:560px;
+  display:grid;
+  grid-template-columns:auto 1fr;
+  align-items:center;
+  gap:10px;
+  padding:8px 12px;
+  border-radius:18px;
+  background:rgba(255,255,255,.82);
+  border:1px solid rgba(73,36,30,.10);
+  box-shadow:0 12px 28px rgba(73,36,30,.06);
+}
+.dashboard-search-box span{
+  color:var(--brown);
+  font-size:12px;
+  font-weight:900;
+  white-space:nowrap;
+}
+.dashboard-search-box input{
+  width:100%;
+  border:0;
+  outline:0;
+  background:transparent;
+  color:var(--brown);
+  font-family:inherit;
+  font-size:13px;
+  font-weight:800;
+  direction:rtl;
+}
+.dashboard-search-box input::placeholder{color:rgba(73,36,30,.48)}
+.dept-special-fields[data-special-kind="design"],
+.dept-special-fields[data-special-kind="montage"]{
+  padding:16px;
+  border-radius:22px;
+  background:linear-gradient(180deg,rgba(255,255,255,.78),rgba(250,244,237,.92));
+  border:1px solid rgba(73,36,30,.10);
+}
+.dept-special-fields[data-special-kind="design"] .dept-special-head,
+.dept-special-fields[data-special-kind="montage"] .dept-special-head{
+  align-items:center;
+  justify-content:space-between;
+  padding-bottom:12px;
+  border-bottom:1px solid rgba(73,36,30,.08);
+  margin-bottom:12px;
+}
+.dept-special-fields[data-special-kind="design"] .dept-special-head strong,
+.dept-special-fields[data-special-kind="montage"] .dept-special-head strong{
+  font-size:18px;
+  color:var(--brown);
+}
+.department-hint-inline{
+  background:rgba(73,36,30,.08)!important;
+  color:rgba(73,36,30,.76)!important;
+  border:1px solid rgba(73,36,30,.08);
+}
+.multi-choice-grid{
+  display:grid!important;
+  grid-template-columns:repeat(auto-fit,minmax(280px,1fr))!important;
+  gap:12px!important;
+  margin:12px 0 16px!important;
+}
+.multi-choice-card{
+  position:relative;
+  min-height:88px;
+  display:grid!important;
+  grid-template-columns:36px 1fr!important;
+  gap:6px 12px!important;
+  align-items:start!important;
+  padding:14px 14px 14px 16px!important;
+  border-radius:20px!important;
+  background:rgba(255,255,255,.92)!important;
+  border:1px solid rgba(73,36,30,.12)!important;
+  box-shadow:0 10px 26px rgba(73,36,30,.045)!important;
+  overflow:hidden;
+}
+.multi-choice-card::before{
+  content:"";
+  position:absolute;
+  inset:0 auto 0 0;
+  width:5px;
+  background:rgba(73,36,30,.16);
+  opacity:.7;
+}
+.multi-choice-card:hover{
+  transform:translateY(-1px);
+  border-color:rgba(73,36,30,.28)!important;
+  box-shadow:0 16px 32px rgba(73,36,30,.08)!important;
+}
+.multi-choice-card.is-checked{
+  background:linear-gradient(135deg,rgba(73,36,30,.98),rgba(90,48,40,.94))!important;
+  border-color:rgba(73,36,30,.55)!important;
+  box-shadow:0 18px 34px rgba(73,36,30,.16)!important;
+}
+.multi-choice-card input{
+  appearance:none;
+  -webkit-appearance:none;
+  width:24px;
+  height:24px;
+  margin:2px 0 0!important;
+  border-radius:9px;
+  border:2px solid rgba(73,36,30,.24);
+  background:#fff;
+  display:grid;
+  place-items:center;
+  cursor:pointer;
+}
+.multi-choice-card input::after{
+  content:"✓";
+  font-size:14px;
+  font-weight:900;
+  color:#fff;
+  transform:scale(0);
+  transition:.14s ease;
+}
+.multi-choice-card input:checked{
+  border-color:rgba(215,173,139,.95);
+  background:var(--accent);
+}
+.multi-choice-card input:checked::after{transform:scale(1)}
+.multi-choice-title{
+  font-size:14px!important;
+  line-height:1.45!important;
+  color:var(--brown)!important;
+  font-weight:900!important;
+}
+.multi-choice-card small{
+  grid-column:2!important;
+  color:rgba(73,36,30,.62)!important;
+  font-size:12px!important;
+  line-height:1.7!important;
+  font-weight:800!important;
+}
+.multi-choice-card.is-checked .multi-choice-title,
+.multi-choice-card.is-checked small{color:#fff!important}
+.multi-choice-card.is-checked small{opacity:.84}
+@media(max-width:900px){
+  .dashboard-search-box{min-width:100%;max-width:none}
+  .multi-choice-grid{grid-template-columns:1fr!important}
+}

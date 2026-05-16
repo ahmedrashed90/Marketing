@@ -1,10 +1,9 @@
 (function(){
   const AUTH_KEY = 'mzj_current_user';
+  const USER_COLLECTION = 'user';
+  const LEGACY_USER_COLLECTION = 'users';
   const TEST_USERS = [
-    { email: 'ceo@mzjcars.com', password: '123456', name: 'Ahmed Khaatan', role: 'admin', department: 'management' },
-    { email: 'khataan.1992@gmail.com', password: '123456', name: 'Abdullah Khataan', role: 'admin', department: 'management' },
     { email: 'admin@mzj.local', password: '123456', name: 'مدير النظام', role: 'admin', department: 'management' },
-    { email: 'ahmed@mzj.local', password: '123456', name: 'Ahmed Khaatan', role: 'admin', department: 'management' },
     { email: 'user@mzj.local', password: '123456', name: 'يوزر عادي', role: 'user', department: 'photography' }
   ];
 
@@ -13,12 +12,26 @@
   function logout(){ localStorage.removeItem(AUTH_KEY); location.href = 'login.html'; }
   function normalizeRole(role){
     const r = String(role || 'user').toLowerCase();
-    if (r === 'admin' || r === 'owner') return 'admin';
-    if (r === 'marketing_manager' || r === 'manager') return 'marketing_manager';
+    if (r === 'admin' || r === 'owner' || r === 'super_admin') return 'admin';
+    if (r === 'marketing_manager' || r === 'manager' || r === 'marketing') return 'marketing_manager';
     return 'user';
   }
+  function normalizeUserDoc(data, id, fallbackEmail){
+    const row = data || {};
+    const email = String(row.email || fallbackEmail || '').trim();
+    return {
+      id: id || row.id || row.uid || '',
+      email,
+      name: row.name || row.displayName || row.fullName || email,
+      role: normalizeRole(row.role || row.type),
+      department: row.department || row.departmentId || row.section || '',
+      pagesAccess: row.pagesAccess || row.allowedPages || row.permissions || [],
+      password: row.password || row.pass || '',
+      source: row.source || 'firestore:user'
+    };
+  }
   function loadLocalManagedUsers(){
-    const keys = ['mzj_admin_users_cache_v1','users'];
+    const keys = ['mzj_admin_users_cache_v1','user','users'];
     const out = [];
     keys.forEach(key => {
       try {
@@ -33,33 +46,32 @@
       const email = String(obj.email || '').toLowerCase();
       if(email) map.set(email, {...(map.get(email)||{}), ...obj});
     });
-    return Array.from(map.values()).map(u => ({...u, role: normalizeRole(u.role), password: u.password || '123456'}));
+    return Array.from(map.values()).map((u) => normalizeUserDoc(u, u.id, u.email));
   }
 
   async function getFirestoreUser(email){
     if (!window.firebase || !window.MZJ_FIREBASE_CONFIG) return null;
     try {
       if (!firebase.apps.length) firebase.initializeApp(window.MZJ_FIREBASE_CONFIG);
-      const snap = await firebase.firestore().collection('users').where('email','==', email).limit(1).get();
-      if (snap.empty) return null;
-      const doc = snap.docs[0];
-      const data = doc.data() || {};
-      return {
-        id: doc.id,
-        email: data.email || email,
-        name: data.name || data.displayName || data.email || email,
-        role: normalizeRole(data.role),
-        department: data.department || data.departmentId || '',
-        pagesAccess: data.pagesAccess || data.allowedPages || [],
-        source: 'firestore'
-      };
+      const db = firebase.firestore();
+      for (const collectionName of [USER_COLLECTION, LEGACY_USER_COLLECTION]) {
+        const snap = await db.collection(collectionName).where('email','==', email).limit(1).get();
+        if (!snap.empty) {
+          const doc = snap.docs[0];
+          const user = normalizeUserDoc(doc.data() || {}, doc.id, email);
+          user.collectionName = collectionName;
+          user.source = 'firestore:' + collectionName;
+          return user;
+        }
+      }
+      return null;
     } catch (err) {
-      console.warn('Firestore users login fallback:', err);
+      console.warn('Firestore user login fallback:', err);
       return null;
     }
   }
 
-  window.MZJAuth = { getUser, logout, users: TEST_USERS, getFirestoreUser, loadLocalManagedUsers, normalizeRole };
+  window.MZJAuth = { getUser, logout, users: TEST_USERS, getFirestoreUser, loadLocalManagedUsers, normalizeRole, normalizeUserDoc, USER_COLLECTION };
 
   document.addEventListener('DOMContentLoaded', function(){
     const page = location.pathname.split('/').pop() || 'login.html';
@@ -86,34 +98,30 @@
         const email = (document.getElementById('loginEmail')?.value || '').trim();
         const password = document.getElementById('loginPassword')?.value || '';
         const msg = document.getElementById('loginMessage');
-        if (msg) msg.textContent = 'جاري تسجيل الدخول...';
+        if (msg) msg.textContent = 'جاري البحث في مسار user...';
 
-        let found = null;
-        const localManagedUser = loadLocalManagedUsers().find(u => String(u.email || '').toLowerCase() === email.toLowerCase());
-        if (localManagedUser && (String(localManagedUser.password || '123456') === password || password === '')) {
-          found = { ...localManagedUser, source: 'local-users' };
+        let found = await getFirestoreUser(email);
+        if (found) {
+          const savedPassword = found.password || '123456';
+          if (String(savedPassword) !== String(password)) {
+            if(msg) msg.textContent = 'كلمة المرور غير صحيحة. لو اليوزر القديم بدون password استخدم 123456.';
+            return;
+          }
         }
-        const firestoreUser = !found ? await getFirestoreUser(email) : null;
-        if (!found && firestoreUser && (password === '123456' || password === '')) {
-          found = { ...firestoreUser, password: '123456' };
+
+        if (!found) {
+          const localManagedUser = loadLocalManagedUsers().find(u => String(u.email || '').toLowerCase() === email.toLowerCase());
+          if (localManagedUser && String(localManagedUser.password || '123456') === String(password)) {
+            found = { ...localManagedUser, source: 'local-user-cache' };
+          }
         }
+
         if (!found) found = TEST_USERS.find(u => u.email.toLowerCase() === email.toLowerCase() && u.password === password);
-        if (!found) { if(msg) msg.textContent = 'بيانات الدخول غير صحيحة. جرّب حساب الأدمن: admin@mzj.local / 123456 أو أي يوزر محفوظ في صفحة الإدارة.'; return; }
-        setUser({ id: found.id || '', email: found.email, name: found.name || found.email, role: normalizeRole(found.role), department: found.department || '', pagesAccess: found.pagesAccess || [], loginAt: new Date().toISOString(), source: found.source || 'local' });
+        if (!found) { if(msg) msg.textContent = 'الحساب غير موجود في مسار user أو كلمة المرور غير صحيحة.'; return; }
+        setUser({ id: found.id || '', email: found.email, name: found.name || found.email, role: normalizeRole(found.role), department: found.department || '', pagesAccess: found.pagesAccess || [], loginAt: new Date().toISOString(), source: found.source || 'local', collectionName: found.collectionName || USER_COLLECTION });
         location.href = 'dashboard.html';
       });
     }
-
-    document.querySelectorAll('[data-login-fill]').forEach(btn => {
-      btn.addEventListener('click', function(){
-        const kind = btn.dataset.loginFill;
-        const sample = TEST_USERS.find(u => normalizeRole(u.role) === kind) || TEST_USERS[0];
-        const email = document.getElementById('loginEmail');
-        const pass = document.getElementById('loginPassword');
-        if(email) email.value = sample.email;
-        if(pass) pass.value = sample.password;
-      });
-    });
 
     if (user) {
       const badge = document.createElement('div');

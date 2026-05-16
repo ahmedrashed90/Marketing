@@ -456,7 +456,7 @@ async function loadUsersFromSystemPath() {
   const fallback = (window.MZJAuth?.users || []).map(normalizeSystemUser).filter(Boolean);
   if (window.MZJAuth?.loadLocalManagedUsers) collected.push(...window.MZJAuth.loadLocalManagedUsers().map(normalizeSystemUser).filter(Boolean));
 
-  ['mzj_admin_users_cache_v1','users'].forEach((key) => {
+  ['mzj_admin_users_cache_v1','user','users'].forEach((key) => {
     try {
       const localUsers = JSON.parse(localStorage.getItem(key) || '[]');
       if (Array.isArray(localUsers) && localUsers.length) collected.push(...localUsers.map(normalizeSystemUser).filter(Boolean));
@@ -466,15 +466,16 @@ async function loadUsersFromSystemPath() {
   if (window.firebase && window.MZJ_FIREBASE_CONFIG) {
     try {
       if (!firebase.apps.length) firebase.initializeApp(window.MZJ_FIREBASE_CONFIG);
-      const snap = await firebase.firestore().collection('users').get();
+      const snap = await firebase.firestore().collection('user').get();
       snap.forEach((doc) => collected.push(normalizeSystemUser({ id: doc.id, ...(doc.data() || {}) })));
     } catch (error) {
-      console.warn('users path fallback:', error);
+      console.warn('user path fallback:', error);
     }
   }
 
+  const sourceUsers = collected.length ? collected : fallback;
   const map = new Map();
-  [...collected, ...fallback].filter(Boolean).forEach((user) => {
+  sourceUsers.filter(Boolean).forEach((user) => {
     const key = String(user.email || user.name || user.id).toLowerCase();
     if (key) map.set(key, { ...(map.get(key) || {}), ...user });
   });

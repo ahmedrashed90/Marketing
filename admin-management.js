@@ -1,6 +1,7 @@
 (function(){
   const USERS_KEY = 'mzj_admin_users_cache_v1';
-  const LEGACY_USERS_KEY = 'users';
+  const LEGACY_USERS_KEY = 'user';
+  const OLD_USERS_KEY = 'users';
   const pages = [
     ['admin','صفحة الإدارة','admin.html'],['stock','صفحة الاستوك','stock.html'],['dailyTasks','تاسكات يومية','daily-tasks.html'],['content','المحتوى','content.html'],['departments','الأقسام','departments.html'],['database','قاعدة البيانات','database.html'],['dashboard','الداش بورد','dashboard.html'],['campaignsCalendar','الحملات والأجندات','campaigns-calendar.html'],['taskTemplates','قوالب الحملات','templates.html']
   ];
@@ -19,7 +20,7 @@
   }
   function load(){
     const all=[];
-    [USERS_KEY, LEGACY_USERS_KEY].forEach(key=>{
+    [USERS_KEY, LEGACY_USERS_KEY, OLD_USERS_KEY].forEach(key=>{
       try{ const v=JSON.parse(localStorage.getItem(key)||'[]'); if(Array.isArray(v)) all.push(...v); }catch(e){}
     });
     return uniqueUsers(all);
@@ -28,21 +29,22 @@
     const users = uniqueUsers(v);
     localStorage.setItem(USERS_KEY,JSON.stringify(users));
     localStorage.setItem(LEGACY_USERS_KEY,JSON.stringify(users));
+    localStorage.setItem(OLD_USERS_KEY,JSON.stringify(users));
   }
   function canUseFirestore(){return window.firebase && window.MZJ_FIREBASE_CONFIG && firebase.firestore}
   async function addFirestoreUser(user){
     if(!canUseFirestore()) return null;
     if(!firebase.apps.length) firebase.initializeApp(window.MZJ_FIREBASE_CONFIG);
-    const ref = await firebase.firestore().collection('users').add(user);
+    const ref = await firebase.firestore().collection('user').add(user);
     return ref.id;
   }
   async function loadFirestoreUsers(){
     if(!canUseFirestore()) return null;
     try{
       if(!firebase.apps.length) firebase.initializeApp(window.MZJ_FIREBASE_CONFIG);
-      const snap = await firebase.firestore().collection('users').get();
+      const snap = await firebase.firestore().collection('user').get();
       return uniqueUsers(snap.docs.map(d=>({id:d.id,...d.data()})).concat(load()));
-    }catch(e){console.warn('users firestore fallback',e);return null;}
+    }catch(e){console.warn('user firestore fallback',e);return null;}
   }
   function esc(v){return String(v??'').replace(/[&<>]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]))}
   function renderChecks(){
@@ -80,7 +82,7 @@
       if(!user.pagesAccess.length && user.role !== 'admin'){ alert('اختار صفحة واحدة على الأقل لليوزر'); return; }
       try{ const id = await addFirestoreUser(user); if(id) user.id=id; }catch(err){ console.warn(err); }
       const users=load().filter(u=>u.email!==user.email); users.push(user); save(users);
-      $('#adminUserForm').reset(); renderChecks(); await renderUsers(); alert('تم حفظ اليوزر في users وتجهيز صلاحيات الصفحات');
+      $('#adminUserForm').reset(); renderChecks(); await renderUsers(); alert('تم حفظ اليوزر في مسار user وتجهيز صلاحيات الصفحات');
     });
   }
   document.addEventListener('DOMContentLoaded',init);

@@ -14,23 +14,17 @@
     <section class="login-card workspace-card">
       <span class="eyebrow">MZJ Workspace</span>
       <h1>تسجيل الدخول</h1>
-      <p>ادخل بحساب الأدمن أو اليوزر العادي لتجربة اختلاف الصلاحيات في الداش بورد.</p>
+      <p>ادخل بحسابك الفعلي الموجود في مسار user داخل Firestore. لو الحساب القديم مفيهوش password استخدم 123456.</p>
       <form id="loginForm" class="login-form">
-        <label class="mzj-field"><span>الإيميل</span><input id="loginEmail" type="email" required placeholder="admin@mzj.local"></label>
+        <label class="mzj-field"><span>الإيميل</span><input id="loginEmail" type="email" required placeholder="email@domain.com"></label>
         <label class="mzj-field"><span>كلمة المرور</span><input id="loginPassword" type="password" required placeholder="123456"></label>
         <button class="primary-btn" type="submit">دخول</button>
         <p id="loginMessage" class="admin-only-note"></p>
       </form>
-      <div class="login-test-grid">
-        <button class="soft-btn" type="button" data-login-fill="admin">تجربة حساب الأدمن</button>
-        <button class="ghost-btn" type="button" data-login-fill="user">تجربة حساب اليوزر</button>
-      </div>
       <div class="login-credentials">
-        <strong>حسابات التجربة</strong>
-        <span>Admin: admin@mzj.local / 123456</span>
-        <span>Admin Ahmed: ahmed@mzj.local / 123456</span>
-        <span>User: user@mzj.local / 123456</span>
-        <span>أي يوزر تضيفه من صفحة الإدارة يدخل بنفس كلمة المرور التي حفظتها له.</span>
+        <strong>الدخول من مسار user</strong>
+        <span>السيستم بيبحث أولاً في Firestore collection: user.</span>
+        <span>لو اليوزر القديم مفيهوش حقل password، كلمة المرور الافتراضية: 123456.</span>
       </div>
     </section>
   </main>

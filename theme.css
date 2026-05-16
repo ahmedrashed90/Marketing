@@ -2796,3 +2796,72 @@ body.sidebar-collapsed .database-main {
     padding: 10px !important;
   }
 }
+
+/* Database department columns compact readable fix */
+.campaign-db-table {
+  min-width: 1520px !important;
+}
+
+/* Keep the five department columns equal and only as wide as their content needs */
+.campaign-db-table th:nth-child(7),
+.campaign-db-table td:nth-child(7),
+.campaign-db-table th:nth-child(8),
+.campaign-db-table td:nth-child(8),
+.campaign-db-table th:nth-child(9),
+.campaign-db-table td:nth-child(9),
+.campaign-db-table th:nth-child(10),
+.campaign-db-table td:nth-child(10),
+.campaign-db-table th:nth-child(11),
+.campaign-db-table td:nth-child(11) {
+  width: 132px !important;
+  min-width: 132px !important;
+  max-width: 132px !important;
+  padding-inline: 6px !important;
+}
+
+.campaign-db-table th:nth-child(7),
+.campaign-db-table th:nth-child(8),
+.campaign-db-table th:nth-child(9),
+.campaign-db-table th:nth-child(10),
+.campaign-db-table th:nth-child(11) {
+  white-space: nowrap !important;
+  font-size: 11px !important;
+}
+
+.campaign-db-table td:nth-child(7),
+.campaign-db-table td:nth-child(8),
+.campaign-db-table td:nth-child(9),
+.campaign-db-table td:nth-child(10),
+.campaign-db-table td:nth-child(11) {
+  vertical-align: middle !important;
+}
+
+.campaign-db-table td:nth-child(7) .db-dept-mini,
+.campaign-db-table td:nth-child(8) .db-dept-mini,
+.campaign-db-table td:nth-child(9) .db-dept-mini,
+.campaign-db-table td:nth-child(10) .db-dept-mini,
+.campaign-db-table td:nth-child(11) .db-dept-mini {
+  width: 118px !important;
+  min-width: 118px !important;
+  max-width: 118px !important;
+  padding: 7px 6px !important;
+  margin-inline: auto !important;
+  border-radius: 12px !important;
+}
+
+.campaign-db-table td:nth-child(7) .db-dept-mini strong,
+.campaign-db-table td:nth-child(8) .db-dept-mini strong,
+.campaign-db-table td:nth-child(9) .db-dept-mini strong,
+.campaign-db-table td:nth-child(10) .db-dept-mini strong,
+.campaign-db-table td:nth-child(11) .db-dept-mini strong {
+  font-size: 11px !important;
+}
+
+.campaign-db-table td:nth-child(7) .db-dept-mini small,
+.campaign-db-table td:nth-child(8) .db-dept-mini small,
+.campaign-db-table td:nth-child(9) .db-dept-mini small,
+.campaign-db-table td:nth-child(10) .db-dept-mini small,
+.campaign-db-table td:nth-child(11) .db-dept-mini small {
+  font-size: 10px !important;
+  line-height: 1.45 !important;
+}

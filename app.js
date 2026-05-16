@@ -132,11 +132,11 @@ function syncTaskProgress() {
 function taskStepsForDept(deptKeyValue) {
   if (deptKeyValue === 'shooting') {
     return [
-      { label: 'استلام المطلوب', value: 20 },
+      { label: 'التصوير قبل الفلترة', value: 20 },
       { label: 'الاعتماد', value: 20, adminOnly: true },
-      { label: 'تنفيذ المطلوب', value: 20 },
+      { label: 'الاديت', value: 20 },
       { label: 'الاعتماد', value: 20, adminOnly: true },
-      { label: 'التسليم و الإرفاق', value: 20 }
+      { label: 'التسليم و الارفاق', value: 20 }
     ];
   }
   if (deptKeyValue === 'content' || deptKeyValue === 'publish') {
@@ -145,14 +145,14 @@ function taskStepsForDept(deptKeyValue) {
       { label: 'الاعتماد', value: 20, adminOnly: true },
       { label: 'كتابة المحتوى', value: 20 },
       { label: 'الاعتماد', value: 20, adminOnly: true },
-      { label: 'التسليم و الإرفاق', value: 20 }
+      { label: 'التسليم و الارفاق', value: 20 }
     ];
   }
   if (deptKeyValue === 'design') {
     return [
       { label: 'النسخة الأولى', value: 35 },
       { label: 'الاعتماد', value: 35, adminOnly: true },
-      { label: 'التسليم و الإرفاق', value: 30 }
+      { label: 'التسليم و الارفاق', value: 30 }
     ];
   }
   if (deptKeyValue === 'montage') {
@@ -164,15 +164,15 @@ function taskStepsForDept(deptKeyValue) {
       { label: 'الاعتماد', value: 15, adminOnly: true },
       { label: 'النسخة الأولى', value: 20 },
       { label: 'الاعتماد', value: 15, adminOnly: true },
-      { label: 'التسليم و الإرفاق', value: 10 }
+      { label: 'التسليم و الارفاق', value: 10 }
     ];
   }
   return [
-    { label: 'استلام المطلوب', value: 20 },
+    { label: 'التصوير قبل الفلترة', value: 20 },
     { label: 'الاعتماد', value: 20, adminOnly: true },
-    { label: 'تنفيذ المطلوب', value: 20 },
+    { label: 'الاديت', value: 20 },
     { label: 'الاعتماد', value: 20, adminOnly: true },
-    { label: 'التسليم و الإرفاق', value: 20 }
+    { label: 'التسليم و الارفاق', value: 20 }
   ];
 }
 

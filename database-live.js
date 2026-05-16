@@ -349,11 +349,13 @@
     const selected = new Set((selectedTitles || []).map(x => String(x).trim()));
     return pairs.map(([title, desc]) => {
       const isChecked = selected.has(title) ? ' checked' : '';
-      return `<label class="multi-choice-card db-edit-choice-card${isChecked ? ' is-selected' : ''}">
-        <input type="checkbox" ${attrName} value="${escAttr(title)}" data-title="${escAttr(title)}" data-desc="${escAttr(desc)}"${isChecked}>
+      return `<div class="multi-choice-card db-edit-choice-card${isChecked ? ' is-selected' : ''}" role="button" tabindex="0" aria-pressed="${isChecked ? 'true' : 'false'}">
+        <label class="multi-choice-check" onclick="event.stopPropagation()">
+          <input type="checkbox" ${attrName} value="${escAttr(title)}" data-title="${escAttr(title)}" data-desc="${escAttr(desc)}"${isChecked}>
+        </label>
         <span class="multi-choice-title">${esc(title)}</span>
         <small>${esc(desc)}</small>
-      </label>`;
+      </div>`;
     }).join('');
   }
 
@@ -689,7 +691,13 @@
     const choice = event.target.closest('[data-edit-design-deliverable], [data-edit-montage-deliverable]');
     if(choice){
       const card = choice.closest('.multi-choice-card');
-      if(card) card.classList.toggle('is-selected', choice.checked);
+      if(card){
+        card.classList.toggle('is-selected', choice.checked);
+        card.setAttribute('aria-pressed', choice.checked ? 'true' : 'false');
+      }
+      const row = choice.closest('.db-edit-dept-row');
+      const enabled = row?.querySelector('[data-edit-dept-enabled]');
+      if(enabled) enabled.checked = true;
       return;
     }
     const userSelect = event.target.closest('[data-edit-user-select]');
@@ -706,10 +714,16 @@
   document.addEventListener('click', function(event){
     const card = event.target.closest('.db-edit-choice-card');
     if(card && !event.target.matches('input')){
+      event.preventDefault();
       const input = card.querySelector('input[type="checkbox"]');
       if(input){
         input.checked = !input.checked;
         card.classList.toggle('is-selected', input.checked);
+        card.setAttribute('aria-pressed', input.checked ? 'true' : 'false');
+        const row = card.closest('.db-edit-dept-row');
+        const enabled = row?.querySelector('[data-edit-dept-enabled]');
+        if(enabled) enabled.checked = true;
+        input.dispatchEvent(new Event('change', { bubbles: true }));
       }
       return;
     }
@@ -724,6 +738,14 @@
       const row = removePhoto.closest('[data-edit-photo-item]');
       const list = removePhoto.closest('[data-edit-photo-items-list]');
       if(row && list && list.querySelectorAll('[data-edit-photo-item]').length > 1) row.remove();
+    }
+  });
+
+  document.addEventListener('keydown', function(event){
+    const card = event.target.closest('.db-edit-choice-card');
+    if(card && (event.key === 'Enter' || event.key === ' ')){
+      event.preventDefault();
+      card.click();
     }
   });
 

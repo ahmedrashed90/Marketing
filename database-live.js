@@ -521,6 +521,8 @@
       const deliveryDate = row.querySelector('[data-edit-delivery-date]')?.value || '';
       const requirements = collectEditRequirements(row, deptKeyValue);
       const requiredText = requirements.requiredText || '';
+      const sameResponsible = String(uid || '').trim() && String(uid || '').trim() === String(oldTask.userId || oldTask.uid || oldTask.assigneeUid || '').trim();
+      const keepReceipt = Boolean(sameResponsible && (oldTask.receivedConfirmed || oldTask.received || oldTask.receivedAt));
       return {
         ...oldTask,
         ...requirements,
@@ -536,8 +538,11 @@
         userDisplayName: name,
         userEmail: email,
         assigneeEmail: email,
-        receiveDate,
-        receivedAt: receiveDate || oldTask.receivedAt || '',
+        receiveDate: keepReceipt ? (oldTask.receiveDate || String(oldTask.receivedAt || '').slice(0, 10)) : '',
+        receivedAt: keepReceipt ? (oldTask.receivedAt || '') : '',
+        received: keepReceipt ? Boolean(oldTask.received || oldTask.receivedConfirmed) : false,
+        receivedConfirmed: keepReceipt ? Boolean(oldTask.receivedConfirmed || oldTask.received) : false,
+        receivedBy: keepReceipt ? (oldTask.receivedBy || '') : '',
         requiredDate,
         deliveryDate,
         requiredText
@@ -678,6 +683,49 @@
       await deleteRecord(deleteBtn.dataset.deleteRecord);
     }
   }, true);
+
+
+  document.addEventListener('change', function(event){
+    const choice = event.target.closest('[data-edit-design-deliverable], [data-edit-montage-deliverable]');
+    if(choice){
+      const card = choice.closest('.multi-choice-card');
+      if(card) card.classList.toggle('is-selected', choice.checked);
+      return;
+    }
+    const userSelect = event.target.closest('[data-edit-user-select]');
+    if(userSelect){
+      const opt = userSelect.selectedOptions?.[0];
+      const row = userSelect.closest('.db-edit-dept-row');
+      const emailInput = row?.querySelector('[data-edit-user-email]');
+      if(emailInput && opt?.dataset?.email) emailInput.value = opt.dataset.email;
+      const enabled = row?.querySelector('[data-edit-dept-enabled]');
+      if(enabled) enabled.checked = true;
+    }
+  });
+
+  document.addEventListener('click', function(event){
+    const card = event.target.closest('.db-edit-choice-card');
+    if(card && !event.target.matches('input')){
+      const input = card.querySelector('input[type="checkbox"]');
+      if(input){
+        input.checked = !input.checked;
+        card.classList.toggle('is-selected', input.checked);
+      }
+      return;
+    }
+    const addPhoto = event.target.closest('[data-edit-add-photo-item]');
+    if(addPhoto){
+      const list = addPhoto.closest('.db-edit-required-fields')?.querySelector('[data-edit-photo-items-list]');
+      if(list) list.insertAdjacentHTML('beforeend', renderPhotoEditItem({ carType:'', contentType:'' }));
+      return;
+    }
+    const removePhoto = event.target.closest('[data-edit-remove-photo-item]');
+    if(removePhoto){
+      const row = removePhoto.closest('[data-edit-photo-item]');
+      const list = removePhoto.closest('[data-edit-photo-items-list]');
+      if(row && list && list.querySelectorAll('[data-edit-photo-item]').length > 1) row.remove();
+    }
+  });
 
   document.addEventListener('DOMContentLoaded', () => {
     render();

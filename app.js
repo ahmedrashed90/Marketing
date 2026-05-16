@@ -107,11 +107,10 @@ function isAdminUser() {
 function syncTaskProgress() {
   if (!taskStepButtons) return;
 
-  const activeButtons = Array.from(taskStepButtons.querySelectorAll('.task-step-btn.is-done'));
-  const completed = activeButtons.length;
-  const taskPercent = completed * 20;
-  const campaignShare = activeTaskCard ? Number(activeTaskCard.dataset.campaignShare || 5) : 5;
-  const campaignPercent = completed * campaignShare;
+  const allButtons = Array.from(taskStepButtons.querySelectorAll('.task-step-btn'));
+  const activeButtons = allButtons.filter((btn) => btn.classList.contains('is-done'));
+  const taskPercent = Math.min(100, Math.round(activeButtons.reduce((sum, btn) => sum + Number(btn.dataset.stepValue || 0), 0)));
+  const campaignPercent = Math.round(activeButtons.reduce((sum, btn) => sum + Number(btn.dataset.campaignValue || 0), 0));
 
   if (modalTaskPercent) modalTaskPercent.textContent = taskPercent + '%';
   if (modalCampaignPercent) modalCampaignPercent.textContent = campaignPercent + '%';
@@ -130,12 +129,70 @@ function syncTaskProgress() {
   }
 }
 
+function taskStepsForDept(deptKeyValue) {
+  if (deptKeyValue === 'shooting') {
+    return [
+      { label: 'استلام المطلوب', value: 20 },
+      { label: 'الاعتماد', value: 20, adminOnly: true },
+      { label: 'تنفيذ المطلوب', value: 20 },
+      { label: 'الاعتماد', value: 20, adminOnly: true },
+      { label: 'التسليم و الإرفاق', value: 20 }
+    ];
+  }
+  if (deptKeyValue === 'content' || deptKeyValue === 'publish') {
+    return [
+      { label: 'نموذج المحتوى', value: 20 },
+      { label: 'الاعتماد', value: 20, adminOnly: true },
+      { label: 'كتابة المحتوى', value: 20 },
+      { label: 'الاعتماد', value: 20, adminOnly: true },
+      { label: 'التسليم و الإرفاق', value: 20 }
+    ];
+  }
+  if (deptKeyValue === 'design') {
+    return [
+      { label: 'النسخة الأولى', value: 35 },
+      { label: 'الاعتماد', value: 35, adminOnly: true },
+      { label: 'التسليم و الإرفاق', value: 30 }
+    ];
+  }
+  if (deptKeyValue === 'montage') {
+    return [
+      { label: 'اختيار اللقطات المناسبة', value: 10 },
+      { label: 'تجهيز مشاهد الذكاء الاصطناعي', value: 10 },
+      { label: 'فويس أوفر', value: 10 },
+      { label: 'الهوك', value: 10 },
+      { label: 'الاعتماد', value: 15, adminOnly: true },
+      { label: 'النسخة الأولى', value: 20 },
+      { label: 'الاعتماد', value: 15, adminOnly: true },
+      { label: 'التسليم و الإرفاق', value: 10 }
+    ];
+  }
+  return [
+    { label: 'استلام المطلوب', value: 20 },
+    { label: 'الاعتماد', value: 20, adminOnly: true },
+    { label: 'تنفيذ المطلوب', value: 20 },
+    { label: 'الاعتماد', value: 20, adminOnly: true },
+    { label: 'التسليم و الإرفاق', value: 20 }
+  ];
+}
+
+function encodeTaskSteps(steps) {
+  return (steps || []).map((step) => [step.label || '', Number(step.value || 0), step.adminOnly ? '1' : '0'].join('::')).join('|');
+}
+
+function decodeTaskSteps(encoded, deptKeyValue) {
+  const raw = String(encoded || '').split('|').map((step) => step.trim()).filter(Boolean);
+  if (!raw.length) return taskStepsForDept(deptKeyValue);
+  return raw.map((item) => {
+    const parts = item.split('::');
+    if (parts.length >= 2) return { label: parts[0] || '', value: Number(parts[1] || 0), adminOnly: parts[2] === '1' };
+    const label = parts[0] || item;
+    return { label, value: 20, adminOnly: label.includes('اعتماد') };
+  });
+}
 
 function getTaskDetailsSteps(deptKeyValue) {
-  if (deptKeyValue === 'shooting') return ['التصوير قبل الفلترة', 'الاعتماد', 'الاديت', 'الاعتماد', 'التسليم و الإرفاق'];
-  if (deptKeyValue === 'design') return ['تنفيذ التصميم', 'الاعتماد', 'التعديل المطلوب', 'الاعتماد', 'التسليم و الإرفاق'];
-  if (deptKeyValue === 'montage') return ['المونتاج الأول', 'الاعتماد', 'التعديلات', 'الاعتماد', 'التسليم و الإرفاق'];
-  return ['استلام المطلوب', 'الاعتماد', 'تنفيذ المطلوب', 'الاعتماد', 'التسليم و الإرفاق'];
+  return taskStepsForDept(deptKeyValue);
 }
 
 function formatDepartmentRequirement(deptTask) {
@@ -224,16 +281,20 @@ function openTaskDetails(button) {
   }
 
   taskStepButtons.innerHTML = '';
-  const steps = (button.dataset.steps || '').split('|').map((step) => step.trim()).filter(Boolean);
+  const deptKeyValue = button.dataset.deptKey || activeTaskDetailsMeta?.deptKey || '';
+  const steps = decodeTaskSteps(button.dataset.steps || '', deptKeyValue);
+  const deptCampaignShare = activeTaskCard ? Number(activeTaskCard.dataset.departmentShare || 0) : 0;
 
   steps.forEach((step, index) => {
-    const isApprovalStep = step.includes('اعتماد');
+    const isApprovalStep = Boolean(step.adminOnly) || String(step.label || '').includes('اعتماد');
+    const stepValue = Number(step.value || 0);
+    const campaignValue = Math.round((deptCampaignShare * stepValue / 100) * 100) / 100;
     const stepButton = document.createElement('button');
     stepButton.type = 'button';
     stepButton.className = 'task-step-btn';
     stepButton.dataset.stepIndex = String(index);
-    stepButton.dataset.stepValue = '20';
-    stepButton.dataset.campaignValue = String(activeTaskCard ? Number(activeTaskCard.dataset.campaignShare || 5) : 5);
+    stepButton.dataset.stepValue = String(stepValue);
+    stepButton.dataset.campaignValue = String(campaignValue);
 
     if (isApprovalStep) {
       stepButton.classList.add('is-approval-step');
@@ -244,7 +305,7 @@ function openTaskDetails(button) {
     }
 
     if (selected.includes(String(index))) stepButton.classList.add('is-done');
-    stepButton.innerHTML = `<span>${step}</span><small>20% من التاسك<br>${Number(stepButton.dataset.campaignValue || 5)}% من الحملة${isApprovalStep ? '<br>أدمن فقط' : ''}</small>`;
+    stepButton.innerHTML = `<span>${escapeHTML(step.label || 'خطوة')}</span><small>${stepValue}% من التاسك<br>${campaignValue}% من الحملة${isApprovalStep ? '<br>أدمن فقط' : ''}</small>`;
     taskStepButtons.appendChild(stepButton);
   });
 
@@ -1591,7 +1652,10 @@ initCreateTaskFromTemplate();
   function taskDeptProgress(task, deptTask){
     const readiness = task.readiness || {};
     const key = deptTask.departmentId || deptTask.departmentName || deptTask.userName || '';
-    return Array.isArray(readiness[key]) ? readiness[key].length * 20 : 0;
+    const selected = Array.isArray(readiness[key]) ? readiness[key] : [];
+    const steps = taskStepsForDept(deptKey(deptTask.departmentName));
+    const total = selected.reduce((sum, index) => sum + Number(steps[Number(index)]?.value || 0), 0);
+    return Math.min(100, Math.round(total));
   }
   function taskReadiness(task){
     const depts = task.departmentTasks || [];
@@ -1606,7 +1670,7 @@ initCreateTaskFromTemplate();
     return Math.round((done / depts.length) * 100);
   }
   function deptIdentity(dept){
-    return String(dept.departmentId || dept.departmentName || dept.userId || dept.userEmail || dept.userName || '');
+    return [dept.departmentId || dept.departmentKey || dept.departmentName || '', dept.userId || dept.uid || dept.assigneeUid || dept.userEmail || dept.userName || ''].map(v => String(v || '').trim()).filter(Boolean).join('::');
   }
   function autoStage(task){
     if (!task.stage) task.stage = 'required';
@@ -1705,10 +1769,11 @@ initCreateTaskFromTemplate();
   function userDeptCard(task, deptTask){
     const p = taskDeptProgress(task, deptTask);
     const dkey = deptKey(deptTask.departmentName);
-    const steps = getTaskDetailsSteps(dkey).join('|');
+    const steps = encodeTaskSteps(getTaskDetailsSteps(dkey));
     const key = deptTask.departmentId || deptTask.departmentName || deptTask.userName || '';
     const selected = ((task.readiness || {})[key] || []).join(',');
-    return `<article class="department-task-card dynamic-dashboard-card user-task-card-clean" data-dept-task-card data-task-id="${esc(task.id)}" data-readiness-key="${esc(key)}" data-dept-identity="${esc(deptIdentity(deptTask))}" data-dept-key="${esc(dkey)}" data-campaign-share="${esc(100 / Math.max((task.departmentTasks||[]).length,1) / 5)}" data-completed-steps="${esc(selected)}">
+    const departmentShare = Math.round((100 / Math.max((task.departmentTasks||[]).length,1)) * 100) / 100;
+    return `<article class="department-task-card dynamic-dashboard-card user-task-card-clean" data-dept-task-card data-task-id="${esc(task.id)}" data-readiness-key="${esc(key)}" data-dept-identity="${esc(deptIdentity(deptTask))}" data-dept-key="${esc(dkey)}" data-department-share="${esc(departmentShare)}" data-completed-steps="${esc(selected)}">
       <div class="task-template-top user-task-title-only"><strong>${esc(taskTitle(task))}</strong></div>
       <div class="department-task-meta labeled-task-meta user-task-meta-clean">
         <span class="meta-person"><small>المسؤول</small><strong>${esc(deptTask.userDisplayName || deptTask.userName || deptTask.userEmail || 'بدون مسؤول')}</strong></span>

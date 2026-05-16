@@ -3521,3 +3521,79 @@ body.sidebar-collapsed .database-main {
   color: #fff;
   border-color: var(--mzj-brown, #4a251f);
 }
+
+/* Fix database edit design/montage required choice cards: keep checkbox away from text */
+.db-edit-required-fields .multi-choice-grid{
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)) !important;
+  gap: 12px !important;
+}
+.db-edit-required-fields .db-edit-choice-card,
+.db-edit-choice-card.multi-choice-card{
+  position: relative !important;
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: center !important;
+  align-items: stretch !important;
+  min-height: 92px !important;
+  padding: 18px 20px 18px 58px !important;
+  text-align: right !important;
+  direction: rtl !important;
+  overflow: visible !important;
+  white-space: normal !important;
+  line-height: 1.6 !important;
+}
+.db-edit-required-fields .db-edit-choice-card::before,
+.db-edit-choice-card.multi-choice-card::before{
+  right: auto !important;
+  left: 0 !important;
+}
+.db-edit-choice-card .db-edit-choice-box{
+  position: absolute !important;
+  left: 16px !important;
+  right: auto !important;
+  top: 16px !important;
+  width: 26px !important;
+  height: 26px !important;
+  z-index: 3 !important;
+  flex: 0 0 auto !important;
+}
+.db-edit-choice-card .multi-choice-title{
+  display: block !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  padding: 0 !important;
+  margin: 0 0 6px !important;
+  text-align: right !important;
+  white-space: normal !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+  word-break: normal !important;
+  overflow-wrap: anywhere !important;
+  font-size: 15px !important;
+  line-height: 1.55 !important;
+  color: var(--brown) !important;
+}
+.db-edit-choice-card small{
+  display: block !important;
+  width: 100% !important;
+  grid-column: auto !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  text-align: right !important;
+  white-space: normal !important;
+  overflow: visible !important;
+  overflow-wrap: anywhere !important;
+  color: rgba(73,36,30,.64) !important;
+}
+.db-edit-choice-card.is-selected{
+  background: rgba(238,222,207,.9) !important;
+  border-color: rgba(73,36,30,.55) !important;
+  box-shadow: 0 14px 30px rgba(73,36,30,.12) !important;
+}
+.db-edit-choice-card.is-selected .multi-choice-title,
+.db-edit-choice-card.is-selected small{
+  color: var(--brown) !important;
+}
+@media(max-width: 900px){
+  .db-edit-required-fields .multi-choice-grid{grid-template-columns: 1fr !important;}
+}

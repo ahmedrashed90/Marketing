@@ -67,3 +67,87 @@ if (roleButtons.length && rolePanels.length) {
     });
   });
 }
+
+
+const taskDetailsModal = document.getElementById('taskDetailsModal');
+const taskDetailsTitle = document.getElementById('taskDetailsTitle');
+const taskDetailsDept = document.getElementById('taskDetailsDept');
+const taskDetailsRequired = document.getElementById('taskDetailsRequired');
+const taskStepButtons = document.getElementById('taskStepButtons');
+const modalTaskPercent = document.getElementById('modalTaskPercent');
+const modalCampaignPercent = document.getElementById('modalCampaignPercent');
+let activeTaskCard = null;
+
+function syncTaskProgress() {
+  if (!taskStepButtons) return;
+  const activeButtons = Array.from(taskStepButtons.querySelectorAll('.step-complete-btn.is-active'));
+  const completed = activeButtons.length;
+  const taskPercent = completed * 20;
+  const campaignPercent = completed * 5;
+
+  if (modalTaskPercent) modalTaskPercent.textContent = taskPercent + '%';
+  if (modalCampaignPercent) modalCampaignPercent.textContent = campaignPercent + '%';
+
+  if (activeTaskCard) {
+    const selectedIndexes = activeButtons.map((btn) => btn.dataset.stepIndex).join(',');
+    activeTaskCard.dataset.completedSteps = selectedIndexes;
+
+    const taskPercentNode = activeTaskCard.querySelector('[data-task-percent]');
+    const campaignPercentNode = activeTaskCard.querySelector('[data-campaign-percent]');
+    const bar = activeTaskCard.querySelector('[data-task-bar]');
+
+    if (taskPercentNode) taskPercentNode.textContent = taskPercent + '%';
+    if (campaignPercentNode) campaignPercentNode.textContent = campaignPercent + '%';
+    if (bar) bar.style.width = taskPercent + '%';
+  }
+}
+
+function openTaskDetails(button) {
+  if (!taskDetailsModal || !taskStepButtons) return;
+
+  activeTaskCard = button.closest('.dept-card-template');
+  const selected = (activeTaskCard?.dataset.completedSteps || '').split(',').filter(Boolean);
+
+  if (taskDetailsDept) taskDetailsDept.textContent = button.dataset.dept || 'تفاصيل القسم';
+  if (taskDetailsTitle) taskDetailsTitle.textContent = button.dataset.taskTitle || 'تفاصيل التاسك';
+  if (taskDetailsRequired) taskDetailsRequired.textContent = button.dataset.required || 'هنا يظهر المطلوب بعد ربط التاسك بالداتا.';
+
+  taskStepButtons.innerHTML = '';
+  const steps = (button.dataset.steps || '').split('|').map((step) => step.trim()).filter(Boolean);
+  steps.forEach((step, index) => {
+    const stepButton = document.createElement('button');
+    stepButton.type = 'button';
+    stepButton.className = 'step-complete-btn';
+    stepButton.dataset.stepIndex = String(index);
+    if (selected.includes(String(index))) stepButton.classList.add('is-active');
+    stepButton.innerHTML = `<span>${step}</span><small>20% من التاسك · 5% من الحملة</small>`;
+    taskStepButtons.appendChild(stepButton);
+  });
+
+  taskDetailsModal.classList.add('is-open');
+  taskDetailsModal.setAttribute('aria-hidden', 'false');
+  syncTaskProgress();
+}
+
+function closeTaskDetails() {
+  if (!taskDetailsModal) return;
+  taskDetailsModal.classList.remove('is-open');
+  taskDetailsModal.setAttribute('aria-hidden', 'true');
+}
+
+document.addEventListener('click', (event) => {
+  const taskDetailsButton = event.target.closest('[data-open-task-details]');
+  if (taskDetailsButton) openTaskDetails(taskDetailsButton);
+
+  const stepButton = event.target.closest('.step-complete-btn');
+  if (stepButton) {
+    stepButton.classList.toggle('is-active');
+    syncTaskProgress();
+  }
+
+  if (event.target.closest('[data-close-task-modal]')) closeTaskDetails();
+});
+
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape') closeTaskDetails();
+});

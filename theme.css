@@ -3351,3 +3351,94 @@ body.sidebar-collapsed .database-main {
   .user-task-meta-clean span { padding: 9px 8px !important; }
   .user-task-meta-clean .meta-status { width: 100% !important; }
 }
+
+
+/* Database edit action + balanced compact font */
+.campaign-db-table {
+  font-size: 11.4px !important;
+  min-width: 1480px !important;
+}
+.campaign-db-table th {
+  font-size: 11.3px !important;
+  padding: 10px 8px !important;
+}
+.campaign-db-table td {
+  font-size: 11.2px !important;
+  padding: 10px 8px !important;
+}
+.db-dept-mini {
+  padding: 6px !important;
+}
+.db-dept-mini strong { font-size: 11px !important; }
+.db-dept-mini small { font-size: 10px !important; line-height: 1.4 !important; }
+.db-action-stack{
+  display:grid;
+  grid-template-columns:1fr;
+  gap:7px;
+  min-width:92px;
+}
+.db-edit-btn, .db-delete-btn{
+  width:100% !important;
+  min-width:0 !important;
+  padding:8px 9px !important;
+  font-size:10.5px !important;
+}
+.db-edit-card{
+  width:min(1080px, 96vw) !important;
+  max-width:min(1080px, 96vw) !important;
+}
+.db-edit-form{display:grid;gap:16px}
+.db-edit-grid{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:12px;
+}
+.db-edit-section{
+  padding:14px;
+  border-radius:22px;
+  border:1px solid rgba(62,36,32,.1);
+  background:rgba(255,248,239,.72);
+}
+.db-edit-section-head{
+  display:flex;
+  justify-content:space-between;
+  gap:12px;
+  align-items:center;
+  margin-bottom:12px;
+}
+.db-edit-section-head strong{font-size:18px;color:var(--brown-900)}
+.db-edit-section-head small{font-weight:800;color:var(--muted)}
+.db-edit-departments{display:grid;gap:12px}
+.db-edit-dept-row{
+  padding:12px;
+  border-radius:18px;
+  border:1px solid rgba(62,36,32,.09);
+  background:rgba(255,255,255,.58);
+}
+.db-edit-dept-title{
+  display:flex;
+  justify-content:space-between;
+  gap:10px;
+  margin-bottom:10px;
+}
+.db-edit-dept-title strong{font-size:16px;color:var(--brown-900)}
+.db-edit-dept-title small{color:var(--muted);font-weight:900}
+.db-edit-dept-grid{grid-template-columns:repeat(5,minmax(0,1fr))}
+.db-edit-dept-grid .full-width-field{grid-column:1/-1}
+.db-edit-actions{
+  position:sticky;
+  bottom:0;
+  z-index:3;
+  display:flex;
+  gap:10px;
+  align-items:center;
+  flex-wrap:wrap;
+  padding:12px;
+  margin-top:4px;
+  border-radius:18px;
+  background:rgba(255,248,239,.95);
+  border:1px solid rgba(62,36,32,.08);
+}
+@media(max-width:980px){
+  .db-edit-grid,.db-edit-dept-grid{grid-template-columns:1fr !important}
+}

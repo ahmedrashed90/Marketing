@@ -122,6 +122,16 @@
   function taskRequiredDate(task, record){ return task.requiredDate || task.deadline || task.dueDate || record.requiredDate || record.launchDate || ''; }
   function taskDeliveryDate(task){ return task.deliveryDate || task.submittedAt || task.doneAt || task.deliveredAt || ''; }
 
+  function dateForInput(value){
+    const raw = normalizeDate(value);
+    if(!raw || raw === '--') return '';
+    const d = new Date(raw);
+    if(!Number.isNaN(d.getTime())) return d.toISOString().slice(0,10);
+    const m = String(raw).match(/(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})/);
+    if(m) return `${m[1]}-${String(m[2]).padStart(2,'0')}-${String(m[3]).padStart(2,'0')}`;
+    return '';
+  }
+
   function renderDeptSummary(record, key){
     const tasks = record.departmentTasks.filter(t => deptKey(t) === key);
     if(!tasks.length) return '<span class="db-muted">--</span>';
@@ -209,6 +219,125 @@
     modal.setAttribute('aria-hidden', 'false');
   }
 
+  function escAttr(value){ return esc(value).replace(/`/g, '&#096;'); }
+
+  function renderEditDepartmentRows(record){
+    const tasks = Array.isArray(record.departmentTasks) ? record.departmentTasks : [];
+    if(!tasks.length) return '<p class="db-empty-line">لا توجد أقسام محفوظة داخل هذه الحملة.</p>';
+    return tasks.map((task, idx) => {
+      const kind = deptKey(task);
+      return `<article class="db-edit-dept-row" data-edit-dept-index="${idx}">
+        <div class="db-edit-dept-title">
+          <strong>${esc(departmentLabel(task))}</strong>
+          <small>${esc(kind)}</small>
+        </div>
+        <div class="db-edit-grid db-edit-dept-grid">
+          <label class="mzj-field"><span>اسم المسؤول</span><input type="text" data-edit-user-name value="${escAttr(personLabel(task) === '--' ? '' : personLabel(task))}"></label>
+          <label class="mzj-field"><span>إيميل المسؤول</span><input type="email" data-edit-user-email value="${escAttr(task.userEmail || task.assigneeEmail || '')}"></label>
+          <label class="mzj-field"><span>تاريخ الاستلام</span><input type="date" data-edit-receive-date value="${escAttr(dateForInput(taskReceiveDate(task)))}"></label>
+          <label class="mzj-field"><span>التاريخ المطلوب</span><input type="date" data-edit-required-date value="${escAttr(dateForInput(taskRequiredDate(task, record)))}"></label>
+          <label class="mzj-field"><span>تاريخ التسليم</span><input type="date" data-edit-delivery-date value="${escAttr(dateForInput(taskDeliveryDate(task)))}"></label>
+          <label class="mzj-field full-width-field"><span>المطلوب</span><textarea rows="3" data-edit-required-text>${esc(task.requiredText || task.notes || '')}</textarea></label>
+        </div>
+      </article>`;
+    }).join('');
+  }
+
+  function closeDbEdit(){
+    const modal = document.getElementById('dbEditModal');
+    if(!modal) return;
+    modal.classList.remove('is-open');
+    modal.setAttribute('aria-hidden','true');
+  }
+
+  function openDbEdit(recordId){
+    const record = loadRecords().find(r => String(r.id) === String(recordId));
+    if(!record) return;
+    const modal = document.getElementById('dbEditModal');
+    if(!modal) return;
+    document.getElementById('dbEditRecordId').value = record.id || '';
+    document.getElementById('dbEditTaskType').value = (record.taskType || record.type || '').toString().includes('أج') || record.taskType === 'agenda' ? 'agenda' : (record.taskType === 'task' ? 'task' : 'campaign');
+    document.getElementById('dbEditName').value = record.name || '';
+    document.getElementById('dbEditCode').value = record.code || '';
+    document.getElementById('dbEditCampaignType').value = record.campaignTypeName || record.campaignType || '';
+    document.getElementById('dbEditGoal').value = record.goal || '';
+    document.getElementById('dbEditStartDate').value = dateForInput(record.campaignStartDate || record.launchDate || record.taskDate || record.date);
+    document.getElementById('dbEditEndDate').value = dateForInput(record.campaignEndDate || record.endDate);
+    const deps = document.getElementById('dbEditDepartments');
+    if(deps) deps.innerHTML = renderEditDepartmentRows(record);
+    const note = document.getElementById('dbEditNote');
+    if(note) note.textContent = '';
+    modal.classList.add('is-open');
+    modal.setAttribute('aria-hidden','false');
+  }
+
+  async function saveDbEdit(event){
+    event.preventDefault();
+    const form = event.currentTarget;
+    const recordId = document.getElementById('dbEditRecordId')?.value || '';
+    const target = loadRecords().find(r => String(r.id) === String(recordId));
+    const note = document.getElementById('dbEditNote');
+    if(!target){ if(note) note.textContent = '⚠️ لم يتم العثور على الحملة.'; return; }
+
+    const editedDepartmentTasks = Array.isArray(target.departmentTasks) ? target.departmentTasks.map((task, idx) => {
+      const row = document.querySelector(`[data-edit-dept-index="${idx}"]`);
+      if(!row) return task;
+      const name = row.querySelector('[data-edit-user-name]')?.value.trim() || '';
+      const email = row.querySelector('[data-edit-user-email]')?.value.trim() || '';
+      const receiveDate = row.querySelector('[data-edit-receive-date]')?.value || '';
+      const requiredDate = row.querySelector('[data-edit-required-date]')?.value || '';
+      const deliveryDate = row.querySelector('[data-edit-delivery-date]')?.value || '';
+      const requiredText = row.querySelector('[data-edit-required-text]')?.value.trim() || '';
+      return {
+        ...task,
+        userName: name || task.userName || task.assigneeName || '',
+        assigneeName: name || task.assigneeName || task.userName || '',
+        userDisplayName: name || task.userDisplayName || task.userName || '',
+        userEmail: email || task.userEmail || task.assigneeEmail || '',
+        assigneeEmail: email || task.assigneeEmail || task.userEmail || '',
+        receiveDate,
+        receivedAt: receiveDate || task.receivedAt || '',
+        requiredDate,
+        deliveryDate,
+        requiredText
+      };
+    }) : [];
+
+    const taskType = document.getElementById('dbEditTaskType')?.value || 'campaign';
+    const payload = {
+      taskType,
+      taskTypeLabel: taskType === 'agenda' ? 'أجندة' : (taskType === 'task' ? 'تاسك' : 'حملة'),
+      campaignName: document.getElementById('dbEditName')?.value.trim() || '',
+      name: document.getElementById('dbEditName')?.value.trim() || '',
+      campaignCode: document.getElementById('dbEditCode')?.value.trim() || '',
+      code: document.getElementById('dbEditCode')?.value.trim() || '',
+      campaignTypeName: document.getElementById('dbEditCampaignType')?.value.trim() || '',
+      campaignGoal: document.getElementById('dbEditGoal')?.value.trim() || '',
+      goal: document.getElementById('dbEditGoal')?.value.trim() || '',
+      campaignStartDate: document.getElementById('dbEditStartDate')?.value || '',
+      launchDate: document.getElementById('dbEditStartDate')?.value || '',
+      campaignEndDate: document.getElementById('dbEditEndDate')?.value || '',
+      endDate: document.getElementById('dbEditEndDate')?.value || '',
+      departmentTasks: editedDepartmentTasks,
+      updatedAt: new Date().toISOString()
+    };
+
+    try{
+      if(!window.firebase || !window.MZJ_FIREBASE_CONFIG || !firebase.firestore) throw new Error('Firebase SDK غير موجود');
+      if(!firebase.apps.length) firebase.initializeApp(window.MZJ_FIREBASE_CONFIG);
+      const col = target.sourceFirestoreCollection || 'workspace_tasks';
+      const docId = target.firestoreId || target.docId || target.id;
+      await firebase.firestore().collection(col).doc(String(docId)).set(payload, { merge: true });
+      firestoreRecords = firestoreRecords.map(r => String(r.id || r.firestoreId) === String(recordId) ? { ...r, ...payload } : r);
+      if(note) note.textContent = '✅ تم حفظ التعديل في Firebase.';
+      render();
+      setTimeout(closeDbEdit, 450);
+    }catch(err){
+      console.error('db edit save failed:', err);
+      if(note) note.textContent = '⚠️ فشل حفظ التعديل في Firebase: ' + (err.message || err.code || err);
+    }
+  }
+
   async function deleteRecord(recordId){
     const target = loadRecords().find(r => String(r.id) === String(recordId));
     if(window.firebase && window.MZJ_FIREBASE_CONFIG && firebase.firestore){
@@ -245,7 +374,7 @@
       return `<tr data-record-id="${esc(r.id)}">
         <td>${idx+1}</td><td>${esc(r.type)}</td><td>${esc(r.name)}</td><td>${esc(r.code || '--')}</td><td>${esc(r.goal || '--')}</td><td>${esc(formatDate(r.launchDate))}</td>
         <td>${renderDeptSummary(r,'photography')}</td><td>${renderDeptSummary(r,'content')}</td><td>${renderDeptSummary(r,'design')}</td><td>${renderDeptSummary(r,'video')}</td><td>${renderDeptSummary(r,'publish')}</td>
-        <td>${esc(formatDate(del))}</td><td>${esc(calcDelay(req, del))}</td><td>${renderCellButton(r)}</td><td>${isAdmin() ? `<button class="danger-btn db-delete-btn" type="button" data-delete-record="${esc(r.id)}">مسح</button>` : '--'}</td>
+        <td>${esc(formatDate(del))}</td><td>${esc(calcDelay(req, del))}</td><td>${renderCellButton(r)}</td><td>${isAdmin() ? `<div class="db-action-stack"><button class="soft-btn db-edit-btn" type="button" data-edit-record="${esc(r.id)}">تعديل</button><button class="danger-btn db-delete-btn" type="button" data-delete-record="${esc(r.id)}">مسح</button></div>` : '--'}</td>
       </tr>`;
     }).join('')}</tbody></table></div>`;
   }
@@ -256,6 +385,19 @@
       e.preventDefault();
       e.stopPropagation();
       openDbDetails(detailsBtn.dataset.dbDetails);
+      return;
+    }
+    const editBtn = e.target.closest('[data-edit-record]');
+    if(editBtn){
+      e.preventDefault();
+      e.stopPropagation();
+      openDbEdit(editBtn.dataset.editRecord);
+      return;
+    }
+    const closeEditBtn = e.target.closest('[data-close-db-edit]');
+    if(closeEditBtn){
+      e.preventDefault();
+      closeDbEdit();
       return;
     }
     const deleteBtn = e.target.closest('[data-delete-record]');
@@ -271,6 +413,8 @@
     loadFirestoreRecords();
     const search = document.getElementById('campaignSearch');
     if(search) search.addEventListener('input', render);
+    const editForm = document.getElementById('dbEditForm');
+    if(editForm) editForm.addEventListener('submit', saveDbEdit);
   });
 
   window.renderCampaignRecordsLive = render;

@@ -80,6 +80,43 @@
     </section>
   </div>
 
+
+  <div class="details-modal db-edit-modal" id="dbEditModal" aria-hidden="true">
+    <div class="details-backdrop" data-close-db-edit></div>
+    <section class="details-card db-edit-card" role="dialog" aria-modal="true" aria-labelledby="dbEditTitle">
+      <button class="modal-close" type="button" data-close-db-edit aria-label="إغلاق">×</button>
+      <span class="eyebrow">تعديل الحملة / الأجندة</span>
+      <h3 id="dbEditTitle">تعديل البيانات</h3>
+      <form id="dbEditForm" class="db-edit-form">
+        <input type="hidden" name="recordId" id="dbEditRecordId">
+        <div class="db-edit-grid">
+          <label class="mzj-field"><span>نوع التاسك</span><select name="taskType" id="dbEditTaskType"><option value="campaign">حملة</option><option value="agenda">أجندة</option><option value="task">تاسك</option></select></label>
+          <label class="mzj-field"><span>اسم الحملة / الأجندة</span><input name="campaignName" id="dbEditName" type="text"></label>
+          <label class="mzj-field"><span>كود الحملة</span><input name="campaignCode" id="dbEditCode" type="text"></label>
+          <label class="mzj-field"><span>نوع الحملة</span><input name="campaignTypeName" id="dbEditCampaignType" type="text"></label>
+          <label class="mzj-field"><span>الهدف من الحملة</span><input name="campaignGoal" id="dbEditGoal" type="text"></label>
+          <label class="mzj-field"><span>تاريخ البداية / النزول</span><input name="campaignStartDate" id="dbEditStartDate" type="date"></label>
+          <label class="mzj-field"><span>تاريخ النهاية</span><input name="campaignEndDate" id="dbEditEndDate" type="date"></label>
+        </div>
+
+        <div class="db-edit-section">
+          <div class="db-edit-section-head">
+            <strong>المطلوب من الأقسام</strong>
+            <small>تعديل المسؤول والتواريخ والمطلوب لكل قسم محفوظ داخل الحملة</small>
+          </div>
+          <div id="dbEditDepartments" class="db-edit-departments"></div>
+        </div>
+
+        <div class="db-edit-actions">
+          <button class="primary-btn" type="submit">حفظ التعديل</button>
+          <button class="soft-btn" type="button" data-close-db-edit>إلغاء</button>
+          <span id="dbEditNote" class="form-note"></span>
+        </div>
+      </form>
+    </section>
+  </div>
+
+
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
   <script src="firebase-config.js"></script>

@@ -9,7 +9,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="theme.css" />
 </head>
-<body data-user-role="user">
+<body data-user-role="user" class="admin-management-page">
   <aside class="sidebar" id="sidebar">
     <div class="brand-block">
       <button class="menu-toggle" id="sidebarToggle" type="button" aria-label="فتح وإغلاق القائمة">
@@ -44,96 +44,30 @@
     </div>
   </aside>
 
-  <main class="main-shell">
+  <main class="main-shell admin-management-main">
     <header class="topbar">
-      <div class="page-title">
-        <p>stock</p>
-        <h1>سيستم التسويق الجديد</h1>
-      </div>
-      <div class="topbar-actions">
-        <button class="ghost-btn">تصدير تقرير</button>
-        <button class="primary-btn">إضافة حملة</button>
-      </div>
+      <div class="page-title"><p>ADMIN</p><h1>صفحة الإدارة</h1><small>إدارة اليوزرات والصلاحيات ومسارات الدخول</small></div>
     </header>
 
-    <section class="hero-panel">
-      <div>
-        <span class="eyebrow">صفحة تست</span>
-        <h2>واجهة موحدة لـ 8 صفحات تسويق</h2>
-        <p>تصميم تجريبي بالثيم المأخوذ من الصورة، مع سايد بار قابل للفتح والإغلاق بزرار JavaScript وملف CSS مستقل.</p>
-      </div>
-      <div class="hero-metric">
-        <strong>8</strong>
-        <span>صفحات أساسية</span>
-      </div>
+    <section class="workspace-card admin-users-panel">
+      <div class="card-head"><div><span class="eyebrow">users</span><h3>إضافة يوزر جديد وتحديد صلاحياته</h3><p>الحفظ يتم على مسار <strong>users</strong> في Firestore عند الاتصال، ومعاه نسخة محلية للتجربة.</p></div></div>
+      <form id="adminUserForm" class="admin-user-form">
+        <label>اسم اليوزر<input id="adminUserName" type="text" placeholder="اسم اليوزر" required></label>
+        <label>الإيميل<input id="adminUserEmail" type="email" placeholder="user@email.com" required></label>
+        <label>الصلاحية<select id="adminUserRole"><option value="user">يوزر عادي</option><option value="admin">أدمن</option><option value="marketing_manager">مدير تسويق</option></select></label>
+        <label>القسم<select id="adminUserDepartment"></select></label>
+        <div class="permissions-box"><div class="permissions-head"><strong>الصفحات المسموح يدخل عليها</strong><div><button type="button" class="soft-btn" id="checkAllPages">اختيار الكل</button><button type="button" class="ghost-btn" id="clearPages">مسح الاختيار</button></div></div><div id="adminPagesAccess" class="permissions-grid"></div></div>
+        <button class="primary-btn" type="submit">حفظ اليوزر</button>
+      </form>
     </section>
 
-    <section class="stats-grid">
-      <article class="stat-card">
-        <span>تاسكات اليوم</span>
-        <strong>24</strong>
-        <small>8 مكتملة · 16 قيد التنفيذ</small>
-      </article>
-      <article class="stat-card">
-        <span>محتوى جاهز</span>
-        <strong>36</strong>
-        <small>بوستات / ريلز / سكريبتات</small>
-      </article>
-      <article class="stat-card">
-        <span>حملات نشطة</span>
-        <strong>12</strong>
-        <small>فيسبوك · واتساب · تيك توك</small>
-      </article>
-      <article class="stat-card">
-        <span>ليدز قاعدة البيانات</span>
-        <strong>1,280</strong>
-        <small>آخر تحديث منذ 15 دقيقة</small>
-      </article>
-    </section>
-
-    <section class="content-grid">
-      <article class="workspace-card wide-card">
-        <div class="card-head">
-          <div>
-            <span class="eyebrow">الإدارة</span>
-            <h3>متابعة سريعة للسيستم</h3>
-          </div>
-          <button class="soft-btn">عرض الكل</button>
-        </div>
-        <div class="task-list">
-          <div class="task-row">
-            <span class="task-mark done"></span>
-            <div><strong>مراجعة خطة محتوى الأسبوع</strong><small>المسؤول: فريق المحتوى</small></div>
-            <em>مكتمل</em>
-          </div>
-          <div class="task-row">
-            <span class="task-mark progress"></span>
-            <div><strong>تجهيز حملة عروض الاستوك</strong><small>المسؤول: ميديا باير</small></div>
-            <em>قيد التنفيذ</em>
-          </div>
-          <div class="task-row">
-            <span class="task-mark pending"></span>
-            <div><strong>تحديث قاعدة بيانات العملاء</strong><small>المسؤول: CRM</small></div>
-            <em>معلق</em>
-          </div>
-        </div>
-      </article>
-
-      <article class="workspace-card">
-        <span class="eyebrow">الأجندة</span>
-        <h3>جدول اليوم</h3>
-        <div class="timeline">
-          <div><span>10:00</span><p>اجتماع حملات الأسبوع</p></div>
-          <div><span>12:30</span><p>نشر محتوى السوشيال</p></div>
-          <div><span>04:00</span><p>مراجعة أرقام الداش بورد</p></div>
-        </div>
-      </article>
-    </section>
+    <section class="workspace-card admin-users-panel"><div class="card-head"><div><span class="eyebrow">قائمة اليوزرات</span><h3>اليوزرات المحفوظة</h3></div></div><div id="adminUsersList" class="admin-users-list"></div></section>
   </main>
 
   <script src="firebase-config.js"></script>
   <script src="routes.js"></script>
   <script src="auth.js"></script>
   <script src="app.js"></script>
+  <script src="admin-management.js"></script>
 </body>
 </html>

@@ -26,6 +26,7 @@
         name: data.name || data.displayName || data.email || email,
         role: normalizeRole(data.role),
         department: data.department || data.departmentId || '',
+        pagesAccess: data.pagesAccess || data.allowedPages || [],
         source: 'firestore'
       };
     } catch (err) {
@@ -44,6 +45,15 @@
       return;
     }
     document.body.dataset.userRole = user ? user.role : 'guest';
+    if (user && user.role !== 'admin' && Array.isArray(user.pagesAccess) && user.pagesAccess.length) {
+      const routeMap = window.MZJ_ROUTES || {};
+      const currentFile = page;
+      const allowedFiles = user.pagesAccess.map(k => routeMap[k] || k);
+      if (!allowedFiles.includes(currentFile) && currentFile !== 'login.html') {
+        document.body.innerHTML = '<main class="main-shell"><section class="workspace-card access-denied-card"><h1>غير مسموح بالدخول</h1><p>الصفحة دي مش ضمن صلاحيات اليوزر الحالي.</p><a class="primary-btn" href="dashboard.html">الرجوع للداش بورد</a></section></main>';
+        return;
+      }
+    }
 
     const loginForm = document.getElementById('loginForm');
     if (loginForm) {
@@ -61,7 +71,7 @@
         }
         if (!found) found = TEST_USERS.find(u => u.email.toLowerCase() === email.toLowerCase() && u.password === password);
         if (!found) { if(msg) msg.textContent = 'بيانات الدخول غير صحيحة، أو الحساب غير موجود في users.'; return; }
-        setUser({ email: found.email, name: found.name, role: normalizeRole(found.role), department: found.department || '', loginAt: new Date().toISOString(), source: found.source || 'local' });
+        setUser({ email: found.email, name: found.name, role: normalizeRole(found.role), department: found.department || '', pagesAccess: found.pagesAccess || [], loginAt: new Date().toISOString(), source: found.source || 'local' });
         location.href = 'dashboard.html';
       });
     }
@@ -88,6 +98,11 @@
         panel.classList.toggle('is-active', panel.dataset.rolePanel === user.role);
       });
       document.querySelectorAll('.role-switcher').forEach(el => el.remove());
+      if (user && user.role !== 'admin' && Array.isArray(user.pagesAccess) && user.pagesAccess.length) {
+        document.querySelectorAll('[data-route]').forEach(link => {
+          if (!user.pagesAccess.includes(link.dataset.route) && link.dataset.route !== 'login') link.style.display = 'none';
+        });
+      }
       document.querySelectorAll('[data-admin-only]').forEach(el => {
         if(user.role !== 'admin') {
           el.setAttribute('disabled','disabled');

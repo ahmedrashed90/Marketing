@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MZJ Marketing System - قاعدة البيانات</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="theme.css" />
+</head>
+<body>
+  <aside class="sidebar" id="sidebar">
+    <div class="brand-block">
+      <button class="menu-toggle" id="sidebarToggle" type="button" aria-label="فتح وإغلاق القائمة">
+        <span></span><span></span><span></span>
+      </button>
+      <div class="brand-copy">
+        <strong>MZJ Workspace</strong>
+        <small>Marketing System</small>
+      </div>
+      <div class="brand-avatar">M</div>
+    </div>
+
+    <nav class="side-nav" aria-label="صفحات السيستم">
+      <a class="nav-link" href="test.html"><span class="nav-icon">01</span><span class="nav-text">صفحة الإدارة</span></a>
+      <a class="nav-link" href="#"><span class="nav-icon">02</span><span class="nav-text">صفحة الاستوك</span></a>
+      <a class="nav-link" href="#"><span class="nav-icon">03</span><span class="nav-text">تاسكات يومية</span></a>
+      <a class="nav-link" href="#"><span class="nav-icon">04</span><span class="nav-text">المحتوى</span></a>
+      <a class="nav-link" href="#"><span class="nav-icon">05</span><span class="nav-text">الأقسام</span></a>
+      <a class="nav-link active" href="database.html"><span class="nav-icon">06</span><span class="nav-text">قاعدة البيانات</span></a>
+      <a class="nav-link" href="#"><span class="nav-icon">07</span><span class="nav-text">الداش بورد</span></a>
+      <a class="nav-link" href="#"><span class="nav-icon">08</span><span class="nav-text">الحملات والأجندات</span></a>
+    </nav>
+
+    <div class="sidebar-card">
+      <span class="status-dot"></span>
+      <div>
+        <strong>Campaigns DB</strong>
+        <small>قاعدة بيانات الحملات</small>
+      </div>
+    </div>
+  </aside>
+
+  <main class="main-shell database-main">
+    <section class="database-search-only" aria-label="بحث قاعدة البيانات">
+      <div class="database-search-card">
+        <label for="campaignSearch">بحث سريع</label>
+        <div class="search-box">
+          <input id="campaignSearch" type="search" placeholder="ابحث باسم الحملة، الكود، النوع، الهدف..." />
+          <button type="button">بحث</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="workspace-card campaign-db-panel">
+      <div class="campaign-records is-empty">
+        <article class="empty-database-state">
+          <div class="empty-icon">DB</div>
+          <div>
+            <span class="eyebrow">قاعدة البيانات جاهزة</span>
+            <h4>لا توجد حملات أو أجندات مضافة حالياً</h4>
+            <p>أول ما يتم إنشاء حملة أو أجندة من السيستم، هتظهر هنا بنفس التصميم: بيانات الحملة، أقسام التشغيل، وأزرار عرض التصوير والمحتوى والتصميم والفيديو وجدول النشر والميزانية والنتائج.</p>
+          </div>
+        </article>
+      </div>
+    </section>
+  </main>
+
+  <div class="details-modal" id="detailsModal" aria-hidden="true">
+    <div class="details-backdrop" data-close-modal></div>
+    <section class="details-card" role="dialog" aria-modal="true" aria-labelledby="detailsTitle">
+      <button class="modal-close" type="button" data-close-modal aria-label="إغلاق">×</button>
+      <span class="eyebrow">تفاصيل العرض</span>
+      <h3 id="detailsTitle">عرض</h3>
+      <div class="details-lines" id="detailsContent"></div>
+    </section>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

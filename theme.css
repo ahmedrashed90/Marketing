@@ -2622,51 +2622,51 @@ body:has(#createTaskModal.is-open) {
   .db-modal-summary{align-items:flex-start;flex-direction:column}
 }
 
-/* Compact database page - remove wide margins and fit table without horizontal scroll */
+/* Database page readable compact layout - keep table readable, no crushed vertical text */
 body:has(.database-main) {
   overflow-x: hidden;
 }
 
 .database-main {
-  padding: 6px 6px 18px !important;
-  padding-top: 6px !important;
+  padding: 18px 18px 28px !important;
+  padding-top: 18px !important;
 }
 
 body:not(.sidebar-collapsed) .database-main {
-  margin-right: calc(var(--sidebar-open) + 10px) !important;
+  margin-right: calc(var(--sidebar-open) + 18px) !important;
 }
 
 body.sidebar-collapsed .database-main {
-  margin-right: calc(var(--sidebar-closed) + 10px) !important;
+  margin-right: calc(var(--sidebar-closed) + 18px) !important;
 }
 
 .database-search-only {
-  width: min(360px, 100%) !important;
-  margin: 0 0 8px auto !important;
+  width: min(420px, 100%) !important;
+  margin: 0 0 14px auto !important;
 }
 
 .database-search-only .database-search-card {
-  padding: 10px 14px !important;
-  border-radius: 18px !important;
-  box-shadow: 0 10px 28px rgba(62,36,32,.08) !important;
+  padding: 14px 18px !important;
+  border-radius: 22px !important;
+  box-shadow: 0 14px 34px rgba(62,36,32,.08) !important;
 }
 
 .database-search-only .search-box {
-  min-height: 42px !important;
+  min-height: 46px !important;
 }
 
 .database-search-only .search-box input,
 .database-search-only .search-box button {
-  min-height: 36px !important;
-  height: 36px !important;
-  padding-block: 6px !important;
+  min-height: 38px !important;
+  height: 38px !important;
+  padding-block: 7px !important;
 }
 
 .campaign-db-panel {
-  margin-top: 6px !important;
-  padding: 8px !important;
-  border-radius: 18px !important;
-  overflow: visible !important;
+  margin-top: 12px !important;
+  padding: 16px !important;
+  border-radius: 24px !important;
+  overflow: hidden !important;
 }
 
 .campaign-records {
@@ -2674,48 +2674,63 @@ body.sidebar-collapsed .database-main {
 }
 
 .campaign-db-table-wrap {
-  overflow-x: hidden !important;
-  border-radius: 14px !important;
-  box-shadow: 0 10px 30px rgba(62,36,32,.07) !important;
+  width: 100% !important;
+  overflow-x: auto !important;
+  overflow-y: visible !important;
+  border-radius: 20px !important;
+  box-shadow: 0 12px 34px rgba(62,36,32,.07) !important;
+  -webkit-overflow-scrolling: touch;
 }
 
 .campaign-db-table {
-  min-width: 0 !important;
-  width: 100% !important;
-  table-layout: fixed !important;
-  font-size: 11px !important;
+  width: max-content !important;
+  min-width: 1840px !important;
+  table-layout: auto !important;
+  border-collapse: separate !important;
+  border-spacing: 0 !important;
+  font-size: 12px !important;
+}
+
+.campaign-db-table th,
+.campaign-db-table td {
+  white-space: normal !important;
+  word-break: normal !important;
+  overflow-wrap: break-word !important;
+  writing-mode: horizontal-tb !important;
+  text-orientation: mixed !important;
+  line-height: 1.55 !important;
+  text-align: center !important;
+  vertical-align: top !important;
 }
 
 .campaign-db-table th {
-  padding: 9px 4px !important;
-  font-size: 11px !important;
-  line-height: 1.25 !important;
-  white-space: normal !important;
-  word-break: break-word !important;
+  padding: 12px 10px !important;
+  font-size: 12px !important;
 }
 
 .campaign-db-table td {
-  padding: 8px 4px !important;
-  font-size: 11px !important;
-  line-height: 1.35 !important;
-  white-space: normal !important;
-  word-break: break-word !important;
+  padding: 12px 10px !important;
+  font-size: 12px !important;
 }
 
 .campaign-db-table th:nth-child(1),
-.campaign-db-table td:nth-child(1) { width: 34px !important; }
+.campaign-db-table td:nth-child(1) { width: 46px !important; min-width: 46px !important; }
 
 .campaign-db-table th:nth-child(2),
-.campaign-db-table td:nth-child(2),
+.campaign-db-table td:nth-child(2) { width: 95px !important; min-width: 95px !important; }
+
 .campaign-db-table th:nth-child(3),
-.campaign-db-table td:nth-child(3),
+.campaign-db-table td:nth-child(3) { width: 140px !important; min-width: 140px !important; }
+
 .campaign-db-table th:nth-child(4),
-.campaign-db-table td:nth-child(4),
+.campaign-db-table td:nth-child(4) { width: 110px !important; min-width: 110px !important; }
+
 .campaign-db-table th:nth-child(5),
-.campaign-db-table td:nth-child(5) { width: 7% !important; }
+.campaign-db-table td:nth-child(5) { width: 150px !important; min-width: 150px !important; }
 
 .campaign-db-table th:nth-child(6),
-.campaign-db-table td:nth-child(6),
+.campaign-db-table td:nth-child(6) { width: 130px !important; min-width: 130px !important; }
+
 .campaign-db-table th:nth-child(7),
 .campaign-db-table td:nth-child(7),
 .campaign-db-table th:nth-child(8),
@@ -2723,57 +2738,61 @@ body.sidebar-collapsed .database-main {
 .campaign-db-table th:nth-child(9),
 .campaign-db-table td:nth-child(9),
 .campaign-db-table th:nth-child(10),
-.campaign-db-table td:nth-child(10) { width: 10% !important; }
+.campaign-db-table td:nth-child(10),
+.campaign-db-table th:nth-child(11),
+.campaign-db-table td:nth-child(11) { width: 190px !important; min-width: 190px !important; }
 
-.campaign-db-table th:nth-last-child(1),
-.campaign-db-table td:nth-last-child(1),
-.campaign-db-table th:nth-last-child(2),
-.campaign-db-table td:nth-last-child(2) { width: 7% !important; }
+.campaign-db-table th:nth-child(12),
+.campaign-db-table td:nth-child(12),
+.campaign-db-table th:nth-child(13),
+.campaign-db-table td:nth-child(13) { width: 105px !important; min-width: 105px !important; }
+
+.campaign-db-table th:nth-child(14),
+.campaign-db-table td:nth-child(14),
+.campaign-db-table th:nth-child(15),
+.campaign-db-table td:nth-child(15) { width: 120px !important; min-width: 120px !important; }
 
 .db-dept-mini {
-  min-width: 0 !important;
-  padding: 6px !important;
-  border-radius: 10px !important;
-  gap: 3px !important;
+  min-width: 160px !important;
+  padding: 8px !important;
+  border-radius: 14px !important;
+  gap: 5px !important;
 }
 
 .db-dept-mini strong {
-  font-size: 11px !important;
+  font-size: 12px !important;
 }
 
 .db-dept-mini small {
-  font-size: 9.5px !important;
-  line-height: 1.35 !important;
+  display: block !important;
+  font-size: 11px !important;
+  line-height: 1.55 !important;
+  white-space: normal !important;
+  word-break: normal !important;
 }
 
 .db-one-view-btn,
 .db-delete-btn {
   width: 100% !important;
-  min-width: 0 !important;
-  padding: 8px 4px !important;
-  border-radius: 12px !important;
-  font-size: 10px !important;
-  white-space: normal !important;
+  min-width: 92px !important;
+  padding: 9px 10px !important;
+  border-radius: 14px !important;
+  font-size: 11px !important;
+  white-space: nowrap !important;
 }
 
 @media (max-width: 1100px) {
   body:not(.sidebar-collapsed) .database-main,
   body.sidebar-collapsed .database-main {
     margin-right: 0 !important;
-    padding-inline: 5px !important;
+    padding-inline: 10px !important;
   }
 
   .database-search-only {
     width: 100% !important;
   }
 
-  .campaign-db-table {
-    font-size: 10px !important;
-  }
-
-  .campaign-db-table th,
-  .campaign-db-table td {
-    font-size: 10px !important;
-    padding: 6px 3px !important;
+  .campaign-db-panel {
+    padding: 10px !important;
   }
 }

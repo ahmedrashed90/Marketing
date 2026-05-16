@@ -1,7 +1,7 @@
 (function(){
   const AUTH_KEY = 'mzj_current_user';
-  const USER_COLLECTION = 'user';
-  const LEGACY_USER_COLLECTION = 'users';
+  const USER_COLLECTION = 'users';
+  const LEGACY_USER_COLLECTION = 'user';
   const TEST_USERS = [
     { email: 'admin@mzj.local', password: '123456', name: 'مدير النظام', role: 'admin', department: 'management' },
     { email: 'user@mzj.local', password: '123456', name: 'يوزر عادي', role: 'user', department: 'photography' }
@@ -27,11 +27,11 @@
       department: row.department || row.departmentId || row.section || '',
       pagesAccess: row.pagesAccess || row.allowedPages || row.permissions || [],
       password: row.password || row.pass || '',
-      source: row.source || 'firestore:user'
+      source: row.source || 'firestore:users'
     };
   }
   function loadLocalManagedUsers(){
-    const keys = ['mzj_admin_users_cache_v1','user','users'];
+    const keys = ['mzj_admin_users_cache_v1','users','user'];
     const out = [];
     keys.forEach(key => {
       try {

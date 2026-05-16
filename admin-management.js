@@ -1,6 +1,6 @@
 (function(){
   const USERS_KEY = 'mzj_admin_users_cache_v1';
-  const LEGACY_USERS_KEY = 'user';
+  const LEGACY_USERS_KEY = 'users';
   const OLD_USERS_KEY = 'users';
   const pages = [
     ['admin','صفحة الإدارة','admin.html'],['stock','صفحة الاستوك','stock.html'],['dailyTasks','تاسكات يومية','daily-tasks.html'],['content','المحتوى','content.html'],['departments','الأقسام','departments.html'],['database','قاعدة البيانات','database.html'],['dashboard','الداش بورد','dashboard.html'],['campaignsCalendar','الحملات والأجندات','campaigns-calendar.html'],['taskTemplates','قوالب الحملات','templates.html']
@@ -35,14 +35,14 @@
   async function addFirestoreUser(user){
     if(!canUseFirestore()) return null;
     if(!firebase.apps.length) firebase.initializeApp(window.MZJ_FIREBASE_CONFIG);
-    const ref = await firebase.firestore().collection('user').add(user);
+    const ref = await firebase.firestore().collection('users').add(user);
     return ref.id;
   }
   async function loadFirestoreUsers(){
     if(!canUseFirestore()) return null;
     try{
       if(!firebase.apps.length) firebase.initializeApp(window.MZJ_FIREBASE_CONFIG);
-      const snap = await firebase.firestore().collection('user').get();
+      const snap = await firebase.firestore().collection('users').get();
       return uniqueUsers(snap.docs.map(d=>({id:d.id,...d.data()})).concat(load()));
     }catch(e){console.warn('user firestore fallback',e);return null;}
   }

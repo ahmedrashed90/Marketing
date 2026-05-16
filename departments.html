@@ -9,7 +9,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="theme.css" />
 </head>
-<body data-user-role="user">
+<body data-user-role="user" class="departments-management-page">
   <aside class="sidebar" id="sidebar">
     <div class="brand-block">
       <button class="menu-toggle" id="sidebarToggle" type="button" aria-label="فتح وإغلاق القائمة">
@@ -52,16 +52,57 @@
       </div>
     </header>
 
-    <section class="workspace-card empty-state-card">
-      <span class="eyebrow">NEW VERSION ROUTE</span>
-      <h2>الأقسام</h2>
-      <p>هنا هيتبني شكل ومحتوى صفحة الأقسام.</p>
+    <section class="workspace-card admin-users-panel departments-builder-panel">
+      <div class="card-head">
+        <div>
+          <span class="eyebrow">departments</span>
+          <h3 id="departmentFormTitle">إضافة قسم جديد</h3>
+          <p>هنا بتضيف أو تعدل الأقسام، وتختار يوزر أو أكتر لكل قسم من اليوزرات الفعلية الموجودة في مسار <strong>user</strong>.</p>
+        </div>
+      </div>
+
+      <form id="departmentForm" class="admin-user-form department-form">
+        <input type="hidden" id="departmentId">
+        <label>اسم القسم
+          <input id="departmentName" type="text" placeholder="مثال: قسم التصوير" required>
+        </label>
+
+        <div class="permissions-box departments-users-box">
+          <div class="permissions-head">
+            <strong>اختار اليوزرات داخل القسم</strong>
+            <div class="permissions-actions">
+              <button type="button" id="selectAllDepartmentUsers" class="soft-btn">اختيار الكل</button>
+              <button type="button" id="clearDepartmentUsers" class="soft-btn">مسح الاختيار</button>
+            </div>
+          </div>
+          <div id="departmentUsersPicker" class="permissions-grid department-users-picker"></div>
+        </div>
+
+        <div class="department-form-actions">
+          <button type="button" class="ghost-btn" id="resetDepartmentForm">تفريغ / إضافة جديد</button>
+          <button type="submit" class="primary-btn">حفظ القسم</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="workspace-card admin-users-panel">
+      <div class="card-head">
+        <div>
+          <span class="eyebrow">قائمة الأقسام</span>
+          <h3>الأقسام المحفوظة</h3>
+          <p>الأقسام دي هي اللي هتظهر بعد كده في إنشاء تاسك، ولما تختار قسم هيجيب اليوزرات المختارة للقسم ده فقط.</p>
+        </div>
+      </div>
+      <div id="departmentsList" class="departments-list"></div>
     </section>
   </main>
 
+  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
   <script src="firebase-config.js"></script>
   <script src="routes.js"></script>
   <script src="auth.js"></script>
   <script src="app.js"></script>
+  <script src="departments-management.js"></script>
 </body>
 </html>

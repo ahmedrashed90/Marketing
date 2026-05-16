@@ -394,7 +394,20 @@ function normalizeContentTaskDepartment(item, index) {
   const name = item?.name || item?.title || item?.departmentName || item?.sectionName || item?.department || ('قسم ' + (index + 1));
   const usersRaw = item?.users || item?.members || item?.responsibles || item?.assignees || item?.team || [];
   const users = Array.isArray(usersRaw)
-    ? usersRaw.map((user) => typeof user === 'string' ? user : (user.name || user.displayName || user.email || '')).filter(Boolean)
+    ? usersRaw.map((user) => {
+        if (typeof user === 'string') return { name: user, email: user, label: user };
+        const userName = user?.name || user?.displayName || user?.fullName || user?.email || '';
+        const userEmail = user?.email || '';
+        const userId = user?.id || user?.uid || userEmail || userName;
+        if (!userId && !userName && !userEmail) return null;
+        return {
+          id: userId,
+          name: userName,
+          email: userEmail,
+          department: user?.department || user?.departmentId || '',
+          label: userEmail && userName && userEmail !== userName ? `${userName} — ${userEmail}` : (userName || userEmail || userId)
+        };
+      }).filter(Boolean)
     : [];
   return {
     id: item?.id || item?.docId || ('dept_' + index),
@@ -404,10 +417,27 @@ function normalizeContentTaskDepartment(item, index) {
 }
 
 async function loadDepartmentsFromContentTasks() {
+  if (window.MZJDepartments?.loadDepartments) {
+    try {
+      const managedDepartments = await window.MZJDepartments.loadDepartments();
+      if (Array.isArray(managedDepartments) && managedDepartments.length) return managedDepartments.map(normalizeContentTaskDepartment);
+    } catch (error) {}
+  }
+
+  if (window.firebase && window.MZJ_FIREBASE_CONFIG && firebase.firestore) {
+    try {
+      if (!firebase.apps.length) firebase.initializeApp(window.MZJ_FIREBASE_CONFIG);
+      const snap = await firebase.firestore().collection('departments').get();
+      const cloudDepartments = [];
+      snap.forEach((doc) => cloudDepartments.push({ id: doc.id, ...(doc.data() || {}) }));
+      if (cloudDepartments.length) return cloudDepartments.map(normalizeContentTaskDepartment);
+    } catch (error) { console.warn('departments firestore fallback:', error); }
+  }
+
   const localSources = [
-    'mzj_content_tasks',
-    'content_tasks',
     'mzj_departments',
+    'content_tasks',
+    'mzj_content_tasks',
     'mzj_content_departments'
   ];
 
@@ -456,7 +486,7 @@ async function loadUsersFromSystemPath() {
   const fallback = (window.MZJAuth?.users || []).map(normalizeSystemUser).filter(Boolean);
   if (window.MZJAuth?.loadLocalManagedUsers) collected.push(...window.MZJAuth.loadLocalManagedUsers().map(normalizeSystemUser).filter(Boolean));
 
-  ['mzj_admin_users_cache_v1','user','users'].forEach((key) => {
+  ['mzj_admin_users_cache_v1','users','user'].forEach((key) => {
     try {
       const localUsers = JSON.parse(localStorage.getItem(key) || '[]');
       if (Array.isArray(localUsers) && localUsers.length) collected.push(...localUsers.map(normalizeSystemUser).filter(Boolean));
@@ -466,7 +496,7 @@ async function loadUsersFromSystemPath() {
   if (window.firebase && window.MZJ_FIREBASE_CONFIG) {
     try {
       if (!firebase.apps.length) firebase.initializeApp(window.MZJ_FIREBASE_CONFIG);
-      const snap = await firebase.firestore().collection('user').get();
+      const snap = await firebase.firestore().collection('users').get();
       snap.forEach((doc) => collected.push(normalizeSystemUser({ id: doc.id, ...(doc.data() || {}) })));
     } catch (error) {
       console.warn('user path fallback:', error);
@@ -482,17 +512,24 @@ async function loadUsersFromSystemPath() {
   return Array.from(map.values());
 }
 
-function renderUserOptions(users, departmentId = '') {
-  const list = (users || []).filter(Boolean);
+function renderUserOptions(users, departmentId = '', allowFallback = true) {
+  const list = (users || []).filter(Boolean).map(normalizeSystemUser).filter(Boolean);
   if (!list.length) {
-    return '<option value="">لا يوجد يوزرات محفوظة - أضفهم من صفحة الإدارة</option>';
+    return '<option value="">لا يوجد يوزرات محفوظة - أضفهم من صفحة الأقسام</option>';
   }
   const deptFiltered = departmentId ? list.filter((user) => !user.department || String(user.department) === String(departmentId)) : list;
-  const finalList = deptFiltered.length ? deptFiltered : list;
+  const finalList = (deptFiltered.length || !allowFallback) ? deptFiltered : list;
+  if (!finalList.length) return '<option value="">لا يوجد يوزرات في هذا القسم</option>';
   return '<option value="">اختار اليوزر</option>' + finalList.map((user) => {
     const value = user.email || user.name || user.id;
     return `<option value="${escapeHTML(value)}" data-user-name="${escapeHTML(user.name || '')}" data-user-email="${escapeHTML(user.email || '')}">${escapeHTML(user.label || value)}</option>`;
   }).join('');
+}
+
+function usersForDepartment(dept, allUsers) {
+  const deptUsers = Array.isArray(dept?.users) ? dept.users.map(normalizeSystemUser).filter(Boolean) : [];
+  if (deptUsers.length) return deptUsers;
+  return (allUsers || []).filter((user) => String(user.department || '') === String(dept?.id || '')).map(normalizeSystemUser).filter(Boolean);
 }
 
 function initCreateTaskFromTemplate() {
@@ -588,7 +625,7 @@ function initCreateTaskFromTemplate() {
       <div class="department-task-grid">
         <label class="mzj-field">
           <span>اليوزر / المسؤول</span>
-          <select data-user-select>${renderUserOptions(usersCache.length ? usersCache : (dept.users || []).map(normalizeSystemUser).filter(Boolean), dept.id)}</select>
+          <select data-user-select>${renderUserOptions(usersForDepartment(dept, usersCache), dept.id, false)}</select>
         </label>
 
         <label class="mzj-field">

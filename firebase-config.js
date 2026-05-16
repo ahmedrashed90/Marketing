@@ -9,3 +9,6 @@ window.MZJ_FIREBASE_CONFIG = {
 };
 
 // عند ربط Firebase SDK لاحقًا، استخدم window.MZJ_FIREBASE_CONFIG كمصدر واحد للكونفيج.
+
+// ضع رابط Google Apps Script Web App هنا بعد نشر الاسكربت.
+window.MZJ_DRIVE_UPLOAD_WEB_APP_URL = "";

@@ -95,6 +95,18 @@ let activeTaskCard = null;
 let activeTaskDetailsMeta = null;
 let taskAttachmentInput = null;
 
+function getDriveUploadWebAppUrl() {
+  return String(window.MZJ_DRIVE_UPLOAD_WEB_APP_URL || '').trim();
+}
+
+function rawDeptIdentity(dept) {
+  if (!dept || typeof dept !== 'object') return '';
+  return [
+    dept.departmentId || dept.departmentKey || dept.departmentName || dept.id || dept.department || dept.name || '',
+    dept.userId || dept.userUid || dept.uid || dept.assigneeUid || dept.userEmail || dept.assigneeEmail || dept.userName || dept.assigneeName || ''
+  ].map((value) => String(value || '').trim()).filter(Boolean).join('::');
+}
+
 function getCurrentUserRole() {
   const authUser = window.MZJAuth?.getUser?.();
   return authUser?.role || document.body.dataset.userRole || localStorage.getItem('mzj_user_role') || 'user';
@@ -259,12 +271,112 @@ function fileToBase64(file) {
 }
 
 async function uploadTaskFileToDrive(file, meta) {
-  throw new Error('تم تأجيل ربط Google Drive / Apps Script لمرحلة لاحقة بعد الانتهاء من شكل تاسكات كل الأقسام.');
+  const webAppUrl = getDriveUploadWebAppUrl();
+  if (!webAppUrl) {
+    throw new Error('رابط Apps Script Web App غير مضاف. افتح firebase-config.js وضع الرابط في window.MZJ_DRIVE_UPLOAD_WEB_APP_URL.');
+  }
+
+  const base64 = await fileToBase64(file);
+  const payload = {
+    action: 'uploadTaskAttachment',
+    fileName: file.name,
+    mimeType: file.type || 'application/octet-stream',
+    base64,
+    meta: {
+      taskId: meta?.taskId || '',
+      departmentIdentity: meta?.deptIdentity || '',
+      departmentKey: meta?.deptKey || '',
+      departmentName: meta?.departmentName || '',
+      campaignName: meta?.campaignName || '',
+      campaignCode: meta?.campaignCode || '',
+      taskType: meta?.taskType || '',
+      uploadedBy: window.MZJAuth?.getUser?.()?.email || window.MZJAuth?.getUser?.()?.name || ''
+    }
+  };
+
+  const response = await fetch(webAppUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify(payload)
+  });
+  const text = await response.text();
+  let result = null;
+  try { result = JSON.parse(text); } catch (error) { result = { ok: response.ok, raw: text }; }
+  if (!response.ok || result.ok === false) {
+    throw new Error(result.error || result.message || 'فشل رفع الملف على Google Drive.');
+  }
+  return {
+    name: result.name || file.name,
+    fileName: result.fileName || result.name || file.name,
+    url: result.url || result.fileUrl || result.webViewLink || '',
+    fileUrl: result.fileUrl || result.url || result.webViewLink || '',
+    fileId: result.fileId || result.id || '',
+    mimeType: file.type || result.mimeType || '',
+    size: file.size || 0,
+    uploadedAt: new Date().toISOString(),
+    uploadedBy: payload.meta.uploadedBy,
+    departmentKey: payload.meta.departmentKey,
+    departmentName: payload.meta.departmentName
+  };
+}
+
+async function saveTaskAttachmentToFirebase(meta, fileRecord) {
+  if (!meta?.taskId) throw new Error('لا يوجد رقم للتاسك لحفظ المرفق.');
+  if (!window.firebase || !window.MZJ_FIREBASE_CONFIG || !firebase.firestore) throw new Error('Firebase SDK غير موجود.');
+  if (!firebase.apps.length) firebase.initializeApp(window.MZJ_FIREBASE_CONFIG);
+
+  const db = firebase.firestore();
+  const docRef = db.collection('workspace_tasks').doc(String(meta.taskId));
+  const snap = await docRef.get();
+  if (!snap.exists) throw new Error('لم يتم العثور على الحملة في workspace_tasks لحفظ المرفق.');
+
+  const data = snap.data() || {};
+  const departmentTasks = Array.isArray(data.departmentTasks) ? data.departmentTasks : [];
+  const updatedDepartments = departmentTasks.map((dept) => {
+    const sameDept = rawDeptIdentity(dept) === String(meta.deptIdentity || '');
+    if (!sameDept) return dept;
+    const files = Array.isArray(dept.files) ? dept.files.slice() : [];
+    const attachments = Array.isArray(dept.attachments) ? dept.attachments.slice() : [];
+    const driveFiles = Array.isArray(dept.driveFiles) ? dept.driveFiles.slice() : [];
+    files.push(fileRecord);
+    attachments.push(fileRecord);
+    driveFiles.push(fileRecord);
+    return {
+      ...dept,
+      files,
+      attachments,
+      driveFiles,
+      fileUrl: fileRecord.fileUrl || fileRecord.url || '',
+      attachmentUrl: fileRecord.fileUrl || fileRecord.url || '',
+      updatedAt: new Date().toISOString()
+    };
+  });
+
+  await docRef.set({
+    departmentTasks: updatedDepartments,
+    updatedAt: new Date().toISOString()
+  }, { merge: true });
 }
 
 async function handleTaskAttachmentSelected(event) {
-  if (event && event.target) event.target.value = '';
-  alert('إرفاق المهام موجود كمكان في التأسك فقط الآن. ربط Google Drive و Apps Script هيتعمل في آخر مرحلة بعد الانتهاء من شكل تاسكات كل الأقسام.');
+  const input = event?.target;
+  const file = input?.files?.[0];
+  if (input) input.value = '';
+  if (!file || !activeTaskDetailsMeta) return;
+  const uploadButton = taskDetailsModal?.querySelector('[data-upload-task-attachment]');
+  const oldText = uploadButton?.textContent || '';
+  try {
+    if (uploadButton) { uploadButton.disabled = true; uploadButton.textContent = 'جاري الرفع...'; }
+    const fileRecord = await uploadTaskFileToDrive(file, activeTaskDetailsMeta);
+    await saveTaskAttachmentToFirebase(activeTaskDetailsMeta, fileRecord);
+    alert('تم رفع الملف وحفظ الرابط في قاعدة البيانات.');
+    if (window.renderDashboardTasks) window.renderDashboardTasks();
+  } catch (error) {
+    console.error('task attachment upload failed:', error);
+    alert('فشل رفع المرفق: ' + (error.message || error.code || error));
+  } finally {
+    if (uploadButton) { uploadButton.disabled = false; uploadButton.textContent = oldText || attachmentLabelForDeptKey(activeTaskDetailsMeta?.deptKey || ''); }
+  }
 }
 
 function openTaskDetails(button) {
@@ -272,7 +384,15 @@ function openTaskDetails(button) {
 
   activeTaskCard = button.closest('[data-dept-task-card]') || button.closest('.dept-card-template');
   const selected = (activeTaskCard?.dataset.completedSteps || '').split(',').filter(Boolean);
-  activeTaskDetailsMeta = { taskId: activeTaskCard?.dataset.taskId || '', deptIdentity: activeTaskCard?.dataset.deptIdentity || '', deptKey: button.dataset.deptKey || '' };
+  activeTaskDetailsMeta = {
+    taskId: activeTaskCard?.dataset.taskId || '',
+    deptIdentity: activeTaskCard?.dataset.deptIdentity || '',
+    deptKey: button.dataset.deptKey || '',
+    departmentName: button.dataset.dept || '',
+    campaignName: button.dataset.taskTitle || '',
+    campaignCode: activeTaskCard?.dataset.campaignCode || '',
+    taskType: activeTaskCard?.dataset.taskType || ''
+  };
 
   if (taskDetailsDept) taskDetailsDept.textContent = button.dataset.dept || 'تفاصيل القسم';
   if (taskDetailsTitle) taskDetailsTitle.textContent = button.dataset.taskTitle || 'تفاصيل التاسك';
@@ -317,7 +437,7 @@ function openTaskDetails(button) {
     taskStepButtons.insertAdjacentElement('afterend', attachBox);
   }
   if (attachBox) {
-    attachBox.innerHTML = `<button class="soft-btn upload-task-file-btn" type="button" data-upload-task-attachment>${attachmentLabelForDeptKey(button.dataset.deptKey || '')}</button><small>زر الإرفاق جاهز في شكل التاسك، وربط Google Drive / Apps Script مؤجل لآخر مرحلة.</small>`;
+    attachBox.innerHTML = `<button class="soft-btn upload-task-file-btn" type="button" data-upload-task-attachment>${attachmentLabelForDeptKey(button.dataset.deptKey || '')}</button><small>يتم رفع الملف على Google Drive وحفظ الرابط تلقائياً في قاعدة البيانات.</small>`;
   }
   taskDetailsModal.classList.add('is-open');
   taskDetailsModal.setAttribute('aria-hidden', 'false');
@@ -336,7 +456,7 @@ document.addEventListener('click', (event) => {
 
   const uploadTaskAttachment = event.target.closest('[data-upload-task-attachment]');
   if (uploadTaskAttachment) {
-    alert('إرفاق المهام جاهز في واجهة التاسك فقط. ربط Google Drive و Apps Script مؤجل لآخر مرحلة بعد تعديل كل الأقسام.');
+    ensureTaskAttachmentInput().click();
   }
 
   const stepButton = event.target.closest('.task-step-btn');
@@ -1568,6 +1688,12 @@ initCreateTaskFromTemplate();
         receivedAt: d.receivedAt || '',
         receivedBy: d.receivedBy || '',
         receivedConfirmed: Boolean(d.receivedConfirmed || d.confirmed || d.received || d.receivedAt),
+        files: Array.isArray(d.files) ? d.files : [],
+        attachments: Array.isArray(d.attachments) ? d.attachments : [],
+        driveFiles: Array.isArray(d.driveFiles) ? d.driveFiles : [],
+        links: Array.isArray(d.links) ? d.links : [],
+        fileUrl: d.fileUrl || '',
+        attachmentUrl: d.attachmentUrl || '',
         attachmentLabel: d.attachmentLabel || d.attachment || d.fileName || '',
         requiredText: d.requiredText || d.description || d.details || d.required || ''
       })),
@@ -1783,7 +1909,7 @@ initCreateTaskFromTemplate();
     const key = deptTask.departmentId || deptTask.departmentName || deptTask.userName || '';
     const selected = ((task.readiness || {})[key] || []).join(',');
     const departmentShare = Math.round((100 / Math.max((task.departmentTasks||[]).length,1)) * 100) / 100;
-    return `<article class="department-task-card dynamic-dashboard-card user-task-card-clean" data-dept-task-card data-task-id="${esc(task.id)}" data-readiness-key="${esc(key)}" data-dept-identity="${esc(deptIdentity(deptTask))}" data-dept-key="${esc(dkey)}" data-department-share="${esc(departmentShare)}" data-completed-steps="${esc(selected)}">
+    return `<article class="department-task-card dynamic-dashboard-card user-task-card-clean" data-dept-task-card data-task-id="${esc(task.id)}" data-task-type="${esc(task.taskTypeLabel || task.taskType || '')}" data-campaign-code="${esc(task.campaignCode || '')}" data-readiness-key="${esc(key)}" data-dept-identity="${esc(deptIdentity(deptTask))}" data-dept-key="${esc(dkey)}" data-department-share="${esc(departmentShare)}" data-completed-steps="${esc(selected)}">
       <div class="task-template-top user-task-title-only"><strong>${esc(taskTitle(task))}</strong></div>
       <div class="department-task-meta labeled-task-meta user-task-meta-clean">
         <span class="meta-person"><small>المسؤول</small><strong>${esc(deptTask.userDisplayName || deptTask.userName || deptTask.userEmail || 'بدون مسؤول')}</strong></span>

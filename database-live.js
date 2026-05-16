@@ -631,12 +631,12 @@
     holder.innerHTML = `<div class="campaign-db-table-wrap"><table class="campaign-db-table campaign-db-final-table"><thead><tr>
       <th>م</th><th>التاريخ</th><th>كود الحملة</th><th>اسم الحملة</th><th>نوع الحملة</th><th>الهدف من الحملة</th><th>تاريخ بداية الحملة</th><th>تاريخ نهاية الحملة</th>
       <th>قسم التصوير</th><th>قسم المحتوى</th><th>قسم التصميم</th><th>قسم المونتاج</th><th>قسم النشر</th>
-      <th>عرض التصوير</th><th>عرض المحتوى</th><th>عرض التصميم</th><th>عرض الفيديو</th><th>عرض جدول النشر</th><th>عرض الميزانية</th><th>عرض نتائج الحملة</th><th>إجراءات</th>
+      <th>عرض البيانات</th><th>إجراءات</th>
     </tr></thead><tbody>${records.map((r, idx) => {
       return `<tr data-record-id="${esc(r.id)}">
         <td>${idx+1}</td><td>${esc(formatDate(r.taskDate || r.createdAt || r.launchDate))}</td><td>${esc(r.code || '--')}</td><td>${esc(r.name)}</td><td>${esc(r.campaignTypeName || r.type)}</td><td>${esc(r.goal || '--')}</td><td>${esc(formatDate(r.startDate || r.launchDate))}</td><td>${esc(formatDate(r.endDate))}</td>
         <td>${renderDeptSummary(r,'photography')}</td><td>${renderDeptSummary(r,'content')}</td><td>${renderDeptSummary(r,'design')}</td><td>${renderDeptSummary(r,'video')}</td><td>${renderDeptSummary(r,'publish')}</td>
-        <td>${renderSectionButton(r,'photography','عرض')}</td><td>${renderSectionButton(r,'content','عرض')}</td><td>${renderSectionButton(r,'design','عرض')}</td><td>${renderSectionButton(r,'video','عرض')}</td><td>${renderSectionButton(r,'schedule','عرض')}</td><td>${renderSectionButton(r,'budget','عرض')}</td><td>${renderSectionButton(r,'results','عرض')}</td><td>${isAdmin() ? `<div class="db-action-stack"><button class="soft-btn db-edit-btn" type="button" data-edit-record="${esc(r.id)}" onclick="window.openDatabaseEditCampaign && window.openDatabaseEditCampaign(this.dataset.editRecord)">تعديل</button><button class="danger-btn db-delete-btn" type="button" data-delete-record="${esc(r.id)}">مسح</button></div>` : '--'}</td>
+        <td>${renderSectionButton(r,'all','عرض البيانات')}</td><td>${isAdmin() ? `<div class="db-action-stack"><button class="soft-btn db-edit-btn" type="button" data-edit-record="${esc(r.id)}" onclick="window.openDatabaseEditCampaign && window.openDatabaseEditCampaign(this.dataset.editRecord)">تعديل</button><button class="danger-btn db-delete-btn" type="button" data-delete-record="${esc(r.id)}">مسح</button></div>` : '--'}</td>
       </tr>`;
     }).join('')}</tbody></table></div>`;
   }

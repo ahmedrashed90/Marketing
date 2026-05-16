@@ -408,7 +408,10 @@
           <p>إنشاء تاسك</p>
           <h3 id="createTaskTitle">نموذج إنشاء حملة أو أجندة</h3>
         </div>
-        <button class="modal-close-btn" type="button" data-close-create-task aria-label="إغلاق">×</button>
+        <div class="create-task-head-actions">
+          <button class="primary-btn create-task-save-top" type="submit" form="createTaskForm">حفظ الحملة / الأجندة</button>
+          <button class="modal-close-btn" type="button" data-close-create-task aria-label="إغلاق">×</button>
+        </div>
       </div>
 
       <form id="createTaskForm" class="create-task-form">
@@ -517,7 +520,7 @@
 
         <div class="task-card-actions create-task-actions">
           <button class="ghost-btn" type="button" data-close-create-task>إلغاء</button>
-          <button class="primary-btn" type="submit" id="saveTaskFromTemplate">حفظ التاسك</button>
+          <button class="primary-btn create-task-main-save" type="submit" id="saveTaskFromTemplate">حفظ الحملة / الأجندة</button>
         </div>
 
         <p class="admin-only-note" id="createTaskFormNote">الحفظ يتم على Firebase فقط داخل مسار workspace_tasks. لو فشل الحفظ لن يتم حفظ أي نسخة محلية.</p>

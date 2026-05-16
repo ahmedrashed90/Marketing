@@ -2370,3 +2370,91 @@ body:has(#createTaskModal.is-open) {
 .template-fields-form.is-hidden {
   display: none !important;
 }
+
+
+/* ===== MZJ Save button visibility fix ===== */
+#createTaskModal .task-details-head,
+.create-task-modal .task-details-head {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 16px !important;
+}
+
+.create-task-head-actions {
+  display: flex !important;
+  align-items: center !important;
+  gap: 12px !important;
+  flex: 0 0 auto !important;
+}
+
+.create-task-save-top {
+  min-width: 190px !important;
+  height: 52px !important;
+  padding-inline: 22px !important;
+  border-radius: 18px !important;
+  font-weight: 900 !important;
+  box-shadow: 0 16px 30px rgba(62, 36, 32, .18) !important;
+}
+
+#createTaskModal .create-task-actions,
+.create-task-modal .create-task-actions {
+  position: fixed !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  z-index: 999999 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 14px !important;
+  padding: 16px 42px !important;
+  background: rgba(255, 248, 239, .98) !important;
+  border-top: 1px solid rgba(62, 36, 32, .14) !important;
+  box-shadow: 0 -16px 40px rgba(62, 36, 32, .12) !important;
+  backdrop-filter: blur(14px) !important;
+}
+
+#createTaskModal .create-task-main-save,
+.create-task-modal .create-task-main-save {
+  min-width: 260px !important;
+  height: 56px !important;
+  border-radius: 18px !important;
+  font-size: 16px !important;
+  font-weight: 900 !important;
+}
+
+#createTaskModal .create-task-form,
+.create-task-modal .create-task-form {
+  padding-bottom: 104px !important;
+}
+
+@media (max-width: 760px) {
+  #createTaskModal .task-details-head,
+  .create-task-modal .task-details-head {
+    align-items: flex-start !important;
+  }
+
+  .create-task-head-actions {
+    gap: 8px !important;
+  }
+
+  .create-task-save-top {
+    min-width: 140px !important;
+    height: 46px !important;
+    padding-inline: 12px !important;
+    font-size: 12px !important;
+  }
+
+  #createTaskModal .create-task-actions,
+  .create-task-modal .create-task-actions {
+    padding: 12px 16px !important;
+    flex-direction: column-reverse !important;
+  }
+
+  #createTaskModal .create-task-main-save,
+  .create-task-modal .create-task-main-save {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+}

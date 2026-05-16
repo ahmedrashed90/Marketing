@@ -92,6 +92,8 @@ const taskStepButtons = document.getElementById('taskStepButtons');
 const modalTaskPercent = document.getElementById('modalTaskPercent');
 const modalCampaignPercent = document.getElementById('modalCampaignPercent');
 let activeTaskCard = null;
+let activeTaskDetailsMeta = null;
+let taskAttachmentInput = null;
 
 function getCurrentUserRole() {
   const authUser = window.MZJAuth?.getUser?.();
@@ -108,7 +110,8 @@ function syncTaskProgress() {
   const activeButtons = Array.from(taskStepButtons.querySelectorAll('.task-step-btn.is-done'));
   const completed = activeButtons.length;
   const taskPercent = completed * 20;
-  const campaignPercent = completed * 5;
+  const campaignShare = activeTaskCard ? Number(activeTaskCard.dataset.campaignShare || 5) : 5;
+  const campaignPercent = completed * campaignShare;
 
   if (modalTaskPercent) modalTaskPercent.textContent = taskPercent + '%';
   if (modalCampaignPercent) modalCampaignPercent.textContent = campaignPercent + '%';
@@ -127,15 +130,152 @@ function syncTaskProgress() {
   }
 }
 
+
+function getTaskDetailsSteps(deptKeyValue) {
+  if (deptKeyValue === 'shooting') return ['التصوير قبل الفلترة', 'الاعتماد', 'الاديت', 'الاعتماد', 'التسليم و الإرفاق'];
+  if (deptKeyValue === 'design') return ['تنفيذ التصميم', 'الاعتماد', 'التعديل المطلوب', 'الاعتماد', 'التسليم و الإرفاق'];
+  if (deptKeyValue === 'montage') return ['المونتاج الأول', 'الاعتماد', 'التعديلات', 'الاعتماد', 'التسليم و الإرفاق'];
+  return ['استلام المطلوب', 'الاعتماد', 'تنفيذ المطلوب', 'الاعتماد', 'التسليم و الإرفاق'];
+}
+
+function formatDepartmentRequirement(deptTask) {
+  if (!deptTask) return 'لا يوجد مطلوب مكتوب';
+  const kind = deptKindFromName(deptTask.departmentName);
+  if (kind === 'photography' && Array.isArray(deptTask.photoItems) && deptTask.photoItems.length) {
+    return deptTask.photoItems.map((item, index) => `مطلوب ${index + 1}: نوع السيارة: ${item.carType || '—'} — نوع المحتوى: ${item.contentType || '—'}`).join(' | ');
+  }
+  if ((kind === 'design' || kind === 'montage') && Array.isArray(deptTask.selectedDeliverables) && deptTask.selectedDeliverables.length) {
+    const text = deptTask.selectedDeliverables.map((item, index) => `مطلوب ${index + 1}: ${item.title || item.name || '—'} — ${item.desc || item.details || ''}`).join(' | ');
+    return [text, deptTask.requiredText].filter(Boolean).join(' | ملاحظات: ');
+  }
+  return deptTask.requiredText || deptTask.deliveryDetails || deptTask.required || 'لا يوجد مطلوب مكتوب';
+}
+
+function attachmentLabelForDeptKey(deptKeyValue) {
+  if (deptKeyValue === 'shooting') return 'إرفاق ملف التصوير';
+  if (deptKeyValue === 'design') return 'إرفاق ملف الصور';
+  if (deptKeyValue === 'montage') return 'إرفاق ملف الفيديو';
+  return 'إرفاق ملف اسكريبت';
+}
+
+function ensureTaskAttachmentInput() {
+  if (taskAttachmentInput) return taskAttachmentInput;
+  taskAttachmentInput = document.createElement('input');
+  taskAttachmentInput.type = 'file';
+  taskAttachmentInput.hidden = true;
+  taskAttachmentInput.setAttribute('data-task-attachment-input', 'true');
+  document.body.appendChild(taskAttachmentInput);
+  taskAttachmentInput.addEventListener('change', handleTaskAttachmentSelected);
+  return taskAttachmentInput;
+}
+
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || '').split(',')[1] || '');
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+async function uploadTaskFileToDrive(file, meta) {
+  const configuredUrl = window.MZJ_DRIVE_UPLOAD_WEB_APP_URL || localStorage.getItem('mzj_drive_upload_web_app_url') || '';
+  let url = configuredUrl;
+  if (!url) {
+    url = prompt('اكتب رابط Google Apps Script Web App الخاص برفع الملفات على Google Drive');
+    if (url) localStorage.setItem('mzj_drive_upload_web_app_url', url);
+  }
+  if (!url) throw new Error('لم يتم تحديد رابط Web App للرفع');
+  const base64 = await fileToBase64(file);
+  const payload = {
+    action: 'uploadTaskFile',
+    fileName: file.name,
+    mimeType: file.type || 'application/octet-stream',
+    fileBase64: base64,
+    taskId: meta?.taskId || '',
+    campaignName: meta?.taskTitle || '',
+    departmentName: meta?.departmentName || '',
+    departmentKey: meta?.deptKey || '',
+    userName: meta?.userName || '',
+    userEmail: meta?.userEmail || '',
+    uploadedAt: new Date().toISOString()
+  };
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify(payload)
+  });
+  const text = await res.text();
+  try {
+    return JSON.parse(text);
+  } catch (e) {
+    return { ok: true, fileUrl: text, raw: text };
+  }
+}
+
+async function handleTaskAttachmentSelected(event) {
+  const file = event.target.files && event.target.files[0];
+  event.target.value = '';
+  if (!file || !activeTaskCard) return;
+  const taskId = activeTaskCard.dataset.taskId;
+  const deptIdentityValue = activeTaskCard.dataset.deptIdentity || '';
+  const api = window.MZJDashboardTaskAPI || {};
+  const tasks = api.readTasks ? api.readTasks() : [];
+  const task = tasks.find(t => String(t.id) === String(taskId));
+  if (!task) return alert('لم يتم العثور على التاسك');
+  const dept = (task.departmentTasks || []).find((d) => String(deptIdentity(d)) === String(deptIdentityValue));
+  if (!dept) return alert('لم يتم العثور على القسم داخل التاسك');
+  const current = api.user ? api.user() : (window.MZJAuth?.getUser?.() || null);
+  if (api.assignedToCurrentUser && !api.assignedToCurrentUser(dept, current) && !isAdminUser()) return alert('التاسك ده مش مسند لحسابك.');
+  try {
+    const uploadButton = document.querySelector('[data-upload-task-attachment]');
+    if (uploadButton) uploadButton.textContent = 'جاري الرفع...';
+    const result = await uploadTaskFileToDrive(file, {
+      taskId: task.id,
+      taskTitle: api.taskTitle ? api.taskTitle(task) : (task.campaignName || task.title || ''),
+      departmentName: dept.departmentName,
+      deptKey: activeTaskCard.dataset.deptKey || '',
+      userName: current?.name || current?.displayName || '',
+      userEmail: current?.email || ''
+    });
+    const fileUrl = result.fileUrl || result.url || result.webViewLink || result.link || '';
+    const attachment = {
+      name: file.name,
+      url: fileUrl,
+      raw: result,
+      uploadedAt: new Date().toISOString(),
+      uploadedBy: current?.email || current?.uid || current?.id || current?.name || '',
+      departmentName: dept.departmentName || ''
+    };
+    dept.attachments = Array.isArray(dept.attachments) ? dept.attachments : [];
+    dept.attachments.push(attachment);
+    dept.fileUrl = fileUrl || dept.fileUrl || '';
+    dept.fileName = file.name;
+    dept.updatedAt = new Date().toISOString();
+    await (api.saveTaskToFirestore ? api.saveTaskToFirestore(task) : Promise.reject(new Error('حفظ Firebase غير متاح')));
+    if (uploadButton) uploadButton.textContent = attachmentLabelForDeptKey(activeTaskCard.dataset.deptKey || '');
+    window.renderDashboardTasks?.();
+    alert('تم رفع الملف وحفظ الرابط في قاعدة البيانات.');
+  } catch (error) {
+    alert('فشل رفع الملف: ' + (error?.message || error?.code || error));
+    const uploadButton = document.querySelector('[data-upload-task-attachment]');
+    if (uploadButton) uploadButton.textContent = attachmentLabelForDeptKey(activeTaskCard?.dataset.deptKey || '');
+  }
+}
+
 function openTaskDetails(button) {
   if (!taskDetailsModal || !taskStepButtons) return;
 
   activeTaskCard = button.closest('[data-dept-task-card]') || button.closest('.dept-card-template');
   const selected = (activeTaskCard?.dataset.completedSteps || '').split(',').filter(Boolean);
+  activeTaskDetailsMeta = { taskId: activeTaskCard?.dataset.taskId || '', deptIdentity: activeTaskCard?.dataset.deptIdentity || '', deptKey: button.dataset.deptKey || '' };
 
   if (taskDetailsDept) taskDetailsDept.textContent = button.dataset.dept || 'تفاصيل القسم';
   if (taskDetailsTitle) taskDetailsTitle.textContent = button.dataset.taskTitle || 'تفاصيل التاسك';
-  if (taskDetailsRequired) taskDetailsRequired.textContent = button.dataset.required || 'هنا يظهر المطلوب بعد ربط التاسك بالداتا.';
+  if (taskDetailsRequired) {
+    const requiredParts = String(button.dataset.required || 'هنا يظهر المطلوب بعد ربط التاسك بالداتا.').split('|').map(x => x.trim()).filter(Boolean);
+    taskDetailsRequired.innerHTML = requiredParts.map(x => `<span class="task-required-line">${String(x).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}</span>`).join('') || 'هنا يظهر المطلوب بعد ربط التاسك بالداتا.';
+  }
 
   taskStepButtons.innerHTML = '';
   const steps = (button.dataset.steps || '').split('|').map((step) => step.trim()).filter(Boolean);
@@ -147,7 +287,7 @@ function openTaskDetails(button) {
     stepButton.className = 'task-step-btn';
     stepButton.dataset.stepIndex = String(index);
     stepButton.dataset.stepValue = '20';
-    stepButton.dataset.campaignValue = '5';
+    stepButton.dataset.campaignValue = String(activeTaskCard ? Number(activeTaskCard.dataset.campaignShare || 5) : 5);
 
     if (isApprovalStep) {
       stepButton.dataset.adminOnly = 'true';
@@ -158,10 +298,20 @@ function openTaskDetails(button) {
     }
 
     if (selected.includes(String(index))) stepButton.classList.add('is-done');
-    stepButton.innerHTML = `<span>${step}</span><small>20% من التاسك<br>5% من الحملة${isApprovalStep ? '<br>أدمن فقط' : ''}</small>`;
+    stepButton.innerHTML = `<span>${step}</span><small>20% من التاسك<br>${Number(stepButton.dataset.campaignValue || 5)}% من الحملة${isApprovalStep ? '<br>أدمن فقط' : ''}</small>`;
     taskStepButtons.appendChild(stepButton);
   });
 
+  let attachBox = taskDetailsModal.querySelector('[data-task-attachment-box]');
+  if (!attachBox && taskStepButtons) {
+    attachBox = document.createElement('div');
+    attachBox.className = 'task-attachment-box';
+    attachBox.setAttribute('data-task-attachment-box', 'true');
+    taskStepButtons.insertAdjacentElement('afterend', attachBox);
+  }
+  if (attachBox) {
+    attachBox.innerHTML = `<button class="soft-btn upload-task-file-btn" type="button" data-upload-task-attachment>${attachmentLabelForDeptKey(button.dataset.deptKey || '')}</button><small>يتم رفع الملف على Google Drive من خلال Apps Script وحفظ الرابط تلقائياً في قاعدة البيانات.</small>`;
+  }
   taskDetailsModal.classList.add('is-open');
   taskDetailsModal.setAttribute('aria-hidden', 'false');
   syncTaskProgress();
@@ -176,6 +326,11 @@ function closeTaskDetails() {
 document.addEventListener('click', (event) => {
   const taskDetailsButton = event.target.closest('[data-open-task-details]');
   if (taskDetailsButton) openTaskDetails(taskDetailsButton);
+
+  const uploadTaskAttachment = event.target.closest('[data-upload-task-attachment]');
+  if (uploadTaskAttachment) {
+    ensureTaskAttachmentInput().click();
+  }
 
   const stepButton = event.target.closest('.task-step-btn');
   if (stepButton && !stepButton.disabled) {
@@ -1481,6 +1636,7 @@ initCreateTaskFromTemplate();
     ].map(normMatchValue).filter(Boolean);
     return deptValues.some((value) => currentValues.includes(value));
   }
+  window.MZJDashboardTaskAPI = { readTasks, saveTaskToFirestore, assignedToCurrentUser, user, deptIdentity, taskTitle: (task) => task.campaignName || task.templateName || task.campaignCode || 'حملة بدون اسم' };
   function taskTitle(task){ return task.campaignName || task.templateName || task.campaignCode || 'حملة بدون اسم'; }
   function deptKey(deptName){
     const value = String(deptName || '').toLowerCase();
@@ -1603,23 +1759,22 @@ initCreateTaskFromTemplate();
   function userDeptCard(task, deptTask){
     const p = taskDeptProgress(task, deptTask);
     const dkey = deptKey(deptTask.departmentName);
-    const steps = dkey === 'shooting' ? 'تصوير الجزء 1|الاعتماد|تصوير الجزء 2|الاعتماد|الإرفاق' :
-      dkey === 'design' ? 'تصميم الجزء 1|الاعتماد|تصميم الجزء 2|الاعتماد|الإرفاق' :
-      dkey === 'montage' ? 'مونتاج الجزء 1|الاعتماد|مونتاج الجزء 2|الاعتماد|الإرفاق' : 'نموذج المحتوى|الاعتماد|كتابة المحتوى|الاعتماد|الإرفاق';
+    const steps = getTaskDetailsSteps(dkey).join('|');
     const key = deptTask.departmentId || deptTask.departmentName || deptTask.userName || '';
     const selected = ((task.readiness || {})[key] || []).join(',');
-    return `<article class="department-task-card dynamic-dashboard-card" data-dept-task-card data-task-id="${esc(task.id)}" data-readiness-key="${esc(key)}" data-completed-steps="${esc(selected)}">
+    return `<article class="department-task-card dynamic-dashboard-card" data-dept-task-card data-task-id="${esc(task.id)}" data-readiness-key="${esc(key)}" data-dept-identity="${esc(deptIdentity(deptTask))}" data-dept-key="${esc(dkey)}" data-campaign-share="${esc(100 / Math.max((task.departmentTasks||[]).length,1) / 5)}" data-completed-steps="${esc(selected)}">
       <div class="task-template-top"><strong>${esc(taskTitle(task))}</strong><span>${meta(task)}</span></div>
+      <div class="user-task-required-summary"><strong>المطلوب</strong><p>${esc(formatDepartmentRequirement(deptTask))}</p></div>
       <div class="department-task-meta labeled-task-meta">
         <span><small>المسؤول</small><strong>${esc(deptTask.userDisplayName || deptTask.userName || deptTask.userEmail || 'بدون مسؤول')}</strong></span>
-        <span><small>تاريخ الاستلام</small><strong>${esc(deptTask.receiveDate || '—')}</strong></span>
+        <span><small>تاريخ الاستلام</small><strong>${esc(deptTask.receiveDate || (deptTask.receivedAt ? String(deptTask.receivedAt).slice(0,10) : '—'))}</strong></span>
         <span><small>التاريخ المطلوب</small><strong>${esc(deptTask.requiredDate || '—')}</strong></span>
         <span><small>تاريخ التسليم</small><strong>${esc(deptTask.deliveryDate || '—')}</strong></span>
         <span><small>حالة الاستلام</small><strong>${(deptTask.receivedConfirmed || deptTask.received || deptTask.receivedAt) ? 'تم الاستلام' : 'لم يتم الاستلام'}</strong></span>
       </div>
       <div class="department-progress-row"><div class="department-progress-box"><small>اكتمال التاسك</small><strong data-task-percent>${p}%</strong></div><div class="department-progress-box"><small>نسبة الحملة</small><strong data-campaign-percent>${Math.round(p / Math.max((task.departmentTasks||[]).length,1))}%</strong></div></div>
       <div class="mini-progress"><span data-task-bar style="width:${p}%"></span></div>
-      <div class="task-card-actions"><button class="details-btn" type="button" data-open-task-details data-dept-key="${esc(dkey)}" data-dept="${esc(deptTask.departmentName || 'قسم')}" data-task-title="${esc(taskTitle(task))}" data-required="${esc(deptTask.requiredText || 'لا يوجد مطلوب مكتوب')}" data-steps="${esc(steps)}">تفاصيل</button><button class="soft-btn receive-task-btn ${(deptTask.receivedConfirmed || deptTask.received || deptTask.receivedAt) ? 'is-done' : ''}" type="button" data-receive-task data-task-id="${esc(task.id)}" data-dept-identity="${esc(deptIdentity(deptTask))}" ${(deptTask.receivedConfirmed || deptTask.received || deptTask.receivedAt) ? 'disabled' : ''}>${(deptTask.receivedConfirmed || deptTask.received || deptTask.receivedAt) ? 'تم الاستلام' : 'تم الاستلام'}</button></div>
+      <div class="task-card-actions"><button class="details-btn" type="button" data-open-task-details data-dept-key="${esc(dkey)}" data-dept="${esc(deptTask.departmentName || 'قسم')}" data-task-title="${esc(taskTitle(task))}" data-required="${esc(formatDepartmentRequirement(deptTask))}" data-steps="${esc(steps)}">تفاصيل</button><button class="soft-btn receive-task-btn ${(deptTask.receivedConfirmed || deptTask.received || deptTask.receivedAt) ? 'is-done' : ''}" type="button" data-receive-task data-task-id="${esc(task.id)}" data-dept-identity="${esc(deptIdentity(deptTask))}" ${(deptTask.receivedConfirmed || deptTask.received || deptTask.receivedAt) ? 'disabled' : ''}>${(deptTask.receivedConfirmed || deptTask.received || deptTask.receivedAt) ? 'تم تأكيد الاستلام' : 'تأكيد استلام التاسك'}</button></div>
     </article>`;
   }
 
@@ -1704,6 +1859,7 @@ initCreateTaskFromTemplate();
     dept.receivedConfirmed = true;
     dept.received = true;
     dept.receivedAt = new Date().toISOString();
+    dept.receiveDate = new Date().toISOString().slice(0,10);
     dept.receivedBy = current?.email || current?.uid || current?.id || current?.name || '';
     task.receiptProgress = taskReceiptProgress(task);
     task.receiveProgress = task.receiptProgress;

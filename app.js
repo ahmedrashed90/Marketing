@@ -236,7 +236,7 @@ function openTaskDetails(button) {
     stepButton.dataset.campaignValue = String(activeTaskCard ? Number(activeTaskCard.dataset.campaignShare || 5) : 5);
 
     if (isApprovalStep) {
-      stepButton.dataset.adminOnly = 'true';
+      stepButton.classList.add('is-approval-step');
       if (!isAdminUser()) {
         stepButton.disabled = true;
         stepButton.title = 'زر الاعتماد خاص بالأدمن فقط';
@@ -1708,14 +1708,14 @@ initCreateTaskFromTemplate();
     const steps = getTaskDetailsSteps(dkey).join('|');
     const key = deptTask.departmentId || deptTask.departmentName || deptTask.userName || '';
     const selected = ((task.readiness || {})[key] || []).join(',');
-    return `<article class="department-task-card dynamic-dashboard-card" data-dept-task-card data-task-id="${esc(task.id)}" data-readiness-key="${esc(key)}" data-dept-identity="${esc(deptIdentity(deptTask))}" data-dept-key="${esc(dkey)}" data-campaign-share="${esc(100 / Math.max((task.departmentTasks||[]).length,1) / 5)}" data-completed-steps="${esc(selected)}">
-      <div class="task-template-top"><strong>${esc(taskTitle(task))}</strong><span>${meta(task)}</span></div>
-      <div class="department-task-meta labeled-task-meta">
-        <span><small>المسؤول</small><strong>${esc(deptTask.userDisplayName || deptTask.userName || deptTask.userEmail || 'بدون مسؤول')}</strong></span>
-        <span><small>تاريخ الاستلام</small><strong>${esc(deptTask.receiveDate || (deptTask.receivedAt ? String(deptTask.receivedAt).slice(0,10) : '—'))}</strong></span>
-        <span><small>التاريخ المطلوب</small><strong>${esc(deptTask.requiredDate || '—')}</strong></span>
-        <span><small>تاريخ التسليم</small><strong>${esc(deptTask.deliveryDate || '—')}</strong></span>
-        <span><small>حالة الاستلام</small><strong>${(deptTask.receivedConfirmed || deptTask.received || deptTask.receivedAt) ? 'تم الاستلام' : 'لم يتم الاستلام'}</strong></span>
+    return `<article class="department-task-card dynamic-dashboard-card user-task-card-clean" data-dept-task-card data-task-id="${esc(task.id)}" data-readiness-key="${esc(key)}" data-dept-identity="${esc(deptIdentity(deptTask))}" data-dept-key="${esc(dkey)}" data-campaign-share="${esc(100 / Math.max((task.departmentTasks||[]).length,1) / 5)}" data-completed-steps="${esc(selected)}">
+      <div class="task-template-top user-task-title-only"><strong>${esc(taskTitle(task))}</strong></div>
+      <div class="department-task-meta labeled-task-meta user-task-meta-clean">
+        <span class="meta-person"><small>المسؤول</small><strong>${esc(deptTask.userDisplayName || deptTask.userName || deptTask.userEmail || 'بدون مسؤول')}</strong></span>
+        <span class="meta-receive"><small>تاريخ الاستلام</small><strong>${esc(deptTask.receiveDate || (deptTask.receivedAt ? String(deptTask.receivedAt).slice(0,10) : '—'))}</strong></span>
+        <span class="meta-date meta-required"><small>التاريخ المطلوب</small><strong>${esc(deptTask.requiredDate || '—')}</strong></span>
+        <span class="meta-date meta-delivery"><small>تاريخ التسليم</small><strong>${esc(deptTask.deliveryDate || '—')}</strong></span>
+        <span class="meta-status"><small>حالة الاستلام</small><strong>${(deptTask.receivedConfirmed || deptTask.received || deptTask.receivedAt) ? 'تم الاستلام' : 'لم يتم الاستلام'}</strong></span>
       </div>
       <div class="department-progress-row"><div class="department-progress-box"><small>اكتمال التاسك</small><strong data-task-percent>${p}%</strong></div><div class="department-progress-box"><small>نسبة الحملة</small><strong data-campaign-percent>${Math.round(p / Math.max((task.departmentTasks||[]).length,1))}%</strong></div></div>
       <div class="mini-progress"><span data-task-bar style="width:${p}%"></span></div>

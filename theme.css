@@ -13,8 +13,8 @@
   --white: #ffffff;
   --shadow: 0 22px 50px rgba(62, 36, 32, 0.12);
   --radius-xl: 28px;
-  --sidebar-open: 290px;
-  --sidebar-closed: 92px;
+  --sidebar-open: 255px;
+  --sidebar-closed: 76px;
 }
 
 * { box-sizing: border-box; }
@@ -3289,4 +3289,65 @@ body.sidebar-collapsed .database-main {
   .photo-required-row {
     grid-template-columns: 1fr;
   }
+}
+
+
+/* User dashboard task card refinement */
+.user-task-card-clean .task-template-top.user-task-title-only {
+  justify-content: center !important;
+  text-align: center !important;
+  border-bottom: 1px dashed rgba(62,36,32,.12) !important;
+  padding-bottom: 10px !important;
+  margin-bottom: 12px !important;
+}
+.user-task-card-clean .task-template-top.user-task-title-only strong {
+  font-size: 20px !important;
+  line-height: 1.4 !important;
+  max-width: 100% !important;
+}
+.user-task-card-clean .task-template-top.user-task-title-only span {
+  display: none !important;
+}
+.user-task-meta-clean {
+  display: grid !important;
+  grid-template-columns: 1fr 1fr !important;
+  gap: 10px !important;
+  margin-top: 8px !important;
+}
+.user-task-meta-clean span {
+  min-height: 58px !important;
+  padding: 10px 12px !important;
+  background: rgba(255,255,255,.72) !important;
+  border-radius: 16px !important;
+  display: grid !important;
+  align-content: center !important;
+  gap: 3px !important;
+}
+.user-task-meta-clean span small,
+.user-task-meta-clean span strong {
+  display: block !important;
+  text-align: center !important;
+  overflow-wrap: anywhere !important;
+}
+.user-task-meta-clean .meta-date {
+  grid-column: auto !important;
+}
+.user-task-meta-clean .meta-status {
+  grid-column: 1 / -1 !important;
+  width: 50% !important;
+  justify-self: center !important;
+}
+.user-task-card-clean .department-progress-row {
+  grid-template-columns: 1fr 1fr !important;
+}
+.task-step-btn.is-approval-step[disabled] {
+  display: inline-grid !important;
+  opacity: .68 !important;
+  cursor: not-allowed !important;
+  filter: grayscale(.1) !important;
+}
+@media (max-width: 420px) {
+  .user-task-meta-clean { grid-template-columns: 1fr 1fr !important; gap: 8px !important; }
+  .user-task-meta-clean span { padding: 9px 8px !important; }
+  .user-task-meta-clean .meta-status { width: 100% !important; }
 }

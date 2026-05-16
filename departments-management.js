@@ -136,6 +136,21 @@
     return users;
   }
 
+  function mergeDefaultDepartments(savedDepartments=[]){
+    const defaults = DEFAULT_DEPARTMENTS.map((department, index) => normalizeDepartment({
+      ...department,
+      isDefault: true
+    }, index));
+    const saved = (savedDepartments || []).map((department, index) => normalizeDepartment(department, index));
+    const byId = new Map();
+    defaults.forEach(department => byId.set(String(department.id), department));
+    saved.forEach(department => {
+      const id = String(department.id);
+      byId.set(id, { ...(byId.get(id) || {}), ...department });
+    });
+    return Array.from(byId.values());
+  }
+
   async function loadDepartments(){
     const db = initFirebase();
     let departments = [];
@@ -143,14 +158,15 @@
       try{
         const snap = await db.collection(DEPARTMENTS_COLLECTION).get();
         snap.forEach((doc, index) => departments.push(normalizeDepartment({ id: doc.id, docId: doc.id, ...(doc.data() || {}) }, index)));
-        departments = uniqueBy(departments, department => department.id);
-        if(departments.length) return departments;
+        // مهم: ماينفعش نرجع الأقسام المحفوظة فقط، لازم ندمجها مع الأقسام الأساسية
+        // علشان قسم التصوير / المحتوى / التصميم / المونتاج / النشر يفضلوا ظاهرين دائمًا.
+        return mergeDefaultDepartments(departments);
       }catch(error){
         console.error('فشل قراءة departments من Firebase:', error);
         status('فشل قراءة الأقسام من Firebase: ' + (error.message || error.code || error), 'error');
       }
     }
-    return DEFAULT_DEPARTMENTS.map(normalizeDepartment);
+    return mergeDefaultDepartments([]);
   }
 
   function makeDepartmentPayload(department){

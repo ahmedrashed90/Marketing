@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MZJ Marketing System - تسجيل الدخول</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="theme.css" />
+</head>
+<body class="login-page">
+  <main class="login-shell">
+    <section class="login-card workspace-card">
+      <span class="eyebrow">MZJ Workspace</span>
+      <h1>تسجيل الدخول</h1>
+      <p>ادخل بحساب الأدمن أو اليوزر العادي لتجربة اختلاف الصلاحيات في الداش بورد.</p>
+      <form id="loginForm" class="login-form">
+        <label class="mzj-field"><span>الإيميل</span><input id="loginEmail" type="email" required placeholder="admin@mzj.local"></label>
+        <label class="mzj-field"><span>كلمة المرور</span><input id="loginPassword" type="password" required placeholder="123456"></label>
+        <button class="primary-btn" type="submit">دخول</button>
+        <p id="loginMessage" class="admin-only-note"></p>
+      </form>
+      <div class="login-test-grid">
+        <button class="soft-btn" type="button" data-login-fill="admin">تجربة حساب الأدمن</button>
+        <button class="ghost-btn" type="button" data-login-fill="user">تجربة حساب اليوزر</button>
+      </div>
+      <div class="login-credentials">
+        <strong>حسابات التجربة</strong>
+        <span>Admin: admin@mzj.local / 123456</span>
+        <span>User: user@mzj.local / 123456</span>
+      </div>
+    </section>
+  </main>
+  <script src="firebase-config.js"></script>
+  <script src="routes.js"></script>
+  <script src="auth.js"></script>
+</body>
+</html>

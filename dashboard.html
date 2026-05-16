@@ -9,7 +9,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="theme.css" />
 </head>
-<body data-user-role="user">
+<body data-user-role="guest">
   <aside class="sidebar" id="sidebar">
     <div class="brand-block">
       <button class="menu-toggle" id="sidebarToggle" type="button" aria-label="فتح وإغلاق القائمة">
@@ -32,13 +32,14 @@
       <a class="nav-link" href="dashboard.html" data-route="dashboard"><span class="nav-icon">07</span><span class="nav-text">الداش بورد</span></a>
       <a class="nav-link" href="campaigns-calendar.html" data-route="campaignsCalendar"><span class="nav-icon">08</span><span class="nav-text">الحملات والأجندات</span></a>
       <a class="nav-link" href="templates.html" data-route="taskTemplates"><span class="nav-icon">09</span><span class="nav-text">قوالب الحملات</span></a>
+    <a class="nav-link" href="login.html" data-route="login"><span class="nav-icon">10</span><span class="nav-text">تسجيل الدخول</span></a>
     </nav>
 
     <div class="sidebar-card">
       <span class="status-dot"></span>
       <div>
         <strong>Dashboard</strong>
-        <small>لوحة متابعة التنفيذ</small>
+        <small>Dashboard</small>
       </div>
     </div>
   </aside>
@@ -55,17 +56,6 @@
       </div>
     </header>
 
-    <section class="workspace-card dashboard-intro">
-      <div>
-        <span class="eyebrow">لوحة متابعة التنفيذ</span>
-        <h2>متابعة التاسكات حسب نوع المستخدم</h2>
-        <p>الصفحة معمولة كتقسيم واضح بنفس أسلوب السيستم، بدون داتا تجريبية. تم تجهيز الهيكل الأساسي للكروت بحيث يتربط لاحقًا بشروط التنفيذ والصلاحيات ونوع المستخدم.</p>
-      </div>
-      <div class="role-switcher" aria-label="تبديل نوع العرض">
-        <button class="role-btn is-active" type="button" data-role-view="admin">عرض الإدارة / الأدمن</button>
-        <button class="role-btn" type="button" data-role-view="user">عرض اليوزر العادي</button>
-      </div>
-    </section>
 
     <section class="stats-grid dashboard-stats">
       <article class="stat-card">
@@ -95,7 +85,7 @@
         <article class="board-column workspace-card">
           <div class="board-head">
             <h3>TASK - المطلوب</h3>
-            <button class="soft-btn board-mini-btn">إنشاء تاسك</button>
+            <button class="soft-btn board-mini-btn" id="createTaskOpenMini" type="button">إنشاء تاسك</button>
           </div>
           <div class="board-list">
             <article class="task-template-card">
@@ -497,7 +487,7 @@
               <span class="eyebrow">المطلوب من الأقسام</span>
               <h4>اختار الأقسام واليوزر المسؤول واكتب المطلوب</h4>
             </div>
-            <button class="soft-btn" type="button" id="addDepartmentTask">+ إضافة قسم</button>
+            
           </div>
 
           <p class="admin-only-note">مش شرط تختار كل الأقسام. الأقسام مجهزة للقراءة من مسار Firebase: <strong>content_tasks</strong>.</p>
@@ -513,17 +503,20 @@
           </div>
 
           <div class="optional-create-grid">
-            <label class="mzj-field">
-              <span>إنشاء جدول النشر</span>
-              <textarea id="publishSchedule" name="publishSchedule" rows="3" placeholder="اكتب جدول النشر أو سيظهر حسب القالب لاحقاً"></textarea>
+            <label class="mzj-field file-template-field">
+              <span>Template جدول النشر</span>
+              <input type="file" id="publishScheduleTemplate" name="publishScheduleTemplate" accept=".xlsx,.xls">
+              <small>ارفع شيت Excel خارجي لجدول النشر</small>
             </label>
-            <label class="mzj-field">
-              <span>إنشاء الميزانية</span>
-              <textarea id="budgetPlan" name="budgetPlan" rows="3" placeholder="اكتب الميزانية أو تفاصيل التوزيع"></textarea>
+            <label class="mzj-field file-template-field">
+              <span>Template الميزانية</span>
+              <input type="file" id="budgetPlanTemplate" name="budgetPlanTemplate" accept=".xlsx,.xls">
+              <small>ارفع شيت Excel خارجي للميزانية</small>
             </label>
-            <label class="mzj-field">
-              <span>إنشاء تقرير النتائج</span>
-              <textarea id="resultsReport" name="resultsReport" rows="3" placeholder="اكتب مؤشرات النتائج المطلوبة"></textarea>
+            <label class="mzj-field file-template-field">
+              <span>Template تقرير النتائج</span>
+              <input type="file" id="resultsReportTemplate" name="resultsReportTemplate" accept=".xlsx,.xls">
+              <small>ارفع شيت Excel خارجي لتقرير النتائج</small>
             </label>
           </div>
         </section>
@@ -541,6 +534,7 @@
 
   <script src="firebase-config.js"></script>
   <script src="routes.js"></script>
+  <script src="auth.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

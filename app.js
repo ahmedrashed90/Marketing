@@ -444,6 +444,7 @@ function renderUserOptions(users) {
 
 function initCreateTaskFromTemplate() {
   const openBtn = document.getElementById('createTaskOpen');
+  const openBtnMini = document.getElementById('createTaskOpenMini');
   const modal = document.getElementById('createTaskModal');
   const form = document.getElementById('createTaskForm');
   const typeSelect = document.getElementById('createTaskType');
@@ -451,17 +452,17 @@ function initCreateTaskFromTemplate() {
   const templateWrap = document.getElementById('templateSelectWrap');
   const preview = document.getElementById('createTaskTemplatePreview');
   const departmentsList = document.getElementById('departmentTaskList');
-  const addDepartmentBtn = document.getElementById('addDepartmentTask');
+  const addDepartmentBtn = null;
   const note = document.getElementById('createTaskFormNote');
 
-  if (!openBtn || !modal || !form || !typeSelect || !templateSelect || !departmentsList) return;
+  if (!modal || !form || !typeSelect || !templateSelect || !departmentsList) return;
 
   let departmentsCache = [];
   let departmentIndex = 0;
 
   async function ensureDepartments() {
     departmentsCache = await loadDepartmentsFromContentTasks();
-    if (!departmentsList.children.length) addDepartmentRow();
+    if (!departmentsList.children.length) renderAllDepartments();
   }
 
   function fillTemplateOptions() {
@@ -489,31 +490,23 @@ function initCreateTaskFromTemplate() {
     return loadTaskTemplates().find((template) => template.id === templateSelect.value);
   }
 
-  function addDepartmentRow(initial = {}) {
-    const rowId = 'dept_task_' + (++departmentIndex);
+  function createDepartmentRow(dept) {
     const row = document.createElement('article');
-    row.className = 'department-task-row';
-    row.dataset.rowId = rowId;
+    row.className = 'department-task-row department-task-row-selectable';
+    row.dataset.departmentId = dept.id;
     row.innerHTML = `
       <div class="department-row-head">
-        <strong>مطلوب من قسم</strong>
-        <button class="danger-btn" type="button" data-remove-department-task>حذف</button>
+        <label class="department-check-line">
+          <input type="checkbox" data-department-enabled>
+          <strong>${escapeHTML(dept.name)}</strong>
+        </label>
+        <span class="department-source-label">content_tasks</span>
       </div>
 
       <div class="department-task-grid">
         <label class="mzj-field">
-          <span>القسم</span>
-          <select data-department-select required>${renderDepartmentOptions(departmentsCache)}</select>
-        </label>
-
-        <label class="mzj-field">
           <span>اليوزر / المسؤول</span>
-          <select data-user-select>${renderUserOptions([])}</select>
-        </label>
-
-        <label class="mzj-field">
-          <span>اسم المسؤول يدوي</span>
-          <input type="text" data-user-manual placeholder="لو اليوزر مش ظاهر اكتب الاسم">
+          <select data-user-select>${renderUserOptions(dept.users || [])}</select>
         </label>
 
         <label class="mzj-field">
@@ -548,48 +541,45 @@ function initCreateTaskFromTemplate() {
       </label>
     `;
     departmentsList.appendChild(row);
+  }
 
-    const departmentSelect = row.querySelector('[data-department-select]');
-    const userSelect = row.querySelector('[data-user-select]');
-
-    departmentSelect.addEventListener('change', () => {
-      const department = departmentsCache.find((dept) => String(dept.id) === String(departmentSelect.value));
-      userSelect.innerHTML = renderUserOptions(department ? department.users : []);
-    });
-
-    if (initial.departmentId) {
-      departmentSelect.value = initial.departmentId;
-      departmentSelect.dispatchEvent(new Event('change'));
-    }
+  function renderAllDepartments() {
+    departmentsList.innerHTML = '';
+    departmentsCache.forEach((dept) => createDepartmentRow(dept));
   }
 
   function collectDepartmentTasks() {
     return Array.from(departmentsList.querySelectorAll('.department-task-row')).map((row) => {
-      const departmentId = row.querySelector('[data-department-select]')?.value || '';
+      const enabled = Boolean(row.querySelector('[data-department-enabled]')?.checked);
+      const departmentId = row.dataset.departmentId || '';
       const department = departmentsCache.find((dept) => String(dept.id) === String(departmentId));
       const selectedUser = row.querySelector('[data-user-select]')?.value || '';
-      const manualUser = row.querySelector('[data-user-manual]')?.value.trim() || '';
-
+      const requiredText = row.querySelector('[data-required-text]')?.value.trim() || '';
       return {
+        enabled,
         departmentId,
         departmentName: department?.name || '',
-        userName: selectedUser || manualUser,
+        userName: selectedUser,
         receiveDate: row.querySelector('[data-receive-date]')?.value || '',
         requiredDate: row.querySelector('[data-required-date]')?.value || '',
         deliveryDate: row.querySelector('[data-delivery-date]')?.value || '',
         receivedConfirmed: Boolean(row.querySelector('[data-received-confirm]')?.checked),
         attachmentLabel: row.querySelector('[data-attachment-label]')?.value.trim() || '',
-        requiredText: row.querySelector('[data-required-text]')?.value.trim() || ''
+        requiredText
       };
-    }).filter((task) => task.departmentId || task.userName || task.requiredText);
+    }).filter((task) => task.enabled && (task.departmentId || task.userName || task.requiredText));
   }
 
-  openBtn.addEventListener('click', async () => {
-    await ensureDepartments();
-    fillTemplateOptions();
-    modal.classList.add('is-open');
-    modal.setAttribute('aria-hidden', 'false');
-  });
+  function openCreateTaskModal() {
+    ensureDepartments().then(() => {
+      fillTemplateOptions();
+      modal.classList.add('is-open');
+      modal.setAttribute('aria-hidden', 'false');
+    });
+  }
+
+  if (openBtn) openBtn.addEventListener('click', openCreateTaskModal);
+  if (openBtnMini) openBtnMini.addEventListener('click', openCreateTaskModal);
 
   typeSelect.addEventListener('change', fillTemplateOptions);
 
@@ -598,18 +588,6 @@ function initCreateTaskFromTemplate() {
     renderTemplatePreview(preview, selected, typeSelect.value === 'campaign' ? 'شكل الحملة' : 'شكل الأجندة');
   });
 
-  if (addDepartmentBtn) {
-    addDepartmentBtn.addEventListener('click', () => addDepartmentRow());
-  }
-
-  departmentsList.addEventListener('click', (event) => {
-    const removeButton = event.target.closest('[data-remove-department-task]');
-    if (removeButton) {
-      const row = removeButton.closest('.department-task-row');
-      if (row) row.remove();
-      if (!departmentsList.children.length) addDepartmentRow();
-    }
-  });
 
   document.addEventListener('click', (event) => {
     if (event.target.closest('[data-close-create-task]') || event.target === modal) {
@@ -654,9 +632,9 @@ function initCreateTaskFromTemplate() {
       campaignGoal: formData.get('campaignGoal') || '',
       launchDate: formData.get('launchDate') || '',
       departmentTasks,
-      publishSchedule: formData.get('publishSchedule') || '',
-      budgetPlan: formData.get('budgetPlan') || '',
-      resultsReport: formData.get('resultsReport') || '',
+      publishScheduleTemplate: document.getElementById('publishScheduleTemplate')?.files?.[0]?.name || '',
+      budgetPlanTemplate: document.getElementById('budgetPlanTemplate')?.files?.[0]?.name || '',
+      resultsReportTemplate: document.getElementById('resultsReportTemplate')?.files?.[0]?.name || '',
       sourceCollection: 'content_tasks',
       createdAt: new Date().toISOString()
     };

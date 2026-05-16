@@ -52,3 +52,18 @@ document.addEventListener('click', (event) => {
 document.addEventListener('keydown', (event) => {
   if (event.key === 'Escape') closeDetailsModal();
 });
+
+
+const roleButtons = document.querySelectorAll('[data-role-view]');
+const rolePanels = document.querySelectorAll('[data-role-panel]');
+
+if (roleButtons.length && rolePanels.length) {
+  roleButtons.forEach((button) => {
+    button.addEventListener('click', () => {
+      const target = button.dataset.roleView;
+
+      roleButtons.forEach((btn) => btn.classList.toggle('is-active', btn === button));
+      rolePanels.forEach((panel) => panel.classList.toggle('is-active', panel.dataset.rolePanel === target));
+    });
+  });
+}

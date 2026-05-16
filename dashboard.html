@@ -1,0 +1,321 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MZJ Marketing System - الداش بورد</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="theme.css" />
+</head>
+<body>
+  <aside class="sidebar" id="sidebar">
+    <div class="brand-block">
+      <button class="menu-toggle" id="sidebarToggle" type="button" aria-label="فتح وإغلاق القائمة">
+        <span></span><span></span><span></span>
+      </button>
+      <div class="brand-copy">
+        <strong>MZJ Workspace</strong>
+        <small>Marketing System</small>
+      </div>
+      <div class="brand-avatar">M</div>
+    </div>
+
+    <nav class="side-nav" aria-label="صفحات السيستم">
+      <a class="nav-link" href="test.html"><span class="nav-icon">01</span><span class="nav-text">صفحة الإدارة</span></a>
+      <a class="nav-link" href="#"><span class="nav-icon">02</span><span class="nav-text">صفحة الاستوك</span></a>
+      <a class="nav-link" href="#"><span class="nav-icon">03</span><span class="nav-text">تاسكات يومية</span></a>
+      <a class="nav-link" href="#"><span class="nav-icon">04</span><span class="nav-text">المحتوى</span></a>
+      <a class="nav-link" href="#"><span class="nav-icon">05</span><span class="nav-text">الأقسام</span></a>
+      <a class="nav-link" href="database.html"><span class="nav-icon">06</span><span class="nav-text">قاعدة البيانات</span></a>
+      <a class="nav-link active" href="dashboard.html"><span class="nav-icon">07</span><span class="nav-text">الداش بورد</span></a>
+      <a class="nav-link" href="#"><span class="nav-icon">08</span><span class="nav-text">الحملات والأجندات</span></a>
+    </nav>
+
+    <div class="sidebar-card">
+      <span class="status-dot"></span>
+      <div>
+        <strong>Dashboard</strong>
+        <small>لوحة متابعة التنفيذ</small>
+      </div>
+    </div>
+  </aside>
+
+  <main class="main-shell dashboard-main">
+    <header class="topbar dashboard-topbar">
+      <div class="page-title">
+        <p>DASHBOARD</p>
+        <h1>الداش بورد</h1>
+      </div>
+      <div class="topbar-actions">
+        <button class="ghost-btn">⟳ تحديث</button>
+        <button class="primary-btn">➕ إنشاء تاسك</button>
+      </div>
+    </header>
+
+    <section class="workspace-card dashboard-intro">
+      <div>
+        <span class="eyebrow">لوحة متابعة التنفيذ</span>
+        <h2>متابعة التاسكات حسب نوع المستخدم</h2>
+        <p>الصفحة معمولة كتقسيم واضح بنفس أسلوب السيستم، بدون داتا تجريبية. تم تجهيز الهيكل الأساسي للكروت بحيث يتربط لاحقًا بشروط التنفيذ والصلاحيات ونوع المستخدم.</p>
+      </div>
+      <div class="role-switcher" aria-label="تبديل نوع العرض">
+        <button class="role-btn is-active" type="button" data-role-view="admin">عرض الإدارة / الأدمن</button>
+        <button class="role-btn" type="button" data-role-view="user">عرض اليوزر العادي</button>
+      </div>
+    </section>
+
+    <section class="stats-grid dashboard-stats">
+      <article class="stat-card">
+        <span>الحالة الحالية</span>
+        <strong>--</strong>
+        <small>يتم تحديثها بعد الربط بالداتا</small>
+      </article>
+      <article class="stat-card">
+        <span>التاسكات النشطة</span>
+        <strong>--</strong>
+        <small>تعتمد على المستخدم الحالي</small>
+      </article>
+      <article class="stat-card">
+        <span>التاسكات المتأخرة</span>
+        <strong>--</strong>
+        <small>تظهر حسب وقت التأخير</small>
+      </article>
+      <article class="stat-card">
+        <span>نسبة الإنجاز</span>
+        <strong>--%</strong>
+        <small>تتحسب تلقائيًا بعد التنفيذ</small>
+      </article>
+    </section>
+
+    <section class="dashboard-view is-active" data-role-panel="admin">
+      <div class="dashboard-board">
+        <article class="board-column workspace-card">
+          <div class="board-head">
+            <h3>TASK - المطلوب</h3>
+            <button class="soft-btn board-mini-btn">إنشاء تاسك</button>
+          </div>
+          <div class="board-list">
+            <article class="task-template-card">
+              <div class="task-template-top">
+                <strong>بيانات الحملة</strong>
+                <span>نوع الحملة — كود الحملة — تاريخ نزول الحملة</span>
+              </div>
+              <div class="receipt-strip">
+                <span>استلام قسم التصوير</span>
+                <span>استلام قسم المحتوى</span>
+                <span>استلام قسم التصميم</span>
+                <span>استلام قسم المونتاج</span>
+                <span>استلام قسم النشر</span>
+              </div>
+              <div class="task-empty-note">ستظهر الحملات المطلوبة هنا بعد الإنشاء.</div>
+            </article>
+          </div>
+        </article>
+
+        <article class="board-column workspace-card">
+          <div class="board-head">
+            <h3>جاهزية المطلوب</h3>
+            <span class="column-hint">متابعة نسب الجاهزية</span>
+          </div>
+          <div class="board-list">
+            <article class="readiness-card">
+              <div class="task-template-top">
+                <strong>بيانات الحملة</strong>
+                <span>نوع الحملة — كود الحملة — تاريخ نزول الحملة — نسبة الجاهزية</span>
+              </div>
+              <div class="readiness-grid">
+                <div>
+                  <strong>جاهزية قسم التصوير</strong>
+                  <small>تصوير الجزء 1</small>
+                  <small>الاعتماد</small>
+                  <small>تصوير الجزء 2</small>
+                  <small>الاعتماد</small>
+                  <small>الإرفاق</small>
+                </div>
+                <div>
+                  <strong>جاهزية قسم المحتوى</strong>
+                  <small>نموذج المحتوى</small>
+                  <small>الاعتماد</small>
+                  <small>كتابة المحتوى</small>
+                  <small>الاعتماد</small>
+                  <small>الإرفاق</small>
+                </div>
+                <div>
+                  <strong>جاهزية قسم التصميم</strong>
+                  <small>تصميم الجزء 1</small>
+                  <small>الاعتماد</small>
+                  <small>تصميم الجزء 2</small>
+                  <small>الاعتماد</small>
+                  <small>الإرفاق</small>
+                </div>
+                <div>
+                  <strong>جاهزية قسم المونتاج</strong>
+                  <small>مونتاج الجزء 1</small>
+                  <small>الاعتماد</small>
+                  <small>مونتاج الجزء 2</small>
+                  <small>الاعتماد</small>
+                  <small>الإرفاق</small>
+                </div>
+              </div>
+            </article>
+          </div>
+        </article>
+
+        <article class="board-column workspace-card">
+          <div class="board-head">
+            <h3>قسم النشر</h3>
+            <span class="column-hint">متابعة تجهيزات النشر</span>
+          </div>
+          <div class="board-list">
+            <article class="dept-card-template">
+              <div class="task-template-top">
+                <strong>بيانات الحملة</strong>
+                <span>نوع الحملة — كود الحملة — تاريخ نزول الحملة</span>
+              </div>
+              <div class="detail-lines-lite">
+                <span>اسم المسؤول</span>
+                <span>تاريخ الاستلام</span>
+                <span>التاريخ المطلوب</span>
+                <span>تاريخ التسليم</span>
+                <span>وقت التأخير</span>
+              </div>
+              <div class="steps-strip">
+                <span>التجهيز 1</span>
+                <span>التجهيز 2</span>
+                <span>التجهيز 3</span>
+                <span>الاعتماد</span>
+                <span>النشر</span>
+              </div>
+            </article>
+          </div>
+        </article>
+
+        <article class="board-column workspace-card">
+          <div class="board-head">
+            <h3>قسم الأرشيف</h3>
+            <span class="column-hint">متابعة الأرشفة</span>
+          </div>
+          <div class="board-list">
+            <article class="dept-card-template">
+              <div class="task-template-top">
+                <strong>بيانات الحملة</strong>
+                <span>نوع الحملة — كود الحملة — تاريخ نزول الحملة</span>
+              </div>
+              <div class="detail-lines-lite">
+                <span>اسم المسؤول</span>
+                <span>تاريخ الاستلام</span>
+                <span>التاريخ المطلوب</span>
+                <span>تاريخ التسليم</span>
+                <span>وقت التأخير</span>
+              </div>
+              <div class="steps-strip">
+                <span>التجهيز 1</span>
+                <span>التجهيز 2</span>
+                <span>التجهيز 3</span>
+                <span>الاعتماد</span>
+                <span>الأرشفة</span>
+              </div>
+            </article>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section class="dashboard-view" data-role-panel="user">
+      <div class="dashboard-board user-board">
+        <article class="board-column workspace-card">
+          <div class="board-head">
+            <h3>قسم التصوير</h3>
+            <span class="column-hint">مهام اليوزر الحالية</span>
+          </div>
+          <div class="board-list">
+            <article class="dept-card-template compact-template">
+              <div class="task-template-top">
+                <strong>بيانات الحملة</strong>
+                <span>نوع الحملة — كود الحملة — تاريخ نزول الحملة</span>
+              </div>
+              <div class="detail-lines-lite compact-lines">
+                <span>اسم المسؤول</span>
+                <span>تاريخ الاستلام</span>
+                <span>التاريخ المطلوب</span>
+                <span>تاريخ التسليم</span>
+                <span>وقت التأخير</span>
+              </div>
+            </article>
+          </div>
+        </article>
+
+        <article class="board-column workspace-card">
+          <div class="board-head">
+            <h3>قسم المحتوى</h3>
+            <span class="column-hint">مهام اليوزر الحالية</span>
+          </div>
+          <div class="board-list">
+            <article class="dept-card-template compact-template">
+              <div class="task-template-top">
+                <strong>بيانات الحملة</strong>
+                <span>نوع الحملة — كود الحملة — تاريخ نزول الحملة</span>
+              </div>
+              <div class="detail-lines-lite compact-lines">
+                <span>اسم المسؤول</span>
+                <span>تاريخ الاستلام</span>
+                <span>التاريخ المطلوب</span>
+                <span>تاريخ التسليم</span>
+                <span>وقت التأخير</span>
+              </div>
+            </article>
+          </div>
+        </article>
+
+        <article class="board-column workspace-card">
+          <div class="board-head">
+            <h3>قسم التصميم</h3>
+            <span class="column-hint">مهام اليوزر الحالية</span>
+          </div>
+          <div class="board-list">
+            <article class="dept-card-template compact-template">
+              <div class="task-template-top">
+                <strong>بيانات الحملة</strong>
+                <span>نوع الحملة — كود الحملة — تاريخ نزول الحملة</span>
+              </div>
+              <div class="detail-lines-lite compact-lines">
+                <span>اسم المسؤول</span>
+                <span>تاريخ الاستلام</span>
+                <span>التاريخ المطلوب</span>
+                <span>تاريخ التسليم</span>
+                <span>وقت التأخير</span>
+              </div>
+            </article>
+          </div>
+        </article>
+
+        <article class="board-column workspace-card">
+          <div class="board-head">
+            <h3>قسم المونتاج</h3>
+            <span class="column-hint">مهام اليوزر الحالية</span>
+          </div>
+          <div class="board-list">
+            <article class="dept-card-template compact-template">
+              <div class="task-template-top">
+                <strong>بيانات الحملة</strong>
+                <span>نوع الحملة — كود الحملة — تاريخ نزول الحملة</span>
+              </div>
+              <div class="detail-lines-lite compact-lines">
+                <span>اسم المسؤول</span>
+                <span>تاريخ الاستلام</span>
+                <span>التاريخ المطلوب</span>
+                <span>تاريخ التسليم</span>
+                <span>وقت التأخير</span>
+              </div>
+            </article>
+          </div>
+        </article>
+      </div>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>

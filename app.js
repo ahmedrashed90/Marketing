@@ -680,7 +680,7 @@ function initCreateTaskFromTemplate() {
     }
   });
 
-  form.addEventListener('submit', (event) => {
+  form.addEventListener('submit', async (event) => {
     event.preventDefault();
 
     const selectedTemplate = getSelectedTemplate();
@@ -720,18 +720,35 @@ function initCreateTaskFromTemplate() {
       publishScheduleTemplate: document.getElementById('publishScheduleTemplate')?.files?.[0]?.name || '',
       budgetPlanTemplate: document.getElementById('budgetPlanTemplate')?.files?.[0]?.name || '',
       resultsReportTemplate: document.getElementById('resultsReportTemplate')?.files?.[0]?.name || '',
-      sourceCollection: 'content_tasks',
+      sourceCollection: 'workspace_tasks',
       createdAt: new Date().toISOString(),
       stage: 'required',
       readiness: {},
       publishSteps: []
     };
 
+    try {
+      if (window.firebase && window.MZJ_FIREBASE_CONFIG && firebase.firestore) {
+        if (!firebase.apps.length) firebase.initializeApp(window.MZJ_FIREBASE_CONFIG);
+        const ref = await firebase.firestore().collection('workspace_tasks').add(payload);
+        payload.firestoreId = ref.id;
+        payload.sourceFirestoreCollection = 'workspace_tasks';
+      }
+    } catch (error) {
+      console.warn('workspace_tasks save fallback:', error);
+    }
+
     const tasks = JSON.parse(localStorage.getItem(MZJ_CREATED_TASKS_KEY) || '[]');
     tasks.unshift(payload);
     localStorage.setItem(MZJ_CREATED_TASKS_KEY, JSON.stringify(tasks));
 
-    if (note) note.textContent = '✅ تم حفظ التاسك. البيانات جاهزة للرفع على Firestore بعد ربط Collection التلقائي.';
+    try {
+      const oldPathTasks = JSON.parse(localStorage.getItem('workspace_tasks') || '[]');
+      oldPathTasks.unshift(payload);
+      localStorage.setItem('workspace_tasks', JSON.stringify(oldPathTasks));
+    } catch (error) {}
+
+    if (note) note.textContent = '✅ تم حفظ التاسك في مسار workspace_tasks وظهر في الداش بورد وقاعدة البيانات.';
     renderTemplatePreview(preview, selectedTemplate, '✅ تم حفظ التاسك من القالب');
     if (typeof window.renderDashboardTasks === 'function') window.renderDashboardTasks();
   });
@@ -744,6 +761,9 @@ initCreateTaskFromTemplate();
 /* Dashboard dynamic created tasks, user assignment, publishing workflow */
 (function initDynamicDashboardTasks(){
   const TASK_KEY = 'mzj_created_tasks_from_templates_v1';
+  const TASK_KEYS = ['mzj_created_tasks_from_templates_v1','workspace_tasks','mzj_workspace_tasks','mzj_dashboard_tasks_v2','mzj_campaign_records_v1'];
+  const FIRESTORE_TASK_COLLECTIONS = ['workspace_tasks'];
+  let firestoreTaskCache = [];
   const DEPT_MAP = {
     shooting: ['تصوير','التصوير','photography','shooting'],
     content: ['محتوى','المحتوى','content'],
@@ -752,10 +772,92 @@ initCreateTaskFromTemplate();
   };
   const PUBLISH_STEPS = ['التجهيز 1','التجهيز 2','التجهيز 3','الاعتماد','النشر'];
 
+  function normalizeWorkspaceTask(task, fallbackId){
+    if (!task || typeof task !== 'object') return null;
+    const id = task.id || task.firestoreId || task.docId || fallbackId || ('task_' + Math.random().toString(36).slice(2));
+    const labelRaw = task.taskTypeLabel || task.taskType || task.type || task.kind || 'حملة';
+    const label = String(labelRaw).includes('أج') || String(labelRaw).toLowerCase().includes('agenda') ? 'أجندة' : (String(labelRaw).includes('تاسك') ? 'تاسك' : 'حملة');
+    const deptTasks = Array.isArray(task.departmentTasks) ? task.departmentTasks : (Array.isArray(task.departments) ? task.departments : (Array.isArray(task.tasks) ? task.tasks : []));
+    return {
+      ...task,
+      id,
+      taskType: task.taskType || (label === 'أجندة' ? 'agenda' : 'campaign'),
+      taskTypeLabel: label,
+      campaignName: task.campaignName || task.name || task.title || task.agendaName || task.taskName || '',
+      campaignCode: task.campaignCode || task.code || task.taskCode || '',
+      campaignGoal: task.campaignGoal || task.goal || task.objective || '',
+      launchDate: task.launchDate || task.campaignLaunchDate || task.publishDate || task.date || task.dueDate || '',
+      departmentTasks: deptTasks.map((d, i) => ({
+        enabled: d.enabled !== false,
+        departmentId: d.departmentId || d.id || d.department || d.section || ('dept_' + i),
+        departmentName: d.departmentName || d.name || d.department || d.sectionName || d.section || 'قسم',
+        userName: d.userName || d.responsible || d.assignee || d.owner || d.user || '',
+        userEmail: d.userEmail || d.email || d.assigneeEmail || '',
+        receiveDate: d.receiveDate || d.receivedAt || d.startDate || '',
+        requiredDate: d.requiredDate || d.deadline || d.dueDate || '',
+        deliveryDate: d.deliveryDate || d.deliveredAt || d.completedAt || '',
+        receivedConfirmed: Boolean(d.receivedConfirmed || d.confirmed || d.received),
+        attachmentLabel: d.attachmentLabel || d.attachment || d.fileName || '',
+        requiredText: d.requiredText || d.description || d.details || d.required || ''
+      })),
+      readiness: task.readiness || {},
+      publishSteps: Array.isArray(task.publishSteps) ? task.publishSteps : [],
+      stage: task.stage || 'required'
+    };
+  }
   function readTasks(){
-    try { return JSON.parse(localStorage.getItem(TASK_KEY) || '[]'); } catch(e) { return []; }
+    const all = [];
+    TASK_KEYS.forEach((key) => {
+      try {
+        const parsed = JSON.parse(localStorage.getItem(key) || '[]');
+        if (Array.isArray(parsed)) parsed.forEach((task, index) => all.push(normalizeWorkspaceTask(task, key + '_' + index)));
+      } catch(e) {}
+    });
+    firestoreTaskCache.forEach((task, index) => all.push(normalizeWorkspaceTask(task, 'firestore_' + index)));
+    const map = new Map();
+    all.filter(Boolean).forEach((task) => map.set(String(task.id), { ...(map.get(String(task.id)) || {}), ...task }));
+    return Array.from(map.values());
   }
   function writeTasks(tasks){ localStorage.setItem(TASK_KEY, JSON.stringify(tasks)); }
+  async function refreshWorkspaceTasksFromFirestore(){
+    if (!window.firebase || !window.MZJ_FIREBASE_CONFIG || !firebase.firestore) return;
+    try {
+      if (!firebase.apps.length) firebase.initializeApp(window.MZJ_FIREBASE_CONFIG);
+      const loaded = [];
+      for (const collectionName of FIRESTORE_TASK_COLLECTIONS) {
+        const snap = await firebase.firestore().collection(collectionName).get();
+        snap.forEach((doc) => loaded.push({ id: doc.id, firestoreId: doc.id, sourceFirestoreCollection: collectionName, ...(doc.data() || {}) }));
+      }
+      firestoreTaskCache = loaded;
+      window.renderDashboardTasks?.();
+    } catch (error) {
+      console.warn('workspace_tasks load fallback:', error);
+    }
+  }
+  async function deleteTaskEverywhere(taskId){
+    const tasks = readTasks();
+    const target = tasks.find((task) => String(task.id) === String(taskId));
+    TASK_KEYS.forEach((key) => {
+      try {
+        const parsed = JSON.parse(localStorage.getItem(key) || '[]');
+        if (Array.isArray(parsed)) {
+          localStorage.setItem(key, JSON.stringify(parsed.filter((task) => String(task.id || task.firestoreId || task.docId) !== String(taskId))));
+        }
+      } catch(e) {}
+    });
+    if (window.firebase && window.MZJ_FIREBASE_CONFIG && firebase.firestore) {
+      try {
+        if (!firebase.apps.length) firebase.initializeApp(window.MZJ_FIREBASE_CONFIG);
+        const collectionName = target?.sourceFirestoreCollection || 'workspace_tasks';
+        const docId = target?.firestoreId || target?.docId || target?.id;
+        if (docId) await firebase.firestore().collection(collectionName).doc(String(docId)).delete();
+      } catch (error) {
+        console.warn('workspace_tasks delete fallback:', error);
+      }
+    }
+    firestoreTaskCache = firestoreTaskCache.filter((task) => String(task.id || task.firestoreId) !== String(taskId));
+    writeTasks(readTasks().filter((task) => String(task.id) !== String(taskId)));
+  }
   function esc(v){ return String(v || '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
   function user(){ return window.MZJAuth?.getUser?.() || null; }
   function userIsAdmin(){ return (user()?.role || document.body.dataset.userRole) === 'admin'; }
@@ -803,7 +905,7 @@ initCreateTaskFromTemplate();
     return `<article class="task-template-card dynamic-dashboard-card" data-dash-task-id="${esc(task.id)}">
       <div class="task-template-top"><strong>${esc(taskTitle(task))}</strong><span>${meta(task)}</span></div>
       <div class="receipt-strip">${(task.departmentTasks||[]).map(d=>`<span>${esc(d.departmentName || 'قسم')}</span>`).join('')}</div>
-      <div class="task-empty-note">المطلوب اتسجل، وهيظهر لكل يوزر حسب القسم والمسؤول المختار.</div>
+      <div class="task-card-actions"><button class="danger-btn" type="button" data-delete-task="${esc(task.id)}" data-admin-only>مسح الحملة</button></div><div class="task-empty-note">المطلوب اتسجل، وهيظهر لكل يوزر حسب القسم والمسؤول المختار.</div>
     </article>`;
   }
   function readinessCard(task){
@@ -813,7 +915,7 @@ initCreateTaskFromTemplate();
       <div class="mini-progress"><span style="width:${ready}%"></span></div>
       <div class="readiness-grid readiness-dynamic-grid">
         ${(task.departmentTasks||[]).map(d => `<div><strong>${esc(d.departmentName || 'قسم')}</strong><small>${taskDeptProgress(task,d)}%</small><small>${esc(d.requiredText || 'لا يوجد مطلوب مكتوب')}</small></div>`).join('')}
-      </div>
+      </div><div class="task-card-actions"><button class="danger-btn" type="button" data-delete-task="${esc(task.id)}" data-admin-only>مسح الحملة</button></div>
     </article>`;
   }
   function publishCard(task){
@@ -824,13 +926,13 @@ initCreateTaskFromTemplate();
       <div class="mini-progress"><span style="width:${percent}%"></span></div>
       <div class="publish-actions-grid">
         ${PUBLISH_STEPS.map((step,i)=>`<button type="button" class="task-step-btn ${done.includes(i) ? 'is-done' : ''}" data-publish-step data-task-id="${esc(task.id)}" data-step-index="${i}" ${!userIsAdmin()?'disabled':''}><span>${esc(step)}</span><small>20%</small></button>`).join('')}
-      </div>
+      </div><div class="task-card-actions"><button class="danger-btn" type="button" data-delete-task="${esc(task.id)}" data-admin-only>مسح الحملة</button></div>
     </article>`;
   }
   function archiveCard(task){
     return `<article class="dept-card-template dynamic-dashboard-card" data-dash-task-id="${esc(task.id)}">
       <div class="task-template-top"><strong>${esc(taskTitle(task))}</strong><span>${meta(task)} — تم النشر والأرشفة</span></div>
-      <div class="task-empty-note">الحملة اتنقلت تلقائياً إلى الأرشيف بعد اكتمال أزرار النشر.</div>
+      <div class="task-card-actions"><button class="danger-btn" type="button" data-delete-task="${esc(task.id)}" data-admin-only>مسح الحملة</button></div><div class="task-empty-note">الحملة اتنقلت تلقائياً إلى الأرشيف بعد اكتمال أزرار النشر.</div>
     </article>`;
   }
   function userDeptCard(task, deptTask){
@@ -915,5 +1017,19 @@ initCreateTaskFromTemplate();
     }, 0);
   });
 
-  document.addEventListener('DOMContentLoaded', function(){ setTimeout(window.renderDashboardTasks, 120); });
+  document.addEventListener('click', async function(event){
+    const del = event.target.closest('[data-delete-task]');
+    if (!del) return;
+    if (!userIsAdmin()) return;
+    const ok = confirm('تأكيد مسح الحملة/الأجندة من الداش بورد وقاعدة البيانات؟');
+    if (!ok) return;
+    await deleteTaskEverywhere(del.dataset.deleteTask);
+    window.renderDashboardTasks();
+    if (typeof window.renderCampaignRecordsLive === 'function') window.renderCampaignRecordsLive();
+  });
+
+  document.addEventListener('DOMContentLoaded', function(){
+    setTimeout(window.renderDashboardTasks, 120);
+    setTimeout(refreshWorkspaceTasksFromFirestore, 250);
+  });
 })();

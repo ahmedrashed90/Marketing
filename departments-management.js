@@ -1,6 +1,7 @@
 (function(){
-  const DEPARTMENTS_KEY = 'mzj_departments';
-  const USER_KEYS = ['mzj_admin_users_cache_v1','users','user'];
+  const DEPARTMENTS_COLLECTION = 'departments';
+  const USERS_COLLECTION = 'users';
+  const LOCAL_DEPARTMENTS_KEY = 'mzj_departments';
   const DEFAULT_DEPARTMENTS = [
     { id: 'photography', name: 'قسم التصوير', users: [] },
     { id: 'content', name: 'قسم المحتوى', users: [] },
@@ -8,133 +9,355 @@
     { id: 'montage', name: 'قسم المونتاج', users: [] },
     { id: 'publishing', name: 'قسم النشر', users: [] }
   ];
-  const $ = (s,r=document)=>r.querySelector(s);
-  const $$ = (s,r=document)=>Array.from(r.querySelectorAll(s));
-  const esc = (v)=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-  const slug = (v)=> String(v || '').trim().toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_-]/g, '') || ('dept_' + Date.now());
 
-  function canFirestore(){ return window.firebase && window.MZJ_FIREBASE_CONFIG && firebase.firestore; }
-  function initFirebase(){ if(canFirestore() && !firebase.apps.length) firebase.initializeApp(window.MZJ_FIREBASE_CONFIG); }
-  function uniqueBy(arr, keyFn){ const m=new Map(); (arr||[]).forEach(x=>{ const k=keyFn(x); if(k) m.set(String(k).toLowerCase(), {...(m.get(String(k).toLowerCase())||{}), ...x}); }); return Array.from(m.values()); }
-  function normalizeUser(u){
-    if(!u) return null;
-    if(typeof u === 'string') return { id:u, name:u, email:u, label:u };
-    const name = u.name || u.displayName || u.fullName || u.email || '';
-    const email = u.email || '';
-    const id = u.id || u.uid || email || name;
-    if(!id && !name && !email) return null;
-    return { id, name, email, role:u.role||'user', department:u.department||'', label: (name && email && name!==email) ? `${name} — ${email}` : (name||email||id) };
+  const $ = (s, r=document) => r.querySelector(s);
+  const $$ = (s, r=document) => Array.from(r.querySelectorAll(s));
+  const esc = (v) => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const makeSlug = (v) => String(v || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, '_')
+    .replace(/[^a-z0-9_\-\u0600-\u06FF]/g, '') || ('dept_' + Date.now());
+
+  function canFirestore(){
+    return Boolean(window.firebase && window.MZJ_FIREBASE_CONFIG && firebase.firestore);
   }
-  function normalizeDept(d={}, i=0){
-    const name = d.name || d.title || d.departmentName || d.sectionName || d.department || `قسم ${i+1}`;
-    const id = d.id || d.docId || slug(name);
-    const rawUsers = Array.isArray(d.users) ? d.users : (Array.isArray(d.members) ? d.members : (Array.isArray(d.assignees) ? d.assignees : []));
-    const users = rawUsers.map(normalizeUser).filter(Boolean);
-    return { id, name, users, createdAt:d.createdAt||'', updatedAt:d.updatedAt||'' };
+
+  function initFirebase(){
+    if(canFirestore() && !firebase.apps.length){
+      firebase.initializeApp(window.MZJ_FIREBASE_CONFIG);
+    }
   }
-  function readLocalDepartments(){
-    const merged=[];
-    [DEPARTMENTS_KEY,'content_tasks','mzj_content_tasks','mzj_content_departments'].forEach(k=>{ try{ const v=JSON.parse(localStorage.getItem(k)||'[]'); if(Array.isArray(v)) merged.push(...v.map(normalizeDept)); }catch(e){} });
-    return uniqueBy(merged, d=>d.id);
+
+  function getDb(){
+    initFirebase();
+    return firebase.firestore();
   }
-  function writeLocalDepartments(depts){
-    const normalized = uniqueBy((depts||[]).map(normalizeDept), d=>d.id);
-    localStorage.setItem(DEPARTMENTS_KEY, JSON.stringify(normalized));
-    localStorage.setItem('content_tasks', JSON.stringify(normalized));
+
+  function uniqueBy(arr, keyFn){
+    const map = new Map();
+    (arr || []).forEach(item => {
+      const rawKey = keyFn(item);
+      if(!rawKey) return;
+      const key = String(rawKey).toLowerCase();
+      map.set(key, { ...(map.get(key) || {}), ...item });
+    });
+    return Array.from(map.values());
   }
+
+  function userKey(u){
+    return String(u?.uid || u?.id || u?.email || u?.name || '').toLowerCase();
+  }
+
+  function normalizeUser(raw){
+    if(!raw) return null;
+    if(typeof raw === 'string'){
+      return { id: raw, uid: raw, name: raw, email: '', label: raw };
+    }
+    const id = raw.id || raw.uid || raw.userId || raw.email || raw.name || raw.displayName || '';
+    const uid = raw.uid || raw.userId || raw.id || id;
+    const email = raw.email || raw.userEmail || '';
+    const name = raw.name || raw.displayName || raw.fullName || raw.username || email || id;
+    if(!id && !email && !name) return null;
+    return {
+      id,
+      uid,
+      name,
+      displayName: raw.displayName || name,
+      email,
+      role: raw.role || 'user',
+      department: raw.department || raw.departmentName || '',
+      label: (name && email && name !== email) ? `${name} — ${email}` : (name || email || id)
+    };
+  }
+
+  function normalizeDepartment(raw={}, index=0){
+    const name = raw.name || raw.title || raw.departmentName || raw.sectionName || raw.department || `قسم ${index + 1}`;
+    const id = raw.id || raw.docId || raw.slug || makeSlug(name);
+    const rawUsers = Array.isArray(raw.users) ? raw.users
+      : Array.isArray(raw.members) ? raw.members
+      : Array.isArray(raw.assignees) ? raw.assignees
+      : [];
+    const users = uniqueBy(rawUsers.map(normalizeUser).filter(Boolean), userKey);
+    return {
+      id,
+      name,
+      slug: raw.slug || makeSlug(name),
+      users,
+      userIds: Array.isArray(raw.userIds) ? raw.userIds : users.map(u => u.uid || u.id).filter(Boolean),
+      memberUids: Array.isArray(raw.memberUids) ? raw.memberUids : users.map(u => u.uid || u.id).filter(Boolean),
+      memberEmails: Array.isArray(raw.memberEmails) ? raw.memberEmails : users.map(u => u.email).filter(Boolean),
+      active: raw.active !== false,
+      isDefault: Boolean(raw.isDefault),
+      createdAt: raw.createdAt || '',
+      updatedAt: raw.updatedAt || ''
+    };
+  }
+
+  function getCachedUsers(){
+    const users = [];
+    ['mzj_admin_users_cache_v1','users','user'].forEach(key => {
+      try{
+        const value = JSON.parse(localStorage.getItem(key) || '[]');
+        if(Array.isArray(value)) users.push(...value.map(normalizeUser).filter(Boolean));
+      }catch(e){}
+    });
+    return uniqueBy(users, userKey);
+  }
+
+  function cacheUsers(users){
+    try{ localStorage.setItem('mzj_admin_users_cache_v1', JSON.stringify(users || [])); }catch(e){}
+  }
+
+  function cacheDepartments(depts){
+    try{ localStorage.setItem(LOCAL_DEPARTMENTS_KEY, JSON.stringify(depts || [])); }catch(e){}
+  }
+
+  function getCachedDepartments(){
+    try{
+      const value = JSON.parse(localStorage.getItem(LOCAL_DEPARTMENTS_KEY) || '[]');
+      if(Array.isArray(value)) return uniqueBy(value.map(normalizeDepartment), d => d.id);
+    }catch(e){}
+    return [];
+  }
+
   async function loadUsers(){
-    const users=[];
-    USER_KEYS.forEach(k=>{ try{ const v=JSON.parse(localStorage.getItem(k)||'[]'); if(Array.isArray(v)) users.push(...v.map(normalizeUser).filter(Boolean)); }catch(e){} });
+    let users = [];
     if(canFirestore()){
-      try{ initFirebase(); const snap=await firebase.firestore().collection('users').get(); snap.forEach(doc=>users.push(normalizeUser({id:doc.id, ...(doc.data()||{})}))); }catch(e){ console.warn('load user fallback', e); }
+      try{
+        const snap = await getDb().collection(USERS_COLLECTION).get();
+        snap.forEach(doc => users.push(normalizeUser({ id: doc.id, uid: doc.id, ...(doc.data() || {}) })));
+        users = uniqueBy(users.filter(Boolean), userKey);
+        cacheUsers(users);
+        return users;
+      }catch(error){
+        console.error('فشل قراءة users من Firebase:', error);
+      }
     }
-    return uniqueBy(users.filter(Boolean), u=>u.email||u.id||u.name);
+    users = getCachedUsers();
+    return users;
   }
-  async function loadDepartments(){
-    let depts = readLocalDepartments();
-    if(canFirestore()){
-      try{ initFirebase(); const snap=await firebase.firestore().collection('departments').get(); const cloud=[]; snap.forEach(doc=>cloud.push(normalizeDept({id:doc.id, ...(doc.data()||{})}))); if(cloud.length) depts = cloud; }catch(e){ console.warn('load departments fallback', e); }
-    }
-    if(!depts.length) depts = DEFAULT_DEPARTMENTS.map(normalizeDept);
-    writeLocalDepartments(depts);
-    return depts;
-  }
-  async function saveDepartment(dept){
-    const depts = (await loadDepartments()).filter(d=>String(d.id)!==String(dept.id));
-    const payload = normalizeDept({ ...dept, updatedAt:new Date().toISOString() });
-    depts.push(payload); writeLocalDepartments(depts);
-    if(canFirestore()){
-      try{ initFirebase(); await firebase.firestore().collection('departments').doc(String(payload.id)).set(payload, { merge:true }); }catch(e){ console.warn('save department fallback', e); }
-    }
-    return payload;
-  }
-  async function deleteDepartment(id){
-    const depts = (await loadDepartments()).filter(d=>String(d.id)!==String(id));
-    writeLocalDepartments(depts);
-    if(canFirestore()){
-      try{ initFirebase(); await firebase.firestore().collection('departments').doc(String(id)).delete(); }catch(e){ console.warn('delete department fallback', e); }
+
+  async function ensureDefaultDepartmentsIfEmpty(){
+    if(!canFirestore()) return;
+    const db = getDb();
+    for(const dept of DEFAULT_DEPARTMENTS){
+      const ref = db.collection(DEPARTMENTS_COLLECTION).doc(dept.id);
+      const snap = await ref.get();
+      if(!snap.exists){
+        await ref.set({
+          ...dept,
+          slug: dept.id,
+          userIds: [],
+          memberUids: [],
+          memberEmails: [],
+          active: true,
+          isDefault: true,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        }, { merge: true });
+      }
     }
   }
 
-  let currentUsers=[];
-  let currentDepartments=[];
-  let editingId='';
+  async function loadDepartments(){
+    let departments = [];
+    if(canFirestore()){
+      try{
+        const db = getDb();
+        let snap = await db.collection(DEPARTMENTS_COLLECTION).get();
+        if(snap.empty){
+          await ensureDefaultDepartmentsIfEmpty();
+          snap = await db.collection(DEPARTMENTS_COLLECTION).get();
+        }
+        snap.forEach((doc, index) => departments.push(normalizeDepartment({ id: doc.id, docId: doc.id, ...(doc.data() || {}) }, index)));
+        departments = uniqueBy(departments, d => d.id);
+        cacheDepartments(departments);
+        return departments;
+      }catch(error){
+        console.error('فشل قراءة departments من Firebase:', error);
+      }
+    }
+    departments = getCachedDepartments();
+    if(!departments.length) departments = DEFAULT_DEPARTMENTS.map(normalizeDepartment);
+    return departments;
+  }
+
+  function makeDepartmentPayload(dept){
+    const normalized = normalizeDepartment(dept);
+    const users = uniqueBy((normalized.users || []).map(normalizeUser).filter(Boolean), userKey);
+    return {
+      id: normalized.id,
+      name: normalized.name,
+      slug: normalized.slug || makeSlug(normalized.name),
+      users,
+      members: users,
+      userIds: users.map(u => u.uid || u.id).filter(Boolean),
+      memberUids: users.map(u => u.uid || u.id).filter(Boolean),
+      memberEmails: users.map(u => u.email).filter(Boolean),
+      active: true,
+      isDefault: normalized.isDefault || DEFAULT_DEPARTMENTS.some(d => d.id === normalized.id),
+      createdAt: normalized.createdAt || new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+  }
+
+  async function saveDepartment(dept){
+    const payload = makeDepartmentPayload(dept);
+    if(!canFirestore()){
+      const current = (await loadDepartments()).filter(d => String(d.id) !== String(payload.id));
+      current.push(payload);
+      cacheDepartments(current);
+      return payload;
+    }
+    try{
+      await getDb().collection(DEPARTMENTS_COLLECTION).doc(String(payload.id)).set(payload, { merge: true });
+      const current = (await loadDepartments()).filter(d => String(d.id) !== String(payload.id));
+      current.push(payload);
+      cacheDepartments(current);
+      return payload;
+    }catch(error){
+      console.error('فشل حفظ القسم في Firebase:', error);
+      alert('فشل حفظ القسم في Firebase: ' + (error.message || error.code || error));
+      throw error;
+    }
+  }
+
+  async function deleteDepartment(id){
+    if(canFirestore()){
+      try{
+        await getDb().collection(DEPARTMENTS_COLLECTION).doc(String(id)).delete();
+      }catch(error){
+        console.error('فشل مسح القسم من Firebase:', error);
+        alert('فشل مسح القسم من Firebase: ' + (error.message || error.code || error));
+        throw error;
+      }
+    }
+    const current = (await loadDepartments()).filter(d => String(d.id) !== String(id));
+    cacheDepartments(current);
+  }
+
+  let currentUsers = [];
+  let currentDepartments = [];
+  let editingId = '';
+
   function renderUserChecks(selected=[]){
-    const box = $('#departmentUsersPicker'); if(!box) return;
-    const selectedKeys = new Set((selected||[]).map(u=>String(u.email||u.id||u.name).toLowerCase()));
-    if(!currentUsers.length){ box.innerHTML = '<p class="template-empty">مفيش يوزرات ظاهرة من مسار users. أضف اليوزرات من صفحة الإدارة أو تأكد من قواعد Firebase.</p>'; return; }
-    box.innerHTML = currentUsers.map(u=>{
-      const key = String(u.email||u.id||u.name).toLowerCase();
-      return `<label class="permission-chip department-user-chip"><input type="checkbox" value="${esc(key)}" ${selectedKeys.has(key)?'checked':''}><span>${esc(u.label)}</span></label>`;
+    const box = $('#departmentUsersPicker');
+    if(!box) return;
+    const selectedKeys = new Set((selected || []).map(normalizeUser).filter(Boolean).map(userKey));
+    if(!currentUsers.length){
+      box.innerHTML = '<p class="template-empty">مفيش يوزرات ظاهرة من مسار users. تأكد إن اليوزرات موجودة في Firebase وإن القواعد تسمح بقراءة users.</p>';
+      return;
+    }
+    box.innerHTML = currentUsers.map(user => {
+      const key = userKey(user);
+      return `<label class="permission-chip department-user-chip">
+        <input type="checkbox" value="${esc(key)}" ${selectedKeys.has(key) ? 'checked' : ''}>
+        <span>${esc(user.label)}</span>
+      </label>`;
     }).join('');
   }
-  function renderList(){
-    const list = $('#departmentsList'); if(!list) return;
-    if(!currentDepartments.length){ list.innerHTML = '<p class="template-empty">لسه مفيش أقسام محفوظة.</p>'; return; }
-    list.innerHTML = currentDepartments.map(d=>`
+
+  function renderDepartments(){
+    const list = $('#departmentsList');
+    if(!list) return;
+    if(!currentDepartments.length){
+      list.innerHTML = '<p class="template-empty">لسه مفيش أقسام محفوظة.</p>';
+      return;
+    }
+    list.innerHTML = currentDepartments.map(dept => `
       <article class="department-management-card">
         <div>
-          <strong>${esc(d.name)}</strong>
-          <small>كود القسم: ${esc(d.id)}</small>
-          <div class="department-users-tags">${(d.users||[]).length ? d.users.map(u=>`<span>${esc(u.label||u.name||u.email||u.id)}</span>`).join('') : '<em>مفيش يوزرات مختارة</em>'}</div>
+          <strong>${esc(dept.name)}</strong>
+          <small>كود القسم: ${esc(dept.id)}</small>
+          <div class="department-users-tags">
+            ${(dept.users || []).length ? (dept.users || []).map(user => `<span>${esc(user.label || user.name || user.email || user.id)}</span>`).join('') : '<em>مفيش يوزرات مختارة</em>'}
+          </div>
         </div>
         <div class="department-card-actions">
-          <button type="button" class="soft-btn" data-edit-department="${esc(d.id)}">تعديل</button>
-          <button type="button" class="ghost-btn danger-btn" data-delete-department="${esc(d.id)}">مسح</button>
+          <button type="button" class="soft-btn" data-edit-department="${esc(dept.id)}">تعديل</button>
+          <button type="button" class="ghost-btn danger-btn" data-delete-department="${esc(dept.id)}">مسح</button>
         </div>
       </article>`).join('');
   }
-  function resetForm(){ editingId=''; $('#departmentForm')?.reset(); $('#departmentId').value=''; $('#departmentFormTitle').textContent='إضافة قسم جديد'; renderUserChecks([]); }
-  async function refresh(){ currentUsers = await loadUsers(); currentDepartments = await loadDepartments(); renderUserChecks([]); renderList(); }
+
+  function resetForm(){
+    editingId = '';
+    $('#departmentForm')?.reset();
+    const idInput = $('#departmentId');
+    if(idInput) idInput.value = '';
+    const title = $('#departmentFormTitle');
+    if(title) title.textContent = 'إضافة قسم جديد';
+    renderUserChecks([]);
+  }
+
   function selectedUsersFromForm(){
-    const checked = new Set($$('#departmentUsersPicker input:checked').map(i=>i.value));
-    return currentUsers.filter(u=>checked.has(String(u.email||u.id||u.name).toLowerCase()));
+    const selectedKeys = new Set($$('#departmentUsersPicker input:checked').map(input => input.value));
+    return currentUsers.filter(user => selectedKeys.has(userKey(user)));
   }
-  function init(){
+
+  async function refresh(){
+    currentUsers = await loadUsers();
+    currentDepartments = await loadDepartments();
+    renderUserChecks([]);
+    renderDepartments();
+  }
+
+  async function init(){
     if(!document.body.classList.contains('departments-management-page')) return;
-    refresh();
+    await refresh();
+
     $('#resetDepartmentForm')?.addEventListener('click', resetForm);
-    $('#selectAllDepartmentUsers')?.addEventListener('click', ()=>$$('#departmentUsersPicker input').forEach(i=>i.checked=true));
-    $('#clearDepartmentUsers')?.addEventListener('click', ()=>$$('#departmentUsersPicker input').forEach(i=>i.checked=false));
-    $('#departmentForm')?.addEventListener('submit', async e=>{
-      e.preventDefault();
-      const name = $('#departmentName').value.trim();
-      if(!name){ alert('اكتب اسم القسم'); return; }
-      const id = editingId || $('#departmentId').value || slug(name);
-      await saveDepartment({ id, name, users: selectedUsersFromForm(), createdAt: new Date().toISOString() });
-      await refresh(); resetForm(); alert('تم حفظ القسم وربطه باليوزرات.');
-    });
-    document.addEventListener('click', async e=>{
-      const edit = e.target.closest('[data-edit-department]');
-      if(edit){
-        const dept = currentDepartments.find(d=>String(d.id)===String(edit.dataset.editDepartment));
-        if(!dept) return;
-        editingId = dept.id; $('#departmentFormTitle').textContent='تعديل قسم'; $('#departmentName').value=dept.name; $('#departmentId').value=dept.id; renderUserChecks(dept.users||[]); window.scrollTo({top:0, behavior:'smooth'});
+    $('#selectAllDepartmentUsers')?.addEventListener('click', () => $$('#departmentUsersPicker input').forEach(input => input.checked = true));
+    $('#clearDepartmentUsers')?.addEventListener('click', () => $$('#departmentUsersPicker input').forEach(input => input.checked = false));
+
+    $('#departmentForm')?.addEventListener('submit', async event => {
+      event.preventDefault();
+      const nameInput = $('#departmentName');
+      const idInput = $('#departmentId');
+      const name = nameInput?.value.trim();
+      if(!name){
+        alert('اكتب اسم القسم');
+        return;
       }
-      const del = e.target.closest('[data-delete-department]');
-      if(del && confirm('تمسح القسم ده؟')){ await deleteDepartment(del.dataset.deleteDepartment); await refresh(); resetForm(); }
+      const existing = currentDepartments.find(d => String(d.id) === String(editingId));
+      const id = editingId || idInput?.value || makeSlug(name);
+      await saveDepartment({
+        ...(existing || {}),
+        id,
+        name,
+        users: selectedUsersFromForm()
+      });
+      await refresh();
+      resetForm();
+      alert('تم حفظ القسم وربطه باليوزرات.');
+    });
+
+    document.addEventListener('click', async event => {
+      const editButton = event.target.closest('[data-edit-department]');
+      if(editButton){
+        const dept = currentDepartments.find(d => String(d.id) === String(editButton.dataset.editDepartment));
+        if(!dept) return;
+        editingId = dept.id;
+        const title = $('#departmentFormTitle');
+        if(title) title.textContent = 'تعديل قسم';
+        const nameInput = $('#departmentName');
+        const idInput = $('#departmentId');
+        if(nameInput) nameInput.value = dept.name;
+        if(idInput) idInput.value = dept.id;
+        renderUserChecks(dept.users || []);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+
+      const deleteButton = event.target.closest('[data-delete-department]');
+      if(deleteButton && confirm('تمسح القسم ده؟')){
+        await deleteDepartment(deleteButton.dataset.deleteDepartment);
+        await refresh();
+        resetForm();
+      }
     });
   }
+
   document.addEventListener('DOMContentLoaded', init);
-  window.MZJDepartments = { loadDepartments, loadUsers, saveDepartment };
+  window.MZJDepartments = { loadDepartments, loadUsers, saveDepartment, deleteDepartment };
 })();

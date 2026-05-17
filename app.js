@@ -1372,6 +1372,7 @@ function initCreateTaskFromTemplate() {
   const addDepartmentBtn = null;
   const note = document.getElementById('createTaskFormNote');
   const campaignCodeInput = document.getElementById('campaignCode');
+  const campaignNameInput = document.getElementById('campaignName');
   const generateCampaignCodeBtn = document.getElementById('generateCampaignCodeBtn');
   const campaignTypeSelect = document.getElementById('campaignTypeName');
   const newCampaignTypeInput = document.getElementById('newCampaignTypeName');
@@ -1425,6 +1426,12 @@ function initCreateTaskFromTemplate() {
     agendaYearSelect.value = String(currentYear);
   }
 
+  function getAgendaName(month, year) {
+    const monthOption = agendaMonthSelect?.querySelector(`option[value="${month}"]`);
+    const monthName = (monthOption?.textContent || month || '').trim();
+    return `${monthName} ${year}`.trim();
+  }
+
   function applyAgendaDefaults(forceDates = true) {
     if (typeSelect?.value !== 'agenda') return;
     fillAgendaYears();
@@ -1435,6 +1442,7 @@ function initCreateTaskFromTemplate() {
     const year = agendaYearSelect?.value || String(now.getFullYear());
     const range = monthRangeDates(year, month);
     if (campaignCodeInput) campaignCodeInput.value = generateCampaignCode('agenda', month, year);
+    if (campaignNameInput) campaignNameInput.value = getAgendaName(month, year);
     if (campaignTypeSelect) campaignTypeSelect.value = 'أجندة';
     if (campaignGoalInput) campaignGoalInput.value = 'تفاعلي';
     if (forceDates) {
@@ -1449,7 +1457,10 @@ function initCreateTaskFromTemplate() {
     if (campaignEndDateLabel) campaignEndDateLabel.textContent = isAgenda ? 'تاريخ نهاية الأجندة' : 'تاريخ نهاية الحملة';
     if (agendaMonthYearWrap) agendaMonthYearWrap.hidden = !isAgenda;
     if (campaignTypeAddRow) campaignTypeAddRow.hidden = isAgenda;
+    if (newCampaignTypeInput) newCampaignTypeInput.closest('.mzj-field')?.classList.toggle('is-hidden', isAgenda);
+    if (addCampaignTypeBtn) addCampaignTypeBtn.classList.toggle('is-hidden', isAgenda);
     if (campaignTypeSelect) campaignTypeSelect.disabled = isAgenda;
+    if (campaignNameInput) campaignNameInput.readOnly = isAgenda;
     if (isAgenda) applyAgendaDefaults(true);
   }
 
@@ -2250,12 +2261,12 @@ function initCreateTaskFromTemplate() {
       templateFields: selectedTemplate?.headers || [],
       templateValues: collectTemplateValues(),
       taskDate: formData.get('taskDate') || '',
-      campaignName: formData.get('campaignName') || '',
+      campaignName: taskType === 'agenda' ? getAgendaName(agendaMonthSelect?.value || '', agendaYearSelect?.value || '') : (formData.get('campaignName') || ''),
       campaignCode: formData.get('campaignCode') || generateCampaignCode(taskType),
       campaignTypeName: taskType === 'agenda' ? 'أجندة' : (formData.get('campaignTypeName') || ''),
       agendaMonth: taskType === 'agenda' ? (agendaMonthSelect?.value || '') : '',
       agendaYear: taskType === 'agenda' ? (agendaYearSelect?.value || '') : '',
-      campaignGoal: formData.get('campaignGoal') || '',
+      campaignGoal: taskType === 'agenda' ? 'تفاعلي' : (formData.get('campaignGoal') || ''),
       campaignStartDate: formData.get('campaignStartDate') || '',
       campaignEndDate: formData.get('campaignEndDate') || '',
       launchDate: formData.get('campaignStartDate') || '',

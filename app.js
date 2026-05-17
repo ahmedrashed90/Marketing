@@ -1230,14 +1230,28 @@ async function loadCampaignTypes() {
   return Array.from(map.values());
 }
 
-function generateCampaignCode(taskType = 'campaign') {
-  const prefix = taskType === 'agenda' ? 'AG' : 'CA';
+function generateCampaignCode(taskType = 'campaign', agendaMonth = '', agendaYear = '') {
+  if (taskType === 'agenda') {
+    const now = new Date();
+    const month = String(agendaMonth || (now.getMonth() + 1)).padStart(2, '0');
+    const year = String(agendaYear || now.getFullYear());
+    return `AG-${month}-${year}`;
+  }
   const now = new Date();
   const y = String(now.getFullYear()).slice(-2);
   const m = String(now.getMonth() + 1).padStart(2, '0');
   const d = String(now.getDate()).padStart(2, '0');
   const rand = Math.floor(1000 + Math.random() * 9000);
-  return `${prefix}-${y}${m}${d}-${rand}`;
+  return `CA-${y}${m}${d}-${rand}`;
+}
+
+function monthRangeDates(year, month) {
+  const y = Number(year) || new Date().getFullYear();
+  const m = Math.max(1, Math.min(12, Number(month) || (new Date().getMonth() + 1)));
+  const start = `${y}-${String(m).padStart(2, '0')}-01`;
+  const last = new Date(y, m, 0).getDate();
+  const end = `${y}-${String(m).padStart(2, '0')}-${String(last).padStart(2, '0')}`;
+  return { start, end };
 }
 
 function deptKindFromName(name) {
@@ -1362,6 +1376,13 @@ function initCreateTaskFromTemplate() {
   const campaignTypeSelect = document.getElementById('campaignTypeName');
   const newCampaignTypeInput = document.getElementById('newCampaignTypeName');
   const addCampaignTypeBtn = document.getElementById('addCampaignTypeBtn');
+  const campaignTypeAddRow = document.querySelector('.campaign-type-add-row');
+  const agendaMonthYearWrap = document.getElementById('agendaMonthYearWrap');
+  const agendaMonthSelect = document.getElementById('agendaMonth');
+  const agendaYearSelect = document.getElementById('agendaYear');
+  const campaignStartDateInput = document.getElementById('campaignStartDate');
+  const campaignEndDateInput = document.getElementById('campaignEndDate');
+  const campaignGoalInput = document.getElementById('campaignGoal');
   const campaignStartDateLabel = document.getElementById('campaignStartDateLabel');
   const campaignEndDateLabel = document.getElementById('campaignEndDateLabel');
   const budgetItemsList = document.getElementById('budgetItemsList');
@@ -1384,6 +1405,9 @@ function initCreateTaskFromTemplate() {
     if (!campaignTypeSelect) return;
     const current = campaignTypeSelect.value;
     campaignTypeSelect.innerHTML = '<option value="">اختار نوع الحملة</option>' + campaignTypesCache.map((type) => `<option value="${escapeHTML(type.name)}">${escapeHTML(type.name)}</option>`).join('');
+    if (!Array.from(campaignTypeSelect.options).some((opt) => opt.value === 'أجندة')) {
+      campaignTypeSelect.insertAdjacentHTML('beforeend', '<option value="أجندة">أجندة</option>');
+    }
     if (current) campaignTypeSelect.value = current;
   }
 
@@ -1392,15 +1416,50 @@ function initCreateTaskFromTemplate() {
     renderCampaignTypesOptions();
   }
 
+  function fillAgendaYears() {
+    if (!agendaYearSelect || agendaYearSelect.options.length) return;
+    const currentYear = new Date().getFullYear();
+    const years = [];
+    for (let y = currentYear - 1; y <= currentYear + 3; y += 1) years.push(y);
+    agendaYearSelect.innerHTML = years.map((year) => `<option value="${year}">${year}</option>`).join('');
+    agendaYearSelect.value = String(currentYear);
+  }
+
+  function applyAgendaDefaults(forceDates = true) {
+    if (typeSelect?.value !== 'agenda') return;
+    fillAgendaYears();
+    const now = new Date();
+    if (agendaMonthSelect && !agendaMonthSelect.value) agendaMonthSelect.value = String(now.getMonth() + 1).padStart(2, '0');
+    if (agendaYearSelect && !agendaYearSelect.value) agendaYearSelect.value = String(now.getFullYear());
+    const month = agendaMonthSelect?.value || String(now.getMonth() + 1).padStart(2, '0');
+    const year = agendaYearSelect?.value || String(now.getFullYear());
+    const range = monthRangeDates(year, month);
+    if (campaignCodeInput) campaignCodeInput.value = generateCampaignCode('agenda', month, year);
+    if (campaignTypeSelect) campaignTypeSelect.value = 'أجندة';
+    if (campaignGoalInput) campaignGoalInput.value = 'تفاعلي';
+    if (forceDates) {
+      if (campaignStartDateInput) campaignStartDateInput.value = range.start;
+      if (campaignEndDateInput) campaignEndDateInput.value = range.end;
+    }
+  }
+
   function applyDateLabels() {
     const isAgenda = typeSelect?.value === 'agenda';
     if (campaignStartDateLabel) campaignStartDateLabel.textContent = isAgenda ? 'تاريخ بداية الأجندة' : 'تاريخ بداية الحملة';
     if (campaignEndDateLabel) campaignEndDateLabel.textContent = isAgenda ? 'تاريخ نهاية الأجندة' : 'تاريخ نهاية الحملة';
+    if (agendaMonthYearWrap) agendaMonthYearWrap.hidden = !isAgenda;
+    if (campaignTypeAddRow) campaignTypeAddRow.hidden = isAgenda;
+    if (campaignTypeSelect) campaignTypeSelect.disabled = isAgenda;
+    if (isAgenda) applyAgendaDefaults(true);
   }
 
   function ensureGeneratedCode(force = false) {
     if (!campaignCodeInput) return;
-    if (force || !campaignCodeInput.value) campaignCodeInput.value = generateCampaignCode(typeSelect?.value || 'campaign');
+    if (typeSelect?.value === 'agenda') {
+      if (force || !campaignCodeInput.value) applyAgendaDefaults(false);
+      return;
+    }
+    if (force || !campaignCodeInput.value || String(campaignCodeInput.value).startsWith('AG-')) campaignCodeInput.value = generateCampaignCode(typeSelect?.value || 'campaign');
   }
 
   async function ensureDepartments() {
@@ -2025,6 +2084,13 @@ function initCreateTaskFromTemplate() {
     ensureGeneratedCode(true);
   });
 
+  [agendaMonthSelect, agendaYearSelect].forEach((select) => {
+    if (!select) return;
+    select.addEventListener('change', () => {
+      if (typeSelect.value === 'agenda') applyAgendaDefaults(true);
+    });
+  });
+
   if (generateCampaignCodeBtn) {
     generateCampaignCodeBtn.addEventListener('click', () => ensureGeneratedCode(true));
   }
@@ -2186,7 +2252,9 @@ function initCreateTaskFromTemplate() {
       taskDate: formData.get('taskDate') || '',
       campaignName: formData.get('campaignName') || '',
       campaignCode: formData.get('campaignCode') || generateCampaignCode(taskType),
-      campaignTypeName: formData.get('campaignTypeName') || '',
+      campaignTypeName: taskType === 'agenda' ? 'أجندة' : (formData.get('campaignTypeName') || ''),
+      agendaMonth: taskType === 'agenda' ? (agendaMonthSelect?.value || '') : '',
+      agendaYear: taskType === 'agenda' ? (agendaYearSelect?.value || '') : '',
       campaignGoal: formData.get('campaignGoal') || '',
       campaignStartDate: formData.get('campaignStartDate') || '',
       campaignEndDate: formData.get('campaignEndDate') || '',

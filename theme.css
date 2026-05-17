@@ -4161,3 +4161,19 @@ body.sidebar-collapsed .database-main {
 .stock-status-count {
   background: rgba(210,157,122,.15);
 }
+
+/* Agenda month/year controls inside create task */
+.agenda-month-year-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(160px, 1fr));
+  gap: 14px;
+  align-items: end;
+}
+.agenda-month-year-row[hidden] {
+  display: none !important;
+}
+@media (max-width: 720px) {
+  .agenda-month-year-row {
+    grid-template-columns: 1fr;
+  }
+}

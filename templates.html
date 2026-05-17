@@ -94,7 +94,7 @@
             <input id="templateFile" type="file" accept=".xlsx,.xls,.csv" required />
           </label>
           <button class="primary-btn" type="submit">حفظ Template في السيستم</button>
-          <p class="form-note" id="templateFormNote">القوالب محفوظة محليًا حاليًا داخل المتصفح، وجاهزة للربط مع Firebase بعد تحديد Collection.</p>
+          <p class="form-note" id="templateFormNote">القوالب تتحفظ على Firebase في campaign_templates وتظهر لكل اليوزرات حسب الصلاحيات.</p>
         </form>
       </article>
 
@@ -120,6 +120,8 @@
   </main>
 
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
   <script src="firebase-config.js"></script>
   <script src="routes.js"></script>
   <script src="auth.js"></script>

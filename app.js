@@ -740,19 +740,56 @@ document.addEventListener('keydown', (event) => {
 });
 
 // Dynamic Excel templates for campaigns and agendas
-const MZJ_TEMPLATE_STORAGE_KEY = 'mzj_task_templates_v2';
+const MZJ_TEMPLATE_COLLECTION = 'campaign_templates';
 const MZJ_CREATED_TASKS_KEY = 'mzj_created_tasks_from_templates_v1';
+let MZJ_TASK_TEMPLATES_CACHE = [];
 
-function loadTaskTemplates() {
-  try {
-    return JSON.parse(localStorage.getItem(MZJ_TEMPLATE_STORAGE_KEY) || '[]');
-  } catch (error) {
-    return [];
+function getMarketingFirestore() {
+  if (!window.firebase || !window.MZJ_FIREBASE_CONFIG || !firebase.firestore) {
+    throw new Error('Firebase SDK غير موجود أو firebase-config.js غير محمل.');
   }
+  if (!firebase.apps.length) firebase.initializeApp(window.MZJ_FIREBASE_CONFIG);
+  return firebase.firestore();
 }
 
-function saveTaskTemplates(templates) {
-  localStorage.setItem(MZJ_TEMPLATE_STORAGE_KEY, JSON.stringify(templates));
+function normalizeTaskTemplate(docId, data = {}) {
+  const template = { id: data.id || docId, ...data };
+  template.type = template.type || 'campaign';
+  template.headers = Array.isArray(template.headers) ? template.headers : [];
+  template.sampleRow = Array.isArray(template.sampleRow) ? template.sampleRow : [];
+  template.rows = Array.isArray(template.rows) ? template.rows : [];
+  template.rowsCount = Number(template.rowsCount || template.rows.length || 0);
+  return template;
+}
+
+function loadTaskTemplates() {
+  return Array.isArray(MZJ_TASK_TEMPLATES_CACHE) ? MZJ_TASK_TEMPLATES_CACHE : [];
+}
+
+async function loadTaskTemplatesFromFirebase() {
+  const db = getMarketingFirestore();
+  const snap = await db.collection(MZJ_TEMPLATE_COLLECTION).get();
+  const templates = [];
+  snap.forEach((doc) => templates.push(normalizeTaskTemplate(doc.id, doc.data() || {})));
+  templates.sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
+  MZJ_TASK_TEMPLATES_CACHE = templates;
+  return templates;
+}
+
+async function saveTaskTemplateToFirebase(template) {
+  const db = getMarketingFirestore();
+  const id = template.id || ('tpl_' + Date.now());
+  const payload = JSON.parse(JSON.stringify({ ...template, id }));
+  await db.collection(MZJ_TEMPLATE_COLLECTION).doc(id).set(payload, { merge: true });
+  await loadTaskTemplatesFromFirebase();
+  return payload;
+}
+
+async function deleteTaskTemplateFromFirebase(id) {
+  if (!id) return;
+  const db = getMarketingFirestore();
+  await db.collection(MZJ_TEMPLATE_COLLECTION).doc(String(id)).delete();
+  await loadTaskTemplatesFromFirebase();
 }
 
 function templateMatchesType(template, taskType) {
@@ -830,8 +867,15 @@ function initTemplatesPage() {
   const fileInput = document.getElementById('templateFile');
   let pendingTemplateData = null;
 
-  function renderSavedTemplates() {
-    const templates = loadTaskTemplates();
+  async function renderSavedTemplates() {
+    let templates = [];
+    try {
+      templates = await loadTaskTemplatesFromFirebase();
+      if (note) note.textContent = 'القوالب محفوظة على Firebase وتظهر لكل الأدمن واليوزرات المصرح لهم.';
+    } catch (error) {
+      templates = loadTaskTemplates();
+      if (note) note.textContent = '⚠️ فشل قراءة Templates من Firebase: ' + (error?.message || error?.code || error);
+    }
     if (!templates.length) {
       list.innerHTML = '<p class="template-empty">لسه مفيش Templates محفوظة. ارفع أول شيت واحفظه باسم.</p>';
       return;
@@ -896,7 +940,6 @@ function initTemplatesPage() {
 
     try {
       if (!pendingTemplateData) pendingTemplateData = await parseTemplateFile(file);
-      const templates = loadTaskTemplates();
       const template = {
         id: 'tpl_' + Date.now(),
         name: nameInput.value.trim(),
@@ -907,13 +950,14 @@ function initTemplatesPage() {
         sampleRow: pendingTemplateData.sampleRow,
         rows: pendingTemplateData.rows || [],
         rowsCount: pendingTemplateData.rowsCount,
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        source: 'firebase'
       };
-      templates.unshift(template);
-      saveTaskTemplates(templates);
-      renderSavedTemplates();
+      await saveTaskTemplateToFirebase(template);
+      await renderSavedTemplates();
       renderTemplatePreview(preview, template, 'تم حفظ القالب');
-      if (note) note.textContent = '✅ تم حفظ Template وسيظهر في نموذج إنشاء التاسك.';
+      if (note) note.textContent = '✅ تم حفظ Template على Firebase وسيظهر عند باقي اليوزرات.';
       form.reset();
       pendingTemplateData = null;
     } catch (error) {
@@ -921,7 +965,7 @@ function initTemplatesPage() {
     }
   });
 
-  list.addEventListener('click', (event) => {
+  list.addEventListener('click', async (event) => {
     const previewButton = event.target.closest('[data-preview-template]');
     const deleteButton = event.target.closest('[data-delete-template]');
     const templates = loadTaskTemplates();
@@ -933,10 +977,13 @@ function initTemplatesPage() {
     }
 
     if (deleteButton) {
-      const next = templates.filter((item) => item.id !== deleteButton.dataset.deleteTemplate);
-      saveTaskTemplates(next);
-      renderSavedTemplates();
-      if (note) note.textContent = 'تم حذف Template.';
+      try {
+        await deleteTaskTemplateFromFirebase(deleteButton.dataset.deleteTemplate);
+        await renderSavedTemplates();
+        if (note) note.textContent = 'تم حذف Template من Firebase.';
+      } catch (error) {
+        if (note) note.textContent = '⚠️ فشل حذف Template من Firebase: ' + (error?.message || error?.code || error);
+      }
     }
   });
 
@@ -1361,6 +1408,7 @@ function initCreateTaskFromTemplate() {
     usersCache = await loadUsersFromSystemPath();
     platformsCache = await loadMarketingPlatforms();
     await refreshCampaignTypes();
+    try { await loadTaskTemplatesFromFirebase(); } catch (error) { if (note) note.textContent = '⚠️ فشل قراءة قوالب Firebase: ' + (error?.message || error?.code || error); }
     applyDateLabels();
     ensureGeneratedCode();
     if (!departmentsList.children.length) renderAllDepartments();
@@ -1970,7 +2018,8 @@ function initCreateTaskFromTemplate() {
   if (openBtn) openBtn.addEventListener('click', openCreateTaskModal);
   if (openBtnMini) openBtnMini.addEventListener('click', openCreateTaskModal);
 
-  typeSelect.addEventListener('change', () => {
+  typeSelect.addEventListener('change', async () => {
+    try { await loadTaskTemplatesFromFirebase(); } catch (error) { if (note) note.textContent = '⚠️ فشل قراءة قوالب Firebase: ' + (error?.message || error?.code || error); }
     fillTemplateOptions();
     applyDateLabels();
     ensureGeneratedCode(true);

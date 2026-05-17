@@ -12,3 +12,17 @@ window.MZJ_FIREBASE_CONFIG = {
 
 // ضع رابط Google Apps Script Web App هنا بعد نشر الاسكربت.
 window.MZJ_DRIVE_UPLOAD_WEB_APP_URL = "";
+
+// Firebase config - MZJ stock readonly database
+window.MZJ_STOCK_FIREBASE_CONFIG = {
+  apiKey: "AIzaSyBaor-9gU1XYmTD-3YCP14Kstf7HvMEC_M",
+  authDomain: "mzj-workflow.firebaseapp.com",
+  projectId: "mzj-workflow",
+  storageBucket: "mzj-workflow.firebasestorage.app",
+  messagingSenderId: "71098850303",
+  appId: "1:71098850303:web:ac5d165282c197f8fa65ca",
+  measurementId: "G-N5Q63YGLWF"
+};
+
+// مسار السيارات في قاعدة الاستوك. صفحة الاستوك قراءة فقط ولا تنفذ أي create/update/delete.
+window.MZJ_STOCK_CARS_COLLECTION = "cars";

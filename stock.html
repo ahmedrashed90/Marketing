@@ -33,36 +33,138 @@
       <a class="nav-link" href="campaigns-calendar.html" data-route="campaignsCalendar"><span class="nav-icon">08</span><span class="nav-text">الحملات والأجندات</span></a>
       <a class="nav-link" href="templates.html" data-route="taskTemplates"><span class="nav-icon">09</span><span class="nav-text">قوالب الحملات</span></a>
       <a class="nav-link" href="platforms.html" data-route="platforms"><span class="nav-icon">10</span><span class="nav-text">منصات الميزانية</span></a>
-    <a class="nav-link" href="login.html" data-route="login"><span class="nav-icon">11</span><span class="nav-text">تسجيل الدخول</span></a>
+      <a class="nav-link" href="login.html" data-route="login"><span class="nav-icon">11</span><span class="nav-text">تسجيل الدخول</span></a>
     </nav>
 
     <div class="sidebar-card">
       <span class="status-dot"></span>
       <div>
         <strong>STOCK</strong>
-        <small>مسار النسخة الجديدة</small>
+        <small>قراءة فقط من قاعدة الاستوك</small>
       </div>
     </div>
   </aside>
 
-  <main class="main-shell">
+  <main class="main-shell stock-page-shell">
     <header class="topbar">
       <div class="page-title">
         <p>STOCK</p>
         <h1>صفحة الاستوك</h1>
+        <small>قراءة فقط من قاعدة بيانات mzj-workflow / مسار cars. يتم استبعاد مباع تم التسليم والأرشيف.</small>
       </div>
     </header>
 
-    <section class="workspace-card empty-state-card">
-      <span class="eyebrow">NEW VERSION ROUTE</span>
-      <h2>صفحة الاستوك</h2>
-      <p>هنا هيتبني شكل ومحتوى صفحة الاستوك لما نبدأ تفاصيلها.</p>
+    <section class="stock-controls-card workspace-card">
+      <div class="stock-controls-head">
+        <div>
+          <span class="eyebrow">READ ONLY</span>
+          <h2>استوك السيارات</h2>
+          <p>الحقول المعروضة: اسم السيارة، البيان، الموديل، اللون الخارجي، اللون الداخلي، والحالة.</p>
+        </div>
+        <button class="primary-btn" type="button" id="stockRefreshBtn">تحديث</button>
+      </div>
+      <div class="stock-filter-grid">
+        <label>
+          <span>بحث سريع</span>
+          <input id="stockSearchInput" type="search" placeholder="ابحث بالـ VIN، اسم السيارة، البيان، اللون، الموديل..." />
+        </label>
+        <label>
+          <span>فلتر الحالة</span>
+          <select id="stockStatusFilter">
+            <option value="all">كل الحالات</option>
+          </select>
+        </label>
+      </div>
+    </section>
+
+    <section class="stats-grid stock-stats-grid">
+      <article class="stat-card">
+        <span>إجمالي ظاهر</span>
+        <strong id="stockCountShown">0</strong>
+        <small>حسب البحث الحالي</small>
+      </article>
+      <article class="stat-card">
+        <span>إجمالي بعد الاستبعاد</span>
+        <strong id="stockCountAll">0</strong>
+        <small>بدون مباع تم التسليم والأرشيف</small>
+      </article>
+      <article class="stat-card">
+        <span>متاح للبيع</span>
+        <strong id="stockCountAvailable">0</strong>
+        <small>حسب حقل status</small>
+      </article>
+      <article class="stat-card">
+        <span>حجز</span>
+        <strong id="stockCountReserved">0</strong>
+        <small>حسب حقل status</small>
+      </article>
+      <article class="stat-card">
+        <span>مباع تحت التسليم</span>
+        <strong id="stockCountHandover">0</strong>
+        <small>حسب حقل status</small>
+      </article>
+    </section>
+
+    <section class="workspace-card stock-specs-card">
+      <div class="stock-section-title">
+        <span class="eyebrow">unique spec key</span>
+        <h2>حصر الماركات والمواصفات والألوان المتاحة</h2>
+        <small>تجميع قراءة فقط حسب اسم السيارة + البيان + الموديل، مع عدد السيارات والألوان المتاحة.</small>
+      </div>
+      <div class="stock-table-wrap stock-specs-wrap">
+        <table class="stock-table stock-specs-table">
+          <thead>
+            <tr>
+              <th>م</th>
+              <th>Unique Spec Key</th>
+              <th>اسم السيارة</th>
+              <th>الموديل</th>
+              <th>العدد</th>
+              <th>الألوان الخارجية المتاحة</th>
+              <th>الألوان الداخلية المتاحة</th>
+              <th>الحالات</th>
+            </tr>
+          </thead>
+          <tbody id="stockSpecsBody">
+            <tr><td colspan="8" class="stock-empty">جاري تحميل الحصر...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="workspace-card stock-table-card">
+      <div class="stock-section-title">
+        <span class="eyebrow">cars</span>
+        <h2>قائمة السيارات</h2>
+      </div>
+      <div class="stock-table-wrap">
+        <table class="stock-table">
+          <thead>
+            <tr>
+              <th>م</th>
+              <th>VIN</th>
+              <th>اسم السيارة</th>
+              <th>البيان</th>
+              <th>الموديل</th>
+              <th>الخارجي</th>
+              <th>الداخلي</th>
+              <th>الحالة</th>
+            </tr>
+          </thead>
+          <tbody id="stockTableBody">
+            <tr><td colspan="8" class="stock-empty">جاري تحميل الاستوك...</td></tr>
+          </tbody>
+        </table>
+      </div>
     </section>
   </main>
 
+  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
   <script src="firebase-config.js"></script>
   <script src="routes.js"></script>
   <script src="auth.js"></script>
   <script src="app.js"></script>
+  <script src="stock-management.js"></script>
 </body>
 </html>

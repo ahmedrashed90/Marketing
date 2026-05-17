@@ -3898,3 +3898,266 @@ body.sidebar-collapsed .database-main {
     flex: 1;
   }
 }
+
+/* Stock readonly page */
+.stock-page-shell .topbar small {
+  display: block;
+  margin-top: 6px;
+  color: var(--muted);
+  font-weight: 800;
+}
+.stock-controls-card { display: grid; gap: 18px; }
+.stock-controls-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.stock-controls-head h2,
+.stock-section-title h2 {
+  margin: 6px 0 4px;
+  color: var(--brown-900);
+  font-size: 26px;
+}
+.stock-controls-head p {
+  margin: 0;
+  color: var(--muted);
+  font-weight: 800;
+}
+.stock-filter-grid {
+  display: grid;
+  grid-template-columns: minmax(280px, 1fr) 260px;
+  gap: 14px;
+}
+.stock-filter-grid label {
+  display: grid;
+  gap: 8px;
+  font-weight: 900;
+  color: var(--brown-900);
+}
+.stock-filter-grid input,
+.stock-filter-grid select {
+  width: 100%;
+  border: 1px solid rgba(62,36,32,.10);
+  border-radius: 16px;
+  background: rgba(255,248,239,.9);
+  padding: 14px 16px;
+  font: inherit;
+  font-weight: 800;
+  color: var(--brown-900);
+  outline: none;
+}
+.stock-filter-grid input:focus,
+.stock-filter-grid select:focus {
+  border-color: rgba(210,157,122,.78);
+  box-shadow: 0 0 0 4px rgba(210,157,122,.16);
+}
+.stock-stats-grid {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+.stock-table-card,
+.stock-cards-section { overflow: hidden; }
+.stock-section-title {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.stock-table-wrap {
+  overflow: auto;
+  border-radius: 22px;
+  border: 1px solid rgba(62,36,32,.10);
+  background: rgba(255,248,239,.55);
+}
+.stock-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 1040px;
+  font-size: 14px;
+}
+.stock-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--brown-900);
+  color: var(--cream);
+  padding: 13px 10px;
+  white-space: nowrap;
+  text-align: center;
+  border-inline-end: 1px solid rgba(255,255,255,.12);
+}
+.stock-table td {
+  padding: 12px 10px;
+  border-bottom: 1px solid rgba(62,36,32,.08);
+  border-inline-end: 1px solid rgba(62,36,32,.06);
+  text-align: center;
+  font-weight: 800;
+  color: var(--brown-900);
+  vertical-align: middle;
+}
+.stock-table td:nth-child(4) {
+  min-width: 300px;
+  text-align: right;
+  line-height: 1.7;
+}
+.stock-table tr:hover td { background: rgba(210,157,122,.08); }
+.stock-empty {
+  text-align: center !important;
+  padding: 28px !important;
+  color: var(--muted) !important;
+  font-weight: 900 !important;
+}
+.stock-error { color: #9d2d20 !important; }
+.stock-muted { color: var(--muted); font-weight: 800; }
+.stock-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 96px;
+  padding: 7px 11px;
+  border-radius: 999px;
+  background: rgba(62,36,32,.08);
+  color: var(--brown-900);
+  font-weight: 900;
+  white-space: nowrap;
+}
+.stock-status.is-available { background: rgba(57,132,83,.12); color: #2c6f44; }
+.stock-status.is-reserved { background: rgba(210,157,122,.20); color: #7a4929; }
+.stock-status.is-sold { background: rgba(88,48,42,.13); color: var(--brown-900); }
+.stock-status.is-notes { background: rgba(160,64,48,.12); color: #8e2f21; }
+.stock-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+.stock-car-card {
+  padding: 16px;
+  border-radius: 22px;
+  background: rgba(255,248,239,.72);
+  border: 1px solid rgba(62,36,32,.10);
+  box-shadow: 0 16px 34px rgba(62,36,32,.06);
+  display: grid;
+  gap: 12px;
+}
+.stock-car-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.stock-car-head strong {
+  font-size: 18px;
+  color: var(--brown-900);
+}
+.stock-vin {
+  color: var(--muted);
+  font-weight: 900;
+  letter-spacing: .04em;
+}
+.stock-car-card p {
+  margin: 0;
+  color: var(--brown-900);
+  line-height: 1.75;
+  font-weight: 800;
+}
+.stock-mini-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.stock-mini-grid span {
+  border-radius: 14px;
+  background: rgba(255,255,255,.55);
+  padding: 10px;
+  display: grid;
+  gap: 4px;
+  font-weight: 900;
+}
+.stock-mini-grid b {
+  color: var(--muted);
+  font-size: 12px;
+}
+.stock-empty-card {
+  grid-column: 1/-1;
+  padding: 22px;
+  border-radius: 18px;
+  background: rgba(255,248,239,.72);
+  color: var(--muted);
+  font-weight: 900;
+  text-align: center;
+}
+.stock-link {
+  color: var(--brown-900);
+  font-weight: 900;
+}
+@media (max-width: 1100px) {
+  .stock-stats-grid,
+  .stock-cards-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .stock-filter-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 720px) {
+  .stock-controls-head { flex-direction: column; align-items: stretch; }
+  .stock-stats-grid,
+  .stock-cards-grid { grid-template-columns: 1fr; }
+  .stock-mini-grid { grid-template-columns: 1fr; }
+}
+
+/* Stock Unique Spec Key */
+.stock-specs-card { overflow: hidden; }
+.stock-section-title small {
+  color: var(--muted);
+  font-weight: 800;
+  line-height: 1.7;
+}
+.stock-specs-table {
+  min-width: 1180px;
+}
+.stock-specs-table td:nth-child(2) {
+  min-width: 320px;
+  text-align: right;
+  line-height: 1.55;
+}
+.stock-spec-key {
+  display: table-cell;
+}
+.stock-spec-key strong {
+  display: block;
+  color: var(--brown-900);
+  font-weight: 900;
+}
+.stock-spec-key small {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-weight: 800;
+}
+.stock-count-pill {
+  display: inline-flex;
+  min-width: 44px;
+  height: 34px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: rgba(62,36,32,.10);
+  color: var(--brown-900);
+  font-weight: 900;
+}
+.stock-color-tag,
+.stock-status-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin: 3px;
+  padding: 7px 10px;
+  border-radius: 999px;
+  background: rgba(255,255,255,.72);
+  border: 1px solid rgba(62,36,32,.08);
+  color: var(--brown-900);
+  font-size: 12px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+.stock-status-count {
+  background: rgba(210,157,122,.15);
+}

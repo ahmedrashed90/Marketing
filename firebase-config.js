@@ -1,11 +1,12 @@
-// Firebase config - MZJ Workspace new marketing system
+// Firebase config - MZJ Marketing system
 window.MZJ_FIREBASE_CONFIG = {
-  apiKey: "AIzaSyDXXDsJKnKb_0HynSTnP22QYc0yrUdx-cw",
-  authDomain: "mzj-workspace-c7d4e.firebaseapp.com",
-  projectId: "mzj-workspace-c7d4e",
-  storageBucket: "mzj-workspace-c7d4e.firebasestorage.app",
-  messagingSenderId: "1080687990992",
-  appId: "1:1080687990992:web:4a496249bbf330fc37a6d5"
+  apiKey: "AIzaSyCQYrkIcCkaNr5jJ6i0Mm_jZueMG5xxYfo",
+  authDomain: "mzj-marketing.firebaseapp.com",
+  projectId: "mzj-marketing",
+  storageBucket: "mzj-marketing.firebasestorage.app",
+  messagingSenderId: "248608341168",
+  appId: "1:248608341168:web:1671790c1bc4b609328f75",
+  measurementId: "G-NGV75EXFRM"
 };
 
 // عند ربط Firebase SDK لاحقًا، استخدم window.MZJ_FIREBASE_CONFIG كمصدر واحد للكونفيج.

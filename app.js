@@ -924,11 +924,37 @@ function initTemplatesPage() {
     `).join('');
   }
 
+
+  function normalizedWorkbookSheetName(name) {
+    return templateCellText(name).toLowerCase().replace(/[\s_\-]+/g, '').replace(/[إأآا]/g, 'ا').replace(/[ىي]/g, 'ي').replace(/ة/g, 'ه');
+  }
+
+  function pickCampaignContentSheetName(workbook) {
+    const names = workbook?.SheetNames || [];
+    if (!names.length) return '';
+    const wanted = [
+      'محتوي الحمله',
+      'محتوى الحملة',
+      'محتوي الحملة',
+      'محتوى الحمله',
+      'campaign content',
+      'campaign_content'
+    ].map(normalizedWorkbookSheetName);
+    const exact = names.find((name) => wanted.includes(normalizedWorkbookSheetName(name)));
+    if (exact) return exact;
+    const loose = names.find((name) => {
+      const key = normalizedWorkbookSheetName(name);
+      return (key.includes('محتوي') || key.includes('محتوى')) && (key.includes('الحمله') || key.includes('الحملة'));
+    });
+    if (loose) return loose;
+    return names[0];
+  }
+
   async function parseTemplateFile(file) {
     if (!window.XLSX) throw new Error('مكتبة قراءة Excel لم يتم تحميلها. تأكد من الاتصال بالإنترنت أو أضف ملف xlsx.full.min.js محلياً.');
     const buffer = await file.arrayBuffer();
     const workbook = XLSX.read(buffer, { type: 'array' });
-    const firstSheetName = workbook.SheetNames[0];
+    const firstSheetName = pickCampaignContentSheetName(workbook);
     const sheet = workbook.Sheets[firstSheetName];
     const rawRows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
     const cleanRows = rawRows
@@ -2446,10 +2472,10 @@ function initCreateTaskFromTemplate() {
       await ensureDepartments();
       const buffer = await file.arrayBuffer();
       const workbook = XLSX.read(buffer, { type: 'array', cellDates: true });
-      const sheetName = workbook.SheetNames[0];
+      const sheetName = pickCampaignContentSheetName(workbook);
       const rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1, defval: '', raw: false });
       const cleanRows = rows.map((row) => (row || []).map((cell) => templateCellText(cell))).filter((row) => row.some(Boolean));
-      applyImportedTemplateRows(cleanRows, file.name);
+      applyImportedTemplateRows(cleanRows, `${file.name} / ${sheetName}`);
     } catch (error) {
       if (note) note.textContent = '⚠️ فشل تحميل Template: ' + (error?.message || error);
     }

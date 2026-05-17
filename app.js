@@ -2005,6 +2005,138 @@ function initCreateTaskFromTemplate() {
     if (textarea && !textarea.value) textarea.value = text;
   }
 
+
+  // Excel upload: Simple dashboard template parser.
+  // Expected columns: القسم | اليوزر بالاسم | التاريخ المطلوب | تاريخ التسليم | المطلوب كتابة | اختيار 1 | اختيار 2 | اختيار 3 | نوع السيارة | نوع محتوى التصوير
+  function importHeaderKey(value) {
+    return templateCellText(value).replace(/[\sـ_\-\/\\]+/g, '').replace(/[إأآا]/g, 'ا').replace(/ة/g, 'ه').toLowerCase();
+  }
+
+  function findImportColumn(headers, variants) {
+    const wanted = variants.map(importHeaderKey);
+    return headers.findIndex((header) => {
+      const key = importHeaderKey(header);
+      return wanted.some((variant) => key === variant || key.includes(variant) || variant.includes(key));
+    });
+  }
+
+  function findSimpleAssignmentsHeader(rows) {
+    return rows.findIndex((row) => {
+      const joined = (row || []).map(importHeaderKey).join('|');
+      return joined.includes('القسم') && (joined.includes('اليوزر') || joined.includes('المسؤول') || joined.includes('المسئول'));
+    });
+  }
+
+  function addOrGetDepartmentAssignment(deptRow, index) {
+    const list = deptRow?.querySelector('[data-department-assignments-list]');
+    if (!list) return null;
+    while (list.querySelectorAll('[data-department-assignment-row]').length <= index) addDepartmentAssignmentRow(deptRow);
+    refreshDepartmentAssignmentNumbers(deptRow);
+    return list.querySelectorAll('[data-department-assignment-row]')[index] || null;
+  }
+
+  function clearAssignmentRequirement(assignmentRow) {
+    if (!assignmentRow) return;
+    assignmentRow.querySelectorAll('[data-design-deliverable], [data-montage-deliverable]').forEach((input) => {
+      input.checked = false;
+      input.closest('.multi-choice-card')?.classList.remove('is-checked');
+    });
+    assignmentRow.querySelectorAll('[data-required-text]').forEach((textarea) => { textarea.value = ''; });
+    const photoList = assignmentRow.querySelector('[data-photo-items-list]');
+    if (photoList) photoList.innerHTML = '';
+  }
+
+  function selectDeliverablesInsideAssignment(kind, assignmentRow, rawText) {
+    const text = templateCellText(rawText);
+    if (!text || !assignmentRow) return;
+    const attr = kind === 'design' ? '[data-design-deliverable]' : '[data-montage-deliverable]';
+    assignmentRow.querySelectorAll(attr).forEach((input) => {
+      const title = templateCellText(input.dataset.title || input.value);
+      const desc = templateCellText(input.dataset.desc || '');
+      const checked = title && (text.includes(title) || title.includes(text) || (desc && text.includes(desc)));
+      if (checked) {
+        input.checked = true;
+        input.closest('.multi-choice-card')?.classList.add('is-checked');
+      }
+    });
+  }
+
+  function fillPhotoInsideAssignment(assignmentRow, carType, contentType, freeText) {
+    if (!assignmentRow) return;
+    const list = assignmentRow.querySelector('[data-photo-items-list]');
+    if (!list) return;
+    list.innerHTML = '';
+    const source = templateCellText(contentType || freeText);
+    const chosenType = PHOTOGRAPHY_CONTENT_TYPES.find((type) => source.includes(type)) || '';
+    const car = templateCellText(carType || freeText).replace(chosenType, '').trim();
+    const item = document.createElement('article');
+    item.className = 'photo-item-row';
+    item.dataset.photoItem = 'true';
+    item.innerHTML = `
+      <label class="mzj-field"><span>نوع السيارة / شرح المطلوب</span><input type="text" data-photo-car-type placeholder="مثال: هيونداي / النترا" value="${escapeHTML(car)}"></label>
+      <label class="mzj-field"><span>نوع المحتوى</span><select data-photo-content-type><option value="">اختار نوع المحتوى</option>${PHOTOGRAPHY_CONTENT_TYPES.map(t => `<option value="${escapeHTML(t)}" ${t === chosenType ? 'selected' : ''}>${escapeHTML(t)}</option>`).join('')}</select></label>
+      <button class="soft-danger-btn" type="button" data-remove-photo-item>مسح</button>
+    `;
+    list.appendChild(item);
+  }
+
+  function applySimpleAssignmentsFromRows(rows) {
+    const headerIndex = findSimpleAssignmentsHeader(rows);
+    if (headerIndex < 0) return false;
+    const headers = rows[headerIndex] || [];
+    const col = {
+      department: findImportColumn(headers, ['القسم']),
+      user: findImportColumn(headers, ['اليوزر بالاسم', 'اليوزر', 'المسؤول', 'المسئول']),
+      requiredDate: findImportColumn(headers, ['التاريخ المطلوب', 'تاريخ المطلوب']),
+      deliveryDate: findImportColumn(headers, ['تاريخ التسليم', 'تاريخ النشر']),
+      text: findImportColumn(headers, ['المطلوب كتابة', 'شرح المطلوب', 'المطلوب']),
+      choice1: findImportColumn(headers, ['اختيار 1', 'المطلوب اختيار 1']),
+      choice2: findImportColumn(headers, ['اختيار 2', 'المطلوب اختيار 2']),
+      choice3: findImportColumn(headers, ['اختيار 3', 'المطلوب اختيار 3']),
+      carType: findImportColumn(headers, ['نوع السيارة']),
+      photoType: findImportColumn(headers, ['نوع محتوى التصوير', 'نوع المحتوى', 'مطلوب التصوير'])
+    };
+    const perDeptCount = {};
+    let imported = 0;
+    rows.slice(headerIndex + 1).forEach((row) => {
+      const cells = row || [];
+      if (!cells.some((cell) => templateCellText(cell))) return;
+      const deptText = templateCellText(cells[col.department]);
+      if (!deptText || deptText.includes('بعد الرفع') || deptText.includes('جدول النشر') || deptText.includes('الميزانية')) return;
+      const kind = deptKindFromName(deptText);
+      const deptRow = findDepartmentRowByKind(kind);
+      if (!deptRow) return;
+      openAndEnableDepartmentRow(deptRow);
+      const idx = perDeptCount[kind] || 0;
+      perDeptCount[kind] = idx + 1;
+      const assignmentRow = addOrGetDepartmentAssignment(deptRow, idx);
+      if (!assignmentRow) return;
+      clearAssignmentRequirement(assignmentRow);
+      setDepartmentUser(assignmentRow, cells[col.user]);
+      const requiredInput = assignmentRow.querySelector('[data-required-date]');
+      const deliveryInput = assignmentRow.querySelector('[data-delivery-date]');
+      const requiredDate = normalizeImportedDate(cells[col.requiredDate]);
+      const deliveryDate = normalizeImportedDate(cells[col.deliveryDate]);
+      if (requiredInput && requiredDate) requiredInput.value = requiredDate;
+      if (deliveryInput && deliveryDate) deliveryInput.value = deliveryDate;
+      const freeText = templateCellText(cells[col.text]);
+      const choices = [cells[col.choice1], cells[col.choice2], cells[col.choice3]].map(templateCellText).filter(Boolean).join(' | ');
+      if (kind === 'design' || kind === 'montage') {
+        selectDeliverablesInsideAssignment(kind, assignmentRow, choices);
+        const textarea = assignmentRow.querySelector('[data-required-text]');
+        if (textarea) textarea.value = freeText;
+      } else if (kind === 'photography') {
+        fillPhotoInsideAssignment(assignmentRow, cells[col.carType], cells[col.photoType], freeText || choices);
+      } else {
+        const textarea = assignmentRow.querySelector('[data-required-text]');
+        if (textarea) textarea.value = freeText || choices;
+      }
+      imported += 1;
+    });
+    if (note) note.textContent = imported ? `✅ تم تحميل ${imported} تكليف من Template. راجع البيانات ثم اضغط حفظ.` : '⚠️ لم يتم العثور على تكليفات واضحة داخل Template.';
+    return true;
+  }
+
   function applyImportedSchedule(rows) {
     const scheduleStart = rows.findIndex((row) => row.some((cell) => templateCellText(cell).includes('إنشاء جدول النشر') || templateCellText(cell).includes('جدول النشر')));
     if (scheduleStart < 0 || !publishScheduleRows) return;
@@ -2062,6 +2194,15 @@ function initCreateTaskFromTemplate() {
     if (startDate && form.elements.campaignStartDate) form.elements.campaignStartDate.value = startDate;
     if (endDate && form.elements.campaignEndDate) form.elements.campaignEndDate.value = endDate;
 
+    // قالب الرفع الجديد عبارة عن جدول تكليفات بسيط. نقرأ كل صف لوحده بدل ما نقرأ نص الشيت كله
+    // حتى لا تختلط مطلوبات التصميم والمونتاج والمحتوى مع بعض.
+    if (applySimpleAssignmentsFromRows(rows)) {
+      applyImportedSchedule(rows);
+      applyImportedBudget(rows);
+      return;
+    }
+
+    // fallback للقوالب القديمة فقط.
     const sectionKinds = [
       ['photography', ['قسم التصوير']],
       ['content', ['قسم المحتوى']],

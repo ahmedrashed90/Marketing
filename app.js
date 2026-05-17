@@ -1131,17 +1131,27 @@ function renderDepartmentOptions(departments) {
 
 function normalizeSystemUser(user) {
   if (!user) return null;
-  if (typeof user === 'string') return { name: user, email: user, label: user };
-  const name = user.name || user.displayName || user.fullName || user.email || '';
-  const email = user.email || '';
-  if (!name && !email) return null;
+  if (typeof user === 'string') {
+    const value = user.trim ? user.trim() : String(user);
+    return value ? { id: value, uid: value, name: value, email: '', department: '', label: value } : null;
+  }
+  const email = String(user.email || user.mail || user.userEmail || '').trim();
+  const uid = String(user.uid || user.userId || user.id || email || user.name || user.displayName || '').trim();
+  const id = String(user.id || user.uid || user.userId || email || user.name || user.displayName || '').trim();
+  const name = String(user.name || user.displayName || user.fullName || user.username || email || id || uid || '').trim();
+  if (!id && !uid && !name && !email) return null;
+  const department = user.department || user.departmentId || user.departmentName || user.section || user.sectionId || '';
   return {
-    id: user.id || user.uid || email || name,
-    name,
+    id: id || uid || email || name,
+    uid: uid || id || email || name,
+    name: name || email || id || uid,
+    displayName: user.displayName || name || email || id || uid,
     email,
-    department: user.department || user.departmentId || '',
+    department,
+    departmentId: user.departmentId || user.department || '',
+    departmentName: user.departmentName || user.sectionName || '',
     role: user.role || 'user',
-    label: email && name && email !== name ? `${name} — ${email}` : (name || email)
+    label: email && name && email !== name ? `${name} — ${email}` : (name || email || id || uid)
   };
 }
 
@@ -1194,20 +1204,35 @@ function usersForDepartment(dept, allUsers) {
   const normalizedAllUsers = (allUsers || []).map(normalizeSystemUser).filter(Boolean);
   const byKey = new Map();
   normalizedAllUsers.forEach((user) => {
-    [user.id, user.uid, user.email, user.name].filter(Boolean).forEach((key) => byKey.set(String(key).toLowerCase(), user));
+    [user.id, user.uid, user.email, user.name, user.displayName].filter(Boolean).forEach((key) => {
+      byKey.set(String(key).trim().toLowerCase(), user);
+    });
   });
 
   const explicitUsers = Array.isArray(dept?.users) ? dept.users.map(normalizeSystemUser).filter(Boolean) : [];
   const deptKeys = []
     .concat(Array.isArray(dept?.userIds) ? dept.userIds : [])
     .concat(Array.isArray(dept?.memberUids) ? dept.memberUids : [])
-    .concat(Array.isArray(dept?.memberEmails) ? dept.memberEmails : []);
-  const linkedUsers = deptKeys.map((key) => byKey.get(String(key).toLowerCase())).filter(Boolean);
-  const departmentUsers = normalizedAllUsers.filter((user) => String(user.department || '') === String(dept?.id || ''));
+    .concat(Array.isArray(dept?.memberEmails) ? dept.memberEmails : [])
+    .concat(Array.isArray(dept?.members) ? dept.members : [])
+    .concat(Array.isArray(dept?.assignees) ? dept.assignees : []);
+  const linkedUsers = deptKeys.map((key) => {
+    if (key && typeof key === 'object') return normalizeSystemUser(key);
+    return byKey.get(String(key || '').trim().toLowerCase());
+  }).filter(Boolean);
+
+  const deptId = String(dept?.id || '').trim().toLowerCase();
+  const deptName = String(dept?.name || dept?.departmentName || '').trim().toLowerCase();
+  const departmentUsers = normalizedAllUsers.filter((user) => {
+    const values = [user.department, user.departmentId, user.departmentName, user.section, user.sectionId]
+      .filter(Boolean)
+      .map((value) => String(value).trim().toLowerCase());
+    return values.includes(deptId) || values.includes(deptName);
+  });
 
   const merged = new Map();
   [...explicitUsers, ...linkedUsers, ...departmentUsers].forEach((user) => {
-    const key = String(user.email || user.id || user.name || '').toLowerCase();
+    const key = String(user.uid || user.id || user.email || user.name || '').trim().toLowerCase();
     if (key) merged.set(key, { ...user, department: user.department || dept?.id || '' });
   });
   return Array.from(merged.values());
@@ -1536,7 +1561,9 @@ function initCreateTaskFromTemplate() {
     try { await loadTaskTemplatesFromFirebase(); } catch (error) { if (note) note.textContent = '⚠️ فشل قراءة قوالب Firebase: ' + (error?.message || error?.code || error); }
     applyDateLabels();
     ensureGeneratedCode();
-    if (!departmentsList.children.length) renderAllDepartments();
+    // نرسم الأقسام في كل فتح للنافذة علشان أي تعديل في صفحة الأقسام يظهر فورًا
+    // سواء نوع الإنشاء حملة أو أجندة. كل قسم له قائمة يوزرات مستقلة من departments.
+    renderAllDepartments();
     if (budgetItemsList && !budgetItemsList.children.length) createBudgetItem();
     updateBudgetTotal();
   }

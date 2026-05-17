@@ -1605,6 +1605,62 @@ function initCreateTaskFromTemplate() {
     return { rows: [], flat: [] };
   }
 
+  function createDepartmentAssignmentHTML(dept, index = 1) {
+    const kind = deptKindFromName(dept.name);
+    return `
+      <article class="department-assignment-row" data-department-assignment-row data-assignment-index="${escapeHTML(index)}">
+        <div class="department-assignment-head">
+          <strong>\u062a\u0643\u0644\u064a\u0641 ${escapeHTML(index)}</strong>
+          <button class="soft-danger-btn" type="button" data-remove-department-assignment>\u0645\u0633\u062d \u0627\u0644\u062a\u0643\u0644\u064a\u0641</button>
+        </div>
+        <div class="department-task-grid department-task-core-grid">
+          <label class="mzj-field">
+            <span>\u0627\u0644\u064a\u0648\u0632\u0631 / \u0627\u0644\u0645\u0633\u0624\u0648\u0644</span>
+            <select data-user-select>${renderUserOptions(usersForDepartment(dept, usersCache), '', false)}</select>
+          </label>
+
+          <label class="mzj-field">
+            <span>\u0627\u0644\u062a\u0627\u0631\u064a\u062e \u0627\u0644\u0645\u0637\u0644\u0648\u0628</span>
+            <input type="date" data-required-date>
+          </label>
+
+          <label class="mzj-field">
+            <span>${kind === 'publish' ? '\u062a\u0627\u0631\u064a\u062e \u0627\u0644\u0646\u0634\u0631' : '\u062a\u0627\u0631\u064a\u062e \u0627\u0644\u062a\u0633\u0644\u064a\u0645'}</span>
+            <input type="date" data-delivery-date>
+          </label>
+        </div>
+
+        ${buildSpecialDepartmentFields(kind)}
+      </article>
+    `;
+  }
+
+  function refreshDepartmentAssignmentNumbers(deptRow) {
+    if (!deptRow) return;
+    Array.from(deptRow.querySelectorAll('[data-department-assignment-row]')).forEach((assignment, index) => {
+      assignment.dataset.assignmentIndex = String(index + 1);
+      const title = assignment.querySelector('.department-assignment-head strong');
+      if (title) title.textContent = '\u062a\u0643\u0644\u064a\u0641 ' + (index + 1);
+    });
+  }
+
+  function addDepartmentAssignmentRow(deptRow) {
+    if (!deptRow) return null;
+    const departmentId = deptRow.dataset.departmentId || '';
+    const dept = departmentsCache.find((item) => String(item.id) === String(departmentId));
+    if (!dept) return null;
+    const list = deptRow.querySelector('[data-department-assignments-list]');
+    if (!list) return null;
+    const nextIndex = list.querySelectorAll('[data-department-assignment-row]').length + 1;
+    list.insertAdjacentHTML('beforeend', createDepartmentAssignmentHTML(dept, nextIndex));
+    refreshDepartmentAssignmentNumbers(deptRow);
+    return list.querySelector('[data-department-assignment-row]:last-child');
+  }
+
+  function getFirstDepartmentAssignment(row) {
+    return row?.matches?.('[data-department-assignment-row]') ? row : row?.querySelector?.('[data-department-assignment-row]');
+  }
+
   function createDepartmentRow(dept) {
     const row = document.createElement('article');
     const kind = deptKindFromName(dept.name);
@@ -1616,32 +1672,20 @@ function initCreateTaskFromTemplate() {
         <input type="checkbox" data-department-enabled hidden>
         <button class="department-toggle-btn" type="button" data-department-toggle>
           <strong>${escapeHTML(dept.name)}</strong>
-          <small>اضغط لفتح القسم وتحديد اليوزر والمطلوب</small>
+          <small>\u0627\u0641\u062a\u062d \u0627\u0644\u0642\u0633\u0645 \u0648\u0636\u064a\u0641 \u0623\u0643\u062b\u0631 \u0645\u0646 \u064a\u0648\u0632\u0631\u060c \u0648\u0644\u0643\u0644 \u064a\u0648\u0632\u0631 \u0645\u0637\u0644\u0648\u0628 \u0645\u062e\u062a\u0644\u0641</small>
         </button>
         <span class="department-source-label">departments</span>
       </div>
 
       <div class="department-task-body" data-department-body>
-        <div class="department-task-grid department-task-core-grid">
-          <label class="mzj-field">
-            <span>اليوزر / المسؤول</span>
-            <select data-user-select>${renderUserOptions(usersForDepartment(dept, usersCache), '', false)}</select>
-          </label>
-
-          <label class="mzj-field">
-            <span>التاريخ المطلوب</span>
-            <input type="date" data-required-date>
-          </label>
-
-          <label class="mzj-field">
-            <span>${kind === 'publish' ? 'تاريخ النشر' : 'تاريخ التسليم'}</span>
-            <input type="date" data-delivery-date>
-          </label>
+        <div class="department-assignments-head">
+          <strong>\u062a\u0643\u0644\u064a\u0641\u0627\u062a ${escapeHTML(dept.name)}</strong>
+          <button class="soft-btn" type="button" data-add-department-assignment>+ \u0625\u0636\u0627\u0641\u0629 \u064a\u0648\u0632\u0631 / \u0645\u0637\u0644\u0648\u0628</button>
         </div>
-
-        ${buildSpecialDepartmentFields(kind)}
-
-        <p class="admin-only-note department-receive-note">تأكيد استلام التاسك وتاريخ الاستلام ورفع الملف يتم من كارت اليوزر في الداش بورد.</p>
+        <div class="department-assignments-list" data-department-assignments-list>
+          ${createDepartmentAssignmentHTML(dept, 1)}
+        </div>
+        <p class="admin-only-note department-receive-note">\u062a\u0623\u0643\u064a\u062f \u0627\u0633\u062a\u0644\u0627\u0645 \u0627\u0644\u062a\u0627\u0633\u0643 \u0648\u062a\u0627\u0631\u064a\u062e \u0627\u0644\u0627\u0633\u062a\u0644\u0627\u0645 \u0648\u0631\u0641\u0639 \u0627\u0644\u0645\u0644\u0641 \u064a\u062a\u0645 \u0645\u0646 \u0643\u0627\u0631\u062a \u0627\u0644\u064a\u0648\u0632\u0631 \u0641\u064a \u0627\u0644\u062f\u0627\u0634 \u0628\u0648\u0631\u062f.</p>
       </div>
     `;
     departmentsList.appendChild(row);
@@ -1892,12 +1936,13 @@ function initCreateTaskFromTemplate() {
     if (!row || !sourceRow) return;
     openAndEnableDepartmentRow(row);
     const user = extractFirstUserLikeValue(sourceRow.filter((cell) => !templateCellText(cell).includes('قسم')));
-    setDepartmentUser(row, user);
+    const assignmentRow = getFirstDepartmentAssignment(row) || row;
+    setDepartmentUser(assignmentRow, user);
     const dates = extractDatesFromRow(sourceRow);
     const requiredDate = dates[1] || dates[0] || '';
     const deliveryDate = dates[2] || dates[1] || '';
-    const requiredInput = row.querySelector('[data-required-date]');
-    const deliveryInput = row.querySelector('[data-delivery-date]');
+    const requiredInput = assignmentRow.querySelector('[data-required-date]');
+    const deliveryInput = assignmentRow.querySelector('[data-delivery-date]');
     if (requiredInput && requiredDate) requiredInput.value = requiredDate;
     if (deliveryInput && deliveryDate) deliveryInput.value = deliveryDate;
   }
@@ -1909,7 +1954,8 @@ function initCreateTaskFromTemplate() {
     const matched = lines.filter((line) => PHOTOGRAPHY_CONTENT_TYPES.some((type) => line.includes(type)));
     if (!matched.length) return;
     openAndEnableDepartmentRow(row);
-    const list = row.querySelector('[data-photo-items-list]');
+    const assignmentRow = getFirstDepartmentAssignment(row) || row;
+    const list = assignmentRow.querySelector('[data-photo-items-list]');
     if (!list) return;
     list.innerHTML = '';
     matched.forEach((line) => {
@@ -1933,7 +1979,8 @@ function initCreateTaskFromTemplate() {
     const text = templateCellText(rawText);
     if (!text) return;
     openAndEnableDepartmentRow(row);
-    const textarea = row.querySelector('[data-required-text]');
+    const assignmentRow = getFirstDepartmentAssignment(row) || row;
+    const textarea = assignmentRow.querySelector('[data-required-text]');
     if (textarea) textarea.value = text;
   }
 
@@ -1944,7 +1991,8 @@ function initCreateTaskFromTemplate() {
     if (!text) return;
     openAndEnableDepartmentRow(row);
     const attr = kind === 'design' ? '[data-design-deliverable]' : '[data-montage-deliverable]';
-    row.querySelectorAll(attr).forEach((input) => {
+    const assignmentRow = getFirstDepartmentAssignment(row) || row;
+    assignmentRow.querySelectorAll(attr).forEach((input) => {
       const title = templateCellText(input.dataset.title || input.value);
       const desc = templateCellText(input.dataset.desc || '');
       const checked = title && (text.includes(title) || title.includes(text) || (desc && text.includes(desc)));
@@ -1953,7 +2001,7 @@ function initCreateTaskFromTemplate() {
         input.closest('.multi-choice-card')?.classList.add('is-checked');
       }
     });
-    const textarea = row.querySelector('[data-required-text]');
+    const textarea = assignmentRow.querySelector('[data-required-text]');
     if (textarea && !textarea.value) textarea.value = text;
   }
 
@@ -2118,43 +2166,53 @@ function initCreateTaskFromTemplate() {
   }
 
   function collectDepartmentTasks() {
-    return Array.from(departmentsList.querySelectorAll('.department-task-row')).map((row) => {
-      const enabled = Boolean(row.querySelector('[data-department-enabled]')?.checked);
-      const departmentId = row.dataset.departmentId || '';
+    const tasks = [];
+    Array.from(departmentsList.querySelectorAll('.department-task-row')).forEach((deptRow) => {
+      const enabled = Boolean(deptRow.querySelector('[data-department-enabled]')?.checked);
+      if (!enabled) return;
+      const departmentId = deptRow.dataset.departmentId || '';
       const department = departmentsCache.find((dept) => String(dept.id) === String(departmentId));
-      const kind = row.dataset.departmentKind || deptKindFromName(department?.name || '');
-      const special = collectSpecialDepartmentDetails(row, kind);
-      const requiredText = special.requiredText || '';
-      const selectedUser = row.querySelector('[data-user-select]')?.value || '';
-      const selectedOption = row.querySelector('[data-user-select] option:checked');
-      const selectedName = selectedOption?.dataset.userName || selectedOption?.textContent || selectedUser;
-      const selectedEmail = selectedOption?.dataset.userEmail || selectedUser;
-      const selectedId = selectedOption?.dataset.userId || selectedOption?.dataset.userUid || selectedEmail || selectedName;
-      return {
-        enabled,
-        departmentId,
-        departmentKind: kind,
-        departmentName: department?.name || '',
-        userId: selectedId,
-        userUid: selectedOption?.dataset.userUid || selectedId,
-        userName: selectedName,
-        userDisplayName: selectedName,
-        userEmail: selectedEmail,
-        assigneeUid: selectedOption?.dataset.userUid || selectedId,
-        assigneeEmail: selectedEmail,
-        assigneeName: selectedName,
-        receiveDate: '',
-        requiredDate: row.querySelector('[data-required-date]')?.value || '',
-        deliveryDate: row.querySelector('[data-delivery-date]')?.value || '',
-        receivedConfirmed: false,
-        received: false,
-        receivedAt: '',
-        receivedBy: '',
-        attachmentLabel: attachmentLabelForKind(kind),
-        requiredText,
-        requiredDetails: special
-      };
-    }).filter((task) => task.enabled && (task.departmentId || task.userName || task.requiredText));
+      const kind = deptRow.dataset.departmentKind || deptKindFromName(department?.name || '');
+      Array.from(deptRow.querySelectorAll('[data-department-assignment-row]')).forEach((assignmentRow, assignmentIndex) => {
+        const special = collectSpecialDepartmentDetails(assignmentRow, kind);
+        const requiredText = special.requiredText || '';
+        const selectedUser = assignmentRow.querySelector('[data-user-select]')?.value || '';
+        const selectedOption = assignmentRow.querySelector('[data-user-select] option:checked');
+        const optionText = selectedOption?.textContent || '';
+        const selectedName = selectedOption?.dataset.userName || (selectedUser ? optionText : '');
+        const selectedEmail = selectedOption?.dataset.userEmail || selectedUser;
+        const selectedId = selectedOption?.dataset.userId || selectedOption?.dataset.userUid || selectedEmail || selectedName;
+        const assignmentNo = assignmentIndex + 1;
+        const item = {
+          enabled,
+          departmentId,
+          departmentKind: kind,
+          departmentName: department?.name || '',
+          assignmentIndex: assignmentNo,
+          assignmentLabel: (department?.name || '') + ' - ' + '\u062a\u0643\u0644\u064a\u0641 ' + assignmentNo,
+          userId: selectedId,
+          userUid: selectedOption?.dataset.userUid || selectedId,
+          userName: selectedName,
+          userDisplayName: selectedName,
+          userEmail: selectedEmail,
+          assigneeUid: selectedOption?.dataset.userUid || selectedId,
+          assigneeEmail: selectedEmail,
+          assigneeName: selectedName,
+          receiveDate: '',
+          requiredDate: assignmentRow.querySelector('[data-required-date]')?.value || '',
+          deliveryDate: assignmentRow.querySelector('[data-delivery-date]')?.value || '',
+          receivedConfirmed: false,
+          received: false,
+          receivedAt: '',
+          receivedBy: '',
+          attachmentLabel: attachmentLabelForKind(kind),
+          requiredText,
+          requiredDetails: special
+        };
+        if (item.departmentId || item.userName || item.requiredText) tasks.push(item);
+      });
+    });
+    return tasks;
   }
 
   function openCreateTaskModal() {
@@ -2219,6 +2277,27 @@ function initCreateTaskFromTemplate() {
   });
 
   departmentsList.addEventListener('click', (event) => {
+    const addAssignment = event.target.closest('[data-add-department-assignment]');
+    if (addAssignment) {
+      const deptRow = addAssignment.closest('.department-task-row');
+      addDepartmentAssignmentRow(deptRow);
+      const checkbox = deptRow?.querySelector('[data-department-enabled]');
+      if (checkbox) checkbox.checked = true;
+      deptRow?.classList.add('is-open', 'is-selected');
+      return;
+    }
+    const removeAssignment = event.target.closest('[data-remove-department-assignment]');
+    if (removeAssignment) {
+      const deptRow = removeAssignment.closest('.department-task-row');
+      const list = removeAssignment.closest('[data-department-assignments-list]');
+      if (list && list.querySelectorAll('[data-department-assignment-row]').length > 1) {
+        removeAssignment.closest('[data-department-assignment-row]')?.remove();
+        refreshDepartmentAssignmentNumbers(deptRow);
+      } else if (note) {
+        note.textContent = '\u26a0\ufe0f \u0644\u0627\u0632\u0645 \u064a\u0641\u0636\u0644 \u062a\u0643\u0644\u064a\u0641 \u0648\u0627\u062d\u062f \u0639\u0644\u0649 \u0627\u0644\u0623\u0642\u0644 \u062f\u0627\u062e\u0644 \u0627\u0644\u0642\u0633\u0645.';
+      }
+      return;
+    }
     const addPhoto = event.target.closest('[data-add-photo-item]');
     if (addPhoto) {
       const list = addPhoto.closest('.dept-special-fields')?.querySelector('[data-photo-items-list]');

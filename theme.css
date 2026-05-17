@@ -4180,3 +4180,42 @@ body.sidebar-collapsed .database-main {
     grid-template-columns: 1fr;
   }
 }
+
+/* Multi-user assignments per department in dashboard create task */
+.department-assignments-head,
+.department-assignment-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.department-assignments-head {
+  margin-bottom: 12px;
+}
+
+.department-assignments-list {
+  display: grid;
+  gap: 14px;
+}
+
+.department-assignment-row {
+  border: 1px solid rgba(62,36,32,.12);
+  border-radius: 20px;
+  padding: 14px;
+  background: rgba(255,255,255,.62);
+}
+
+.department-assignment-head {
+  margin-bottom: 12px;
+}
+
+.department-assignment-head strong {
+  color: var(--brown-900);
+  font-size: 15px;
+}
+
+.department-assignment-row .dept-special-fields {
+  margin-top: 12px;
+}

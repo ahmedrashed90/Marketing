@@ -2080,6 +2080,207 @@ function initCreateTaskFromTemplate() {
     list.appendChild(item);
   }
 
+
+
+  // Campaign strategy sheet parser: reads rows under
+  // "Content Execution Direction - آلية تنفيذ المحتوى" and converts every content row
+  // into linked department assignments. Users stay empty so the marketing manager can
+  // choose the responsible user from each department after upload.
+  function normalizedSheetHeader(value) {
+    return importHeaderKey(value).replace(/[^\u0600-\u06ffa-z0-9]/g, '');
+  }
+
+  function findHeaderColumnLoose(headers, variants) {
+    const wanted = variants.map(normalizedSheetHeader).filter(Boolean);
+    return headers.findIndex((header) => {
+      const key = normalizedSheetHeader(header);
+      return key && wanted.some((variant) => key === variant || key.includes(variant) || variant.includes(key));
+    });
+  }
+
+  function findContentExecutionHeader(rows) {
+    const sectionIndex = rows.findIndex((row) => row.some((cell) => {
+      const text = templateCellText(cell).toLowerCase();
+      return text.includes('content execution direction') || text.includes('آلية تنفيذ المحتوى') || text.includes('الية تنفيذ المحتوى');
+    }));
+    const start = sectionIndex >= 0 ? sectionIndex + 1 : 0;
+    for (let r = start; r < Math.min(rows.length, start + 12); r += 1) {
+      const row = rows[r] || [];
+      const joined = row.map(normalizedSheetHeader).join('|');
+      if ((joined.includes('نوعالمحتوى') || joined.includes('نوعالمحتوي')) && joined.includes('رقمالتاسك')) return r;
+    }
+    return -1;
+  }
+
+  function compactTaskText(parts) {
+    return parts.map(templateCellText).filter(Boolean).join('\n');
+  }
+
+  function contentTypeRules(rawType, rowData) {
+    const type = templateCellText(rawType).toLowerCase();
+    const desc = templateCellText(rowData.description).toLowerCase();
+    const text = `${type} ${desc}`;
+    const rules = {
+      design: [],
+      montage: [],
+      photoType: '',
+      photoText: ''
+    };
+
+    if (type.includes('carousel') || type.includes('كاروسيل')) rules.design.push('كاروسيل');
+    if (type.includes('static') || type.includes('post') || type.includes('بوست')) rules.design.push('بوست سوشيال ميديا');
+    if (type.includes('story') || type.includes('ستوري')) rules.design.push('ستوري');
+    if (type.includes('banner') || type.includes('بنر')) rules.design.push('بنر إعلاني');
+    if (type.includes('thumbnail') || type.includes('ثامبنيل')) rules.design.push('ثامبنيل');
+    if (type.includes('reel') || type.includes('film') || type.includes('video') || type.includes('youtube')) {
+      rules.design.push('ثامبنيل', 'نسخة نشر نهائية');
+    }
+
+    if (type.includes('showroom')) rules.montage.push('مونتاج ريل معرض');
+    else if (type.includes('youtube')) rules.montage.push('مونتاج YouTube');
+    else if (type.includes('film')) rules.montage.push('مونتاج YouTube');
+    else if (type.includes('story')) rules.montage.push('فيديو ستوري');
+    else if (type.includes('ad') || type.includes('إعلان') || type.includes('اعلان')) rules.montage.push('مونتاج إعلان ممول');
+    else if (type.includes('ai')) rules.montage.push('مونتاج بمشاهد AI');
+    else if (type.includes('spec') || type.includes('مواصفات')) rules.montage.push('مونتاج ريل مواصفات');
+    else if (type.includes('reel')) rules.montage.push('مونتاج أجندة عادي');
+
+    if (type.includes('static') || type.includes('post') || type.includes('carousel') || type.includes('كاروسيل')) rules.photoType = 'صور الموقع';
+    if (type.includes('film') || type.includes('youtube') || type.includes('video')) rules.photoType = 'فيديو HD';
+    if (type.includes('showroom') || desc.includes('صالة') || desc.includes('المكان')) rules.photoType = 'فيديو الصالة';
+    if (type.includes('reel') && !rules.photoType) rules.photoType = 'ريل';
+
+    rules.photoText = compactTaskText([
+      rowData.taskNo ? `رقم التاسك: ${rowData.taskNo}` : '',
+      rawType ? `نوع المحتوى: ${rawType}` : '',
+      rowData.description ? `وصف المحتوى: ${rowData.description}` : '',
+      rowData.idea ? `الفكرة: ${rowData.idea}` : ''
+    ]);
+
+    return rules;
+  }
+
+  function fillAssignmentText(kind, assignmentRow, text) {
+    const textarea = assignmentRow?.querySelector('[data-required-text]');
+    if (textarea) textarea.value = templateCellText(text);
+  }
+
+  function addContentExecutionAssignment(kind, deptIndexes, rowData, filler) {
+    const deptRow = findDepartmentRowByKind(kind);
+    if (!deptRow) return false;
+    openAndEnableDepartmentRow(deptRow);
+    const index = deptIndexes[kind] || 0;
+    deptIndexes[kind] = index + 1;
+    const assignmentRow = addOrGetDepartmentAssignment(deptRow, index);
+    if (!assignmentRow) return false;
+    clearAssignmentRequirement(assignmentRow);
+    const requiredInput = assignmentRow.querySelector('[data-required-date]');
+    const deliveryInput = assignmentRow.querySelector('[data-delivery-date]');
+    if (requiredInput && rowData.requiredDate) requiredInput.value = rowData.requiredDate;
+    if (deliveryInput && rowData.deliveryDate) deliveryInput.value = rowData.deliveryDate;
+    filler(assignmentRow);
+    return true;
+  }
+
+  function applyContentExecutionDirectionFromRows(rows) {
+    const headerIndex = findContentExecutionHeader(rows);
+    if (headerIndex < 0) return false;
+    const headers = rows[headerIndex] || [];
+    const col = {
+      campaignType: findHeaderColumnLoose(headers, ['نوع الحملة', 'نوع الحمله']),
+      contentType: findHeaderColumnLoose(headers, ['نوع المحتوى', 'نوع المحتوي']),
+      taskNo: findHeaderColumnLoose(headers, ['رقم التاسك', 'رقم المهمة']),
+      goal: findHeaderColumnLoose(headers, ['الهدف']),
+      tangibleGoal: findHeaderColumnLoose(headers, ['الهدف الملموس']),
+      idea: findHeaderColumnLoose(headers, ['الفكرة', 'الفكره']),
+      description: findHeaderColumnLoose(headers, ['وصف المحتوى', 'وصف المحتوي']),
+      message: findHeaderColumnLoose(headers, ['الرسالة', 'الرساله']),
+      writerRequest: findHeaderColumnLoose(headers, ['المطلوب من الكاتب', 'المطلوب']),
+      cta: findHeaderColumnLoose(headers, ['CTA'])
+    };
+    if (col.contentType < 0 || col.taskNo < 0) return false;
+
+    const deptIndexes = {};
+    let importedContentRows = 0;
+    for (let r = headerIndex + 1; r < rows.length; r += 1) {
+      const cells = rows[r] || [];
+      if (!cells.some((cell) => templateCellText(cell))) continue;
+      const firstCell = templateCellText(cells[0]);
+      if (firstCell && (firstCell.includes('جدول النشر') || firstCell.includes('الميزانية') || firstCell.includes('Budget'))) break;
+      const contentType = templateCellText(cells[col.contentType]);
+      const taskNo = templateCellText(cells[col.taskNo]);
+      if (!contentType || !taskNo) continue;
+
+      const rowData = {
+        campaignType: templateCellText(cells[col.campaignType]),
+        contentType,
+        taskNo,
+        goal: templateCellText(cells[col.goal]),
+        tangibleGoal: templateCellText(cells[col.tangibleGoal]),
+        idea: templateCellText(cells[col.idea]),
+        description: templateCellText(cells[col.description]),
+        message: templateCellText(cells[col.message]),
+        writerRequest: templateCellText(cells[col.writerRequest]),
+        cta: templateCellText(cells[col.cta]),
+        requiredDate: '',
+        deliveryDate: ''
+      };
+      const rules = contentTypeRules(contentType, rowData);
+      const baseInfo = compactTaskText([
+        `رقم التاسك: ${rowData.taskNo}`,
+        `نوع المحتوى: ${rowData.contentType}`,
+        rowData.goal ? `الهدف: ${rowData.goal}` : '',
+        rowData.tangibleGoal ? `الهدف الملموس: ${rowData.tangibleGoal}` : '',
+        rowData.idea ? `الفكرة: ${rowData.idea}` : '',
+        rowData.description ? `وصف المحتوى: ${rowData.description}` : '',
+        rowData.message ? `الرسالة: ${rowData.message}` : '',
+        rowData.cta ? `CTA: ${rowData.cta}` : ''
+      ]);
+
+      addContentExecutionAssignment('content', deptIndexes, rowData, (assignmentRow) => {
+        fillAssignmentText('content', assignmentRow, compactTaskText([
+          baseInfo,
+          rowData.writerRequest ? `المطلوب من الكاتب:\n${rowData.writerRequest}` : ''
+        ]));
+      });
+
+      if (rules.design.length) {
+        addContentExecutionAssignment('design', deptIndexes, rowData, (assignmentRow) => {
+          selectDeliverablesInsideAssignment('design', assignmentRow, rules.design.join(' | '));
+          fillAssignmentText('design', assignmentRow, baseInfo);
+        });
+      }
+
+      if (rules.montage.length) {
+        addContentExecutionAssignment('montage', deptIndexes, rowData, (assignmentRow) => {
+          selectDeliverablesInsideAssignment('montage', assignmentRow, rules.montage.join(' | '));
+          fillAssignmentText('montage', assignmentRow, baseInfo);
+        });
+      }
+
+      if (rules.photoType) {
+        addContentExecutionAssignment('photography', deptIndexes, rowData, (assignmentRow) => {
+          fillPhotoInsideAssignment(assignmentRow, '', rules.photoType, rules.photoText || baseInfo);
+        });
+      }
+
+      addContentExecutionAssignment('publish', deptIndexes, rowData, (assignmentRow) => {
+        fillAssignmentText('publish', assignmentRow, compactTaskText([
+          `نشر التاسك ${rowData.taskNo} - ${rowData.contentType}`,
+          rowData.message ? `الرسالة: ${rowData.message}` : '',
+          rowData.cta ? `CTA: ${rowData.cta}` : '',
+          'يراجع المنصة والكابشن النهائي بعد استلام المحتوى النهائي.'
+        ]));
+      });
+
+      importedContentRows += 1;
+    }
+
+    if (!importedContentRows) return false;
+    if (note) note.textContent = `✅ تم تحويل ${importedContentRows} تاسك من آلية تنفيذ المحتوى إلى تكليفات مرتبطة بالأقسام. اختار اليوزرات من كل قسم ثم اضغط حفظ.`;
+    return true;
+  }
+
   function applySimpleAssignmentsFromRows(rows) {
     const headerIndex = findSimpleAssignmentsHeader(rows);
     if (headerIndex < 0) return false;
@@ -2193,6 +2394,14 @@ function initCreateTaskFromTemplate() {
     if (typeName) setSelectValueByText(campaignTypeSelect, typeName, true);
     if (startDate && form.elements.campaignStartDate) form.elements.campaignStartDate.value = startDate;
     if (endDate && form.elements.campaignEndDate) form.elements.campaignEndDate.value = endDate;
+
+    // شيت الحملات الاستراتيجي: نقرأ فقط جدول Content Execution Direction ونحوّله لتكليفات أقسام.
+    // هذا يمنع خلط قواعد الكتابة أو بيانات الحملة مع المطلوب من الأقسام.
+    if (applyContentExecutionDirectionFromRows(rows)) {
+      applyImportedSchedule(rows);
+      applyImportedBudget(rows);
+      return;
+    }
 
     // قالب الرفع الجديد عبارة عن جدول تكليفات بسيط. نقرأ كل صف لوحده بدل ما نقرأ نص الشيت كله
     // حتى لا تختلط مطلوبات التصميم والمونتاج والمحتوى مع بعض.

@@ -1,4 +1,4 @@
-// Firebase config - MZJ Marketing system
+// Firebase config - MZJ Workspace new marketing system
 window.MZJ_FIREBASE_CONFIG = {
   apiKey: "AIzaSyCQYrkIcCkaNr5jJ6i0Mm_jZueMG5xxYfo",
   authDomain: "mzj-marketing.firebaseapp.com",

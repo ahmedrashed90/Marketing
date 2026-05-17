@@ -244,11 +244,25 @@ function renderTaskRequirementDetails(requiredText, deptKeyValue) {
 }
 
 
+function isAttachmentActionLabel(value) {
+  const text = String(value || '').trim();
+  return text === 'إرفاق ملف' ||
+    text === 'إرفاق ملف التصوير' ||
+    text === 'إرفاق ملف الصور' ||
+    text === 'إرفاق ملف الفيديو' ||
+    text === 'إرفاق ملف اسكريبت';
+}
+
 function normalizeTaskFileRecord(file, index) {
   if (!file) return null;
-  if (typeof file === 'string') return { name: file, fileName: file, url: file, fileUrl: file, index };
+  if (typeof file === 'string') {
+    if (isAttachmentActionLabel(file)) return null;
+    return { name: file, fileName: file, url: file, fileUrl: file, index };
+  }
   const url = file.fileUrl || file.url || file.webViewLink || file.attachmentUrl || file.link || '';
-  const name = file.fileName || file.name || file.title || file.label || (url ? 'ملف مرفق' : 'مرفق');
+  const rawName = file.fileName || file.name || file.title || file.label || '';
+  if (!url && isAttachmentActionLabel(rawName)) return null;
+  const name = rawName || (url ? 'ملف مرفق' : 'مرفق');
   return { ...file, name, fileName: name, url, fileUrl: url, index };
 }
 
@@ -269,11 +283,24 @@ function getDeptAttachmentFiles(dept) {
     const value = dept[key];
     if (Array.isArray(value)) value.forEach((file) => combined.push(file));
   });
-  if (dept.fileUrl || dept.attachmentUrl) {
-    combined.push({ name: dept.attachmentLabel || 'ملف مرفق', fileUrl: dept.fileUrl || dept.attachmentUrl });
+
+  const normalizedFromArrays = combined.map(normalizeTaskFileRecord).filter(Boolean);
+  const legacyUrl = dept.fileUrl || dept.attachmentUrl || '';
+
+  // لا نعرض حقل attachmentLabel كأنه ملف مستقل.
+  // لو عندنا arrays مرفقات، هي المصدر الأساسي، وحقل fileUrl القديم لا يتكرر كصف تاني.
+  if (!normalizedFromArrays.length && legacyUrl) {
+    normalizedFromArrays.push({
+      name: dept.fileName || dept.attachmentFileName || 'ملف مرفق',
+      fileName: dept.fileName || dept.attachmentFileName || 'ملف مرفق',
+      url: legacyUrl,
+      fileUrl: legacyUrl,
+      uploadedAt: dept.uploadedAt || dept.attachmentUploadedAt || dept.updatedAt || ''
+    });
   }
+
   const seen = new Set();
-  return combined.map(normalizeTaskFileRecord).filter(Boolean).filter((file) => {
+  return normalizedFromArrays.filter((file) => {
     const key = String(file.fileId || file.fileUrl || file.url || file.name || file.index || '').trim();
     if (!key || seen.has(key)) return false;
     seen.add(key);

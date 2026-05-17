@@ -3820,3 +3820,58 @@ body.sidebar-collapsed .database-main {
   opacity: .55 !important;
   cursor: not-allowed !important;
 }
+
+/* Admin readiness approval cards */
+.readiness-approval-grid {
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)) !important;
+}
+.readiness-approval-grid .readiness-dept-item {
+  padding: 0 !important;
+  background: transparent !important;
+  border-radius: 0 !important;
+}
+.readiness-open-details {
+  width: 100% !important;
+  min-height: 118px !important;
+  border: 1px solid rgba(74, 36, 31, .12) !important;
+  border-radius: 18px !important;
+  background: rgba(255, 248, 239, .82) !important;
+  box-shadow: 0 12px 26px rgba(74, 36, 31, .06) !important;
+  color: var(--brown-900, #3f211c) !important;
+  cursor: pointer !important;
+  display: grid !important;
+  gap: 6px !important;
+  padding: 14px !important;
+  text-align: center !important;
+  font-family: inherit !important;
+}
+.readiness-open-details:hover {
+  transform: translateY(-1px) !important;
+  border-color: rgba(211, 161, 127, .65) !important;
+  background: #fffaf4 !important;
+}
+.readiness-open-details strong {
+  margin: 0 !important;
+  font-size: 15px !important;
+}
+.readiness-open-details small {
+  margin: 0 !important;
+  font-size: 18px !important;
+  color: var(--brown-800, #4a241f) !important;
+  font-weight: 900 !important;
+}
+.readiness-open-details span {
+  color: var(--muted, #9b8276) !important;
+  font-weight: 800 !important;
+  font-size: 12px !important;
+}
+.readiness-open-details em {
+  justify-self: center !important;
+  border-radius: 999px !important;
+  background: var(--primary, #4a241f) !important;
+  color: #fff !important;
+  font-style: normal !important;
+  font-size: 11px !important;
+  font-weight: 900 !important;
+  padding: 6px 12px !important;
+}

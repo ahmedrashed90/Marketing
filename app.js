@@ -298,9 +298,9 @@ function taskAttachmentKey(file) {
 
 function renderTaskAttachmentList(meta) {
   const dept = getTaskDeptByMeta(meta);
-  const files = getDeptAttachmentFiles(dept).slice(0, 4);
+  const files = getDeptAttachmentFiles(dept).slice(0, 2);
   const rows = [];
-  for (let index = 0; index < 4; index += 1) {
+  for (let index = 0; index < 2; index += 1) {
     const file = files[index];
     if (!file) {
       rows.push(`
@@ -329,7 +329,7 @@ function renderTaskAttachmentList(meta) {
     <div class="task-attachment-list is-table">
       <div class="task-attachment-head">
         <strong>المرفقات الحالية</strong>
-        <small>${files.length} / 4</small>
+        <small>${files.length} / 2</small>
       </div>
       <div class="task-attachment-table-wrap">
         <table class="task-attachment-table">
@@ -562,8 +562,8 @@ async function handleTaskAttachmentSelected(event) {
   const uploadButton = taskDetailsModal?.querySelector('[data-upload-task-attachment]');
   const oldText = uploadButton?.textContent || '';
   const currentFilesCount = getDeptAttachmentFiles(getTaskDeptByMeta(activeTaskDetailsMeta)).length;
-  if (currentFilesCount >= 4) {
-    alert('الحد الأقصى 4 مرفقات. امسح ملف قديم أولاً ثم ارفع الملف الجديد.');
+  if (currentFilesCount >= 2) {
+    alert('الحد الأقصى 2 مرفقات. امسح ملف قديم أولاً ثم ارفع الملف الجديد.');
     return;
   }
   try {
@@ -2089,11 +2089,29 @@ initCreateTaskFromTemplate();
   }
   function readinessCard(task){
     const ready = taskReadiness(task);
+    const depts = (task.departmentTasks || []).filter((d) => d && d.enabled !== false);
+    const deptCount = Math.max(depts.length, 1);
     return `<article class="readiness-card dynamic-dashboard-card" data-dash-task-id="${esc(task.id)}">
       <div class="task-template-top"><strong>${esc(taskTitle(task))}</strong><span>${meta(task)} — جاهزية ${ready}%</span></div>
       <div class="mini-progress"><span style="width:${ready}%"></span></div>
-      <div class="readiness-grid readiness-dynamic-grid">
-        ${(task.departmentTasks||[]).map(d => `<div><strong>${esc(d.departmentName || 'قسم')}</strong><small>${taskDeptProgress(task,d)}%</small><small>${esc(d.requiredText || 'لا يوجد مطلوب مكتوب')}</small></div>`).join('')}
+      <div class="readiness-grid readiness-dynamic-grid readiness-approval-grid">
+        ${depts.map((d) => {
+          const dkey = deptKey(d.departmentName);
+          const steps = encodeTaskSteps(getTaskDetailsSteps(dkey));
+          const key = d.departmentId || d.departmentName || d.userName || '';
+          const selected = ((task.readiness || {})[key] || []).join(',');
+          const departmentShare = Math.round((100 / deptCount) * 100) / 100;
+          const percent = taskDeptProgress(task, d);
+          const requirement = formatDepartmentRequirement(d);
+          return `<div class="readiness-dept-item" data-dept-task-card data-task-id="${esc(task.id)}" data-task-type="${esc(task.taskTypeLabel || task.taskType || '')}" data-campaign-code="${esc(task.campaignCode || '')}" data-readiness-key="${esc(key)}" data-dept-identity="${esc(deptIdentity(d))}" data-dept-key="${esc(dkey)}" data-department-share="${esc(departmentShare)}" data-completed-steps="${esc(selected)}">
+            <button type="button" class="readiness-open-details" data-open-task-details data-dept-key="${esc(dkey)}" data-dept="${esc(d.departmentName || 'قسم')}" data-task-title="${esc(taskTitle(task))}" data-required="${esc(requirement)}" data-dept-task-json="${esc(encodeURIComponent(JSON.stringify(d || {})))}" data-steps="${esc(steps)}">
+              <strong>${esc(d.departmentName || 'قسم')}</strong>
+              <small>${percent}%</small>
+              <span>${esc(d.userDisplayName || d.userName || d.userEmail || 'بدون مسؤول')}</span>
+              <em>تفاصيل واعتماد</em>
+            </button>
+          </div>`;
+        }).join('')}
       </div><div class="task-card-actions"><button class="danger-btn" type="button" data-delete-task="${esc(task.id)}" data-admin-only>مسح الحملة</button></div>
     </article>`;
   }

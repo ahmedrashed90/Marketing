@@ -752,12 +752,44 @@ function getMarketingFirestore() {
   return firebase.firestore();
 }
 
+function normalizeTemplateRows(rows) {
+  if (!rows) return [];
+  if (Array.isArray(rows)) {
+    return rows.map((row) => {
+      if (Array.isArray(row)) return row.map((cell) => String(cell ?? '').trim());
+      if (row && Array.isArray(row.cells)) return row.cells.map((cell) => String(cell ?? '').trim());
+      return [];
+    }).filter((row) => row.some(Boolean));
+  }
+  if (typeof rows === 'object') {
+    return Object.keys(rows).sort((a, b) => Number(a) - Number(b)).map((key) => {
+      const row = rows[key];
+      if (Array.isArray(row)) return row.map((cell) => String(cell ?? '').trim());
+      if (row && Array.isArray(row.cells)) return row.cells.map((cell) => String(cell ?? '').trim());
+      return [];
+    }).filter((row) => row.some(Boolean));
+  }
+  return [];
+}
+
+function firestoreSafeTemplate(template, id) {
+  const copy = JSON.parse(JSON.stringify({ ...template, id }));
+  const rows = normalizeTemplateRows(copy.rows);
+  copy.headers = Array.isArray(copy.headers) ? copy.headers.map((cell) => String(cell ?? '').trim()) : [];
+  copy.sampleRow = Array.isArray(copy.sampleRow) ? copy.sampleRow.map((cell) => String(cell ?? '').trim()) : [];
+  // Firestore rejects an array that directly contains arrays.
+  // Store each row as a map with a cells array, then normalize it back on read.
+  copy.rows = rows.map((cells, index) => ({ index, cells }));
+  copy.rowsCount = Number(copy.rowsCount || rows.length || 0);
+  return copy;
+}
+
 function normalizeTaskTemplate(docId, data = {}) {
   const template = { id: data.id || docId, ...data };
   template.type = template.type || 'campaign';
   template.headers = Array.isArray(template.headers) ? template.headers : [];
   template.sampleRow = Array.isArray(template.sampleRow) ? template.sampleRow : [];
-  template.rows = Array.isArray(template.rows) ? template.rows : [];
+  template.rows = normalizeTemplateRows(template.rows);
   template.rowsCount = Number(template.rowsCount || template.rows.length || 0);
   return template;
 }
@@ -779,10 +811,10 @@ async function loadTaskTemplatesFromFirebase() {
 async function saveTaskTemplateToFirebase(template) {
   const db = getMarketingFirestore();
   const id = template.id || ('tpl_' + Date.now());
-  const payload = JSON.parse(JSON.stringify({ ...template, id }));
+  const payload = firestoreSafeTemplate(template, id);
   await db.collection(MZJ_TEMPLATE_COLLECTION).doc(id).set(payload, { merge: true });
   await loadTaskTemplatesFromFirebase();
-  return payload;
+  return normalizeTaskTemplate(id, payload);
 }
 
 async function deleteTaskTemplateFromFirebase(id) {
@@ -804,11 +836,8 @@ function typeLabel(type) {
 
 function getTemplateRows(template) {
   if (!template) return [];
-  if (Array.isArray(template.rows) && template.rows.length) {
-    return template.rows
-      .map((row) => Array.isArray(row) ? row.map((cell) => String(cell ?? '').trim()) : [])
-      .filter((row) => row.some(Boolean));
-  }
+  const normalizedRows = normalizeTemplateRows(template.rows);
+  if (normalizedRows.length) return normalizedRows;
   const headers = Array.isArray(template.headers) ? template.headers : [];
   const sample = Array.isArray(template.sampleRow) ? template.sampleRow : [];
   return [headers, sample].filter((row) => row && row.some((cell) => String(cell ?? '').trim()));
@@ -1038,10 +1067,16 @@ function normalizeContentTaskDepartment(item, index) {
         };
       }).filter(Boolean)
     : [];
+  const userIds = Array.isArray(item?.userIds) ? item.userIds : [];
+  const memberUids = Array.isArray(item?.memberUids) ? item.memberUids : [];
+  const memberEmails = Array.isArray(item?.memberEmails) ? item.memberEmails : [];
   return {
     id: item?.id || item?.docId || ('dept_' + index),
     name,
-    users
+    users,
+    userIds,
+    memberUids,
+    memberEmails
   };
 }
 
@@ -1156,9 +1191,26 @@ function renderUserOptions(users, departmentId = '', allowFallback = true) {
 }
 
 function usersForDepartment(dept, allUsers) {
-  const deptUsers = Array.isArray(dept?.users) ? dept.users.map(normalizeSystemUser).filter(Boolean) : [];
-  if (deptUsers.length) return deptUsers;
-  return (allUsers || []).filter((user) => String(user.department || '') === String(dept?.id || '')).map(normalizeSystemUser).filter(Boolean);
+  const normalizedAllUsers = (allUsers || []).map(normalizeSystemUser).filter(Boolean);
+  const byKey = new Map();
+  normalizedAllUsers.forEach((user) => {
+    [user.id, user.uid, user.email, user.name].filter(Boolean).forEach((key) => byKey.set(String(key).toLowerCase(), user));
+  });
+
+  const explicitUsers = Array.isArray(dept?.users) ? dept.users.map(normalizeSystemUser).filter(Boolean) : [];
+  const deptKeys = []
+    .concat(Array.isArray(dept?.userIds) ? dept.userIds : [])
+    .concat(Array.isArray(dept?.memberUids) ? dept.memberUids : [])
+    .concat(Array.isArray(dept?.memberEmails) ? dept.memberEmails : []);
+  const linkedUsers = deptKeys.map((key) => byKey.get(String(key).toLowerCase())).filter(Boolean);
+  const departmentUsers = normalizedAllUsers.filter((user) => String(user.department || '') === String(dept?.id || ''));
+
+  const merged = new Map();
+  [...explicitUsers, ...linkedUsers, ...departmentUsers].forEach((user) => {
+    const key = String(user.email || user.id || user.name || '').toLowerCase();
+    if (key) merged.set(key, { ...user, department: user.department || dept?.id || '' });
+  });
+  return Array.from(merged.values());
 }
 
 const DEFAULT_MARKETING_PLATFORMS = [
@@ -1456,7 +1508,10 @@ function initCreateTaskFromTemplate() {
     if (campaignStartDateLabel) campaignStartDateLabel.textContent = isAgenda ? 'تاريخ بداية الأجندة' : 'تاريخ بداية الحملة';
     if (campaignEndDateLabel) campaignEndDateLabel.textContent = isAgenda ? 'تاريخ نهاية الأجندة' : 'تاريخ نهاية الحملة';
     if (agendaMonthYearWrap) agendaMonthYearWrap.hidden = !isAgenda;
-    if (campaignTypeAddRow) campaignTypeAddRow.hidden = isAgenda;
+    if (campaignTypeAddRow) {
+      campaignTypeAddRow.hidden = isAgenda;
+      campaignTypeAddRow.classList.toggle('is-hidden', isAgenda);
+    }
     if (newCampaignTypeInput) newCampaignTypeInput.closest('.mzj-field')?.classList.toggle('is-hidden', isAgenda);
     if (addCampaignTypeBtn) addCampaignTypeBtn.classList.toggle('is-hidden', isAgenda);
     if (campaignTypeSelect) campaignTypeSelect.disabled = isAgenda;
@@ -1543,7 +1598,7 @@ function initCreateTaskFromTemplate() {
         <div class="department-task-grid department-task-core-grid">
           <label class="mzj-field">
             <span>اليوزر / المسؤول</span>
-            <select data-user-select>${renderUserOptions(usersForDepartment(dept, usersCache), dept.id, false)}</select>
+            <select data-user-select>${renderUserOptions(usersForDepartment(dept, usersCache), '', false)}</select>
           </label>
 
           <label class="mzj-field">

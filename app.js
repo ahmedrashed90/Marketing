@@ -1322,6 +1322,8 @@ function initCreateTaskFromTemplate() {
   const budgetGrandTotalValue = document.getElementById('budgetGrandTotalValue');
   const publishScheduleRows = document.getElementById('publishScheduleRows');
   const addPublishScheduleRowBtn = document.getElementById('addPublishScheduleRow');
+  const uploadFilledTemplateBtn = document.getElementById('uploadFilledTemplateBtn');
+  const filledTemplateFileInput = document.getElementById('filledTemplateFile');
 
   if (!modal || !form || !typeSelect || !templateSelect || !departmentsList) return;
 
@@ -1578,6 +1580,283 @@ function initCreateTaskFromTemplate() {
     })).filter((item) => item.day || item.date || item.content);
   }
 
+
+  function templateCellText(value) {
+    if (value == null) return '';
+    if (value instanceof Date && !Number.isNaN(value.getTime())) return value.toISOString().slice(0, 10);
+    return String(value).replace(/\s+/g, ' ').trim();
+  }
+
+  function normalizeImportedDate(value) {
+    if (value == null || value === '') return '';
+    if (value instanceof Date && !Number.isNaN(value.getTime())) return value.toISOString().slice(0, 10);
+    if (typeof value === 'number') {
+      const parsed = XLSX.SSF.parse_date_code(value);
+      if (parsed) return `${parsed.y}-${String(parsed.m).padStart(2, '0')}-${String(parsed.d).padStart(2, '0')}`;
+    }
+    const text = templateCellText(value);
+    if (!text) return '';
+    const iso = text.match(/(20\d{2})[\/\-.](\d{1,2})[\/\-.](\d{1,2})/);
+    if (iso) return `${iso[1]}-${iso[2].padStart(2, '0')}-${iso[3].padStart(2, '0')}`;
+    const slash = text.match(/(\d{1,2})[\/\-.](\d{1,2})[\/\-.](20\d{2})/);
+    if (slash) return `${slash[3]}-${slash[1].padStart(2, '0')}-${slash[2].padStart(2, '0')}`;
+    return '';
+  }
+
+  function findImportedValue(rows, labels) {
+    const wanted = labels.map((label) => String(label).trim());
+    for (let r = 0; r < rows.length; r += 1) {
+      const row = rows[r] || [];
+      for (let c = 0; c < row.length; c += 1) {
+        const cell = templateCellText(row[c]);
+        if (!cell) continue;
+        const hit = wanted.some((label) => cell === label || cell.includes(label));
+        if (!hit) continue;
+        const candidates = [row[c - 1], row[c + 1], rows[r + 1]?.[c], rows[r - 1]?.[c]];
+        const found = candidates.find((value) => templateCellText(value));
+        if (found != null) return found;
+      }
+    }
+    return '';
+  }
+
+  function setSelectValueByText(select, rawValue, allowCreate = false) {
+    if (!select) return;
+    const value = templateCellText(rawValue);
+    if (!value) return;
+    const normalized = value.toLowerCase();
+    const match = Array.from(select.options).find((option) => {
+      const text = templateCellText(option.textContent).toLowerCase();
+      const val = templateCellText(option.value).toLowerCase();
+      return text === normalized || val === normalized || text.includes(normalized) || normalized.includes(text);
+    });
+    if (match) {
+      select.value = match.value;
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+      return;
+    }
+    if (allowCreate) {
+      const option = document.createElement('option');
+      option.value = value;
+      option.textContent = value;
+      select.appendChild(option);
+      select.value = value;
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+  }
+
+  function setDepartmentUser(row, rawUser) {
+    const select = row?.querySelector('[data-user-select]');
+    if (!select) return;
+    const value = templateCellText(rawUser);
+    if (!value) return;
+    const normalized = value.toLowerCase();
+    const option = Array.from(select.options).find((opt) => {
+      const text = templateCellText(opt.textContent).toLowerCase();
+      const email = templateCellText(opt.dataset.userEmail || '').toLowerCase();
+      const name = templateCellText(opt.dataset.userName || '').toLowerCase();
+      return text.includes(normalized) || normalized.includes(text) || email === normalized || name.includes(normalized) || normalized.includes(name);
+    });
+    if (option) {
+      select.value = option.value;
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+  }
+
+  function openAndEnableDepartmentRow(row) {
+    if (!row) return;
+    const checkbox = row.querySelector('[data-department-enabled]');
+    if (checkbox) checkbox.checked = true;
+    row.classList.add('is-open', 'is-selected');
+  }
+
+  function findDepartmentRowByKind(kind) {
+    return Array.from(departmentsList.querySelectorAll('.department-task-row')).find((row) => row.dataset.departmentKind === kind);
+  }
+
+  function extractDatesFromRow(row) {
+    return (row || []).map(normalizeImportedDate).filter(Boolean);
+  }
+
+  function extractFirstUserLikeValue(row) {
+    return (row || []).map(templateCellText).find((cell) => {
+      if (!cell) return false;
+      if (/\d{4}[\/\-.]\d{1,2}[\/\-.]\d{1,2}/.test(cell) || /\d{1,2}[\/\-.]\d{1,2}[\/\-.]\d{4}/.test(cell)) return false;
+      if (cell.includes('قسم') || cell.includes('تاريخ') || cell.includes('إرفاق') || cell === '√') return false;
+      return true;
+    }) || '';
+  }
+
+  function fillDepartmentFromImportedRow(kind, sourceRow) {
+    const row = findDepartmentRowByKind(kind);
+    if (!row || !sourceRow) return;
+    openAndEnableDepartmentRow(row);
+    const user = extractFirstUserLikeValue(sourceRow.filter((cell) => !templateCellText(cell).includes('قسم')));
+    setDepartmentUser(row, user);
+    const dates = extractDatesFromRow(sourceRow);
+    const requiredDate = dates[1] || dates[0] || '';
+    const deliveryDate = dates[2] || dates[1] || '';
+    const requiredInput = row.querySelector('[data-required-date]');
+    const deliveryInput = row.querySelector('[data-delivery-date]');
+    if (requiredInput && requiredDate) requiredInput.value = requiredDate;
+    if (deliveryInput && deliveryDate) deliveryInput.value = deliveryDate;
+  }
+
+  function fillPhotographyItemsFromText(text) {
+    const row = findDepartmentRowByKind('photography');
+    if (!row) return;
+    const lines = String(text || '').split(/\n|\||،|,/).map((line) => line.trim()).filter(Boolean);
+    const matched = lines.filter((line) => PHOTOGRAPHY_CONTENT_TYPES.some((type) => line.includes(type)));
+    if (!matched.length) return;
+    openAndEnableDepartmentRow(row);
+    const list = row.querySelector('[data-photo-items-list]');
+    if (!list) return;
+    list.innerHTML = '';
+    matched.forEach((line) => {
+      const item = document.createElement('article');
+      item.className = 'photo-item-row';
+      item.dataset.photoItem = 'true';
+      const foundType = PHOTOGRAPHY_CONTENT_TYPES.find((type) => line.includes(type)) || PHOTOGRAPHY_CONTENT_TYPES[0];
+      const carType = line.replace(foundType, '').replace(/نوع السيارة|نوع المحتوى|[:：\-]/g, '').trim();
+      item.innerHTML = `
+        <label class="mzj-field"><span>نوع السيارة</span><input type="text" data-photo-car-type placeholder="مثال: هيونداي / النترا" value="${escapeHTML(carType)}"></label>
+        <label class="mzj-field"><span>نوع المحتوى</span><select data-photo-content-type>${PHOTOGRAPHY_CONTENT_TYPES.map(t => `<option value="${escapeHTML(t)}" ${t === foundType ? 'selected' : ''}>${escapeHTML(t)}</option>`).join('')}</select></label>
+        <button class="soft-danger-btn" type="button" data-remove-photo-item>مسح</button>
+      `;
+      list.appendChild(item);
+    });
+  }
+
+  function fillTextDepartment(kind, rawText) {
+    const row = findDepartmentRowByKind(kind);
+    if (!row) return;
+    const text = templateCellText(rawText);
+    if (!text) return;
+    openAndEnableDepartmentRow(row);
+    const textarea = row.querySelector('[data-required-text]');
+    if (textarea) textarea.value = text;
+  }
+
+  function selectDeliverablesByText(kind, rawText) {
+    const row = findDepartmentRowByKind(kind);
+    if (!row) return;
+    const text = templateCellText(rawText);
+    if (!text) return;
+    openAndEnableDepartmentRow(row);
+    const attr = kind === 'design' ? '[data-design-deliverable]' : '[data-montage-deliverable]';
+    row.querySelectorAll(attr).forEach((input) => {
+      const title = templateCellText(input.dataset.title || input.value);
+      const desc = templateCellText(input.dataset.desc || '');
+      const checked = title && (text.includes(title) || title.includes(text) || (desc && text.includes(desc)));
+      if (checked) {
+        input.checked = true;
+        input.closest('.multi-choice-card')?.classList.add('is-checked');
+      }
+    });
+    const textarea = row.querySelector('[data-required-text]');
+    if (textarea && !textarea.value) textarea.value = text;
+  }
+
+  function applyImportedSchedule(rows) {
+    const scheduleStart = rows.findIndex((row) => row.some((cell) => templateCellText(cell).includes('إنشاء جدول النشر') || templateCellText(cell).includes('جدول النشر')));
+    if (scheduleStart < 0 || !publishScheduleRows) return;
+    publishScheduleRows.innerHTML = '';
+    const stopWords = ['إنشاء الميزانية', 'الميزانية', 'تقرير النتائج', 'النتائج'];
+    for (let r = scheduleStart + 1; r < Math.min(rows.length, scheduleStart + 12); r += 1) {
+      const row = rows[r] || [];
+      if (row.some((cell) => stopWords.some((word) => templateCellText(cell).includes(word)))) break;
+      row.forEach((cell) => {
+        const text = templateCellText(cell);
+        if (!text) return;
+        const date = normalizeImportedDate(cell) || normalizeImportedDate(text);
+        const day = ['السبت','الأحد','الاثنين','الثلاثاء','الأربعاء','الخميس','الجمعة'].find((d) => text.includes(d)) || '';
+        if (date || day || text.includes(':')) {
+          createPublishScheduleRow({ day, date, content: text.replace(day, '').replace(date, '').replace(':', '').trim() });
+        }
+      });
+    }
+  }
+
+  function applyImportedBudget(rows) {
+    const budgetStart = rows.findIndex((row) => row.some((cell) => templateCellText(cell).includes('إنشاء الميزانية') || templateCellText(cell).includes('الميزانية')));
+    if (budgetStart < 0 || !budgetItemsList) return;
+    budgetItemsList.innerHTML = '';
+    const budgetRows = rows.slice(budgetStart + 1, Math.min(rows.length, budgetStart + 8));
+    const nonEmpty = budgetRows.flat().map(templateCellText).filter(Boolean);
+    if (!nonEmpty.length) {
+      createBudgetItem();
+      return;
+    }
+    createBudgetItem({ adName: nonEmpty[0] || '', contentGoal: nonEmpty[1] || '', expectedGoal: nonEmpty[2] || '' });
+    updateBudgetTotal();
+  }
+
+  function applyImportedTemplateRows(rows, fileName = '') {
+    const get = (labels) => findImportedValue(rows, labels);
+    const taskTypeValue = templateCellText(get(['نوع التاسك', 'نوع المهمة']));
+    if (taskTypeValue.includes('أجندة')) typeSelect.value = 'agenda';
+    else if (taskTypeValue.includes('حملة') || typeSelect.value !== 'agenda') typeSelect.value = 'campaign';
+    typeSelect.dispatchEvent(new Event('change', { bubbles: true }));
+
+    const taskDate = normalizeImportedDate(get(['التاريخ']));
+    const name = get(['اسم الحملة', 'اسم الأجندة', 'اسم الحملة / الأجندة']);
+    const code = get(['كود الحملة', 'كود الأجندة', 'كود الحملة / الأجندة']);
+    const goal = get(['الهدف من الحملة', 'الهدف من الأجندة', 'الهدف']);
+    const typeName = get(['نوع الحملة', 'نوع الأجندة']);
+    const startDate = normalizeImportedDate(get(['تاريخ بداية الحملة', 'تاريخ بداية الأجندة', 'تاريخ نزول الحملة']));
+    const endDate = normalizeImportedDate(get(['تاريخ نهاية الحملة', 'تاريخ نهاية الأجندة']));
+
+    if (taskDate && form.elements.taskDate) form.elements.taskDate.value = taskDate;
+    if (name && form.elements.campaignName) form.elements.campaignName.value = templateCellText(name);
+    if (code && campaignCodeInput) campaignCodeInput.value = templateCellText(code);
+    if (goal && form.elements.campaignGoal) form.elements.campaignGoal.value = templateCellText(goal);
+    if (typeName) setSelectValueByText(campaignTypeSelect, typeName, true);
+    if (startDate && form.elements.campaignStartDate) form.elements.campaignStartDate.value = startDate;
+    if (endDate && form.elements.campaignEndDate) form.elements.campaignEndDate.value = endDate;
+
+    const sectionKinds = [
+      ['photography', ['قسم التصوير']],
+      ['content', ['قسم المحتوى']],
+      ['design', ['قسم التصميم']],
+      ['montage', ['قسم المونتاج', 'قسم الفيديو']],
+      ['publish', ['قسم النشر']]
+    ];
+    sectionKinds.forEach(([kind, names]) => {
+      const foundRow = rows.find((row) => row.some((cell) => names.some((name) => templateCellText(cell).includes(name))));
+      if (foundRow) fillDepartmentFromImportedRow(kind, foundRow);
+    });
+
+    const fullText = rows.map((row) => row.map(templateCellText).join(' ')).join('\n');
+    fillPhotographyItemsFromText(fullText);
+    fillTextDepartment('content', get(['مطلوب قسم المحتوى', 'شرح المطلوب للمحتوى', 'المحتوى المطلوب']) || '');
+    fillTextDepartment('publish', get(['مطلوب قسم النشر', 'شرح المطلوب للنشر', 'النشر المطلوب']) || '');
+    selectDeliverablesByText('design', fullText);
+    selectDeliverablesByText('montage', fullText);
+    applyImportedSchedule(rows);
+    applyImportedBudget(rows);
+
+    if (note) note.textContent = `✅ تم تحميل بيانات Template من ملف ${fileName || 'Excel'} داخل نموذج إنشاء التاسك. راجع الأقسام والميزانية ثم اضغط حفظ.`;
+  }
+
+  async function handleFilledTemplateUpload(file) {
+    if (!file) return;
+    if (!window.XLSX) {
+      if (note) note.textContent = '⚠️ مكتبة قراءة Excel لم يتم تحميلها. تأكد من الاتصال بالإنترنت.';
+      return;
+    }
+    try {
+      await ensureDepartments();
+      const buffer = await file.arrayBuffer();
+      const workbook = XLSX.read(buffer, { type: 'array', cellDates: true });
+      const sheetName = workbook.SheetNames[0];
+      const rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1, defval: '', raw: false });
+      const cleanRows = rows.map((row) => (row || []).map((cell) => templateCellText(cell))).filter((row) => row.some(Boolean));
+      applyImportedTemplateRows(cleanRows, file.name);
+    } catch (error) {
+      if (note) note.textContent = '⚠️ فشل تحميل Template: ' + (error?.message || error);
+    }
+  }
+
   function collectBudgetDetails() {
     const items = budgetItemsList ? Array.from(budgetItemsList.querySelectorAll('[data-budget-item]')).map(collectBudgetItem).filter((item) => {
       return item.adType || item.adName || item.publishDate || item.duration || item.adsCount || item.contentGoal || item.expectedGoal || item.platforms.length;
@@ -1793,6 +2072,15 @@ function initCreateTaskFromTemplate() {
 
   if (addBudgetItemBtn) {
     addBudgetItemBtn.addEventListener('click', () => createBudgetItem());
+  }
+
+
+  if (uploadFilledTemplateBtn && filledTemplateFileInput) {
+    uploadFilledTemplateBtn.addEventListener('click', () => filledTemplateFileInput.click());
+    filledTemplateFileInput.addEventListener('change', () => {
+      const file = filledTemplateFileInput.files && filledTemplateFileInput.files[0];
+      handleFilledTemplateUpload(file).finally(() => { filledTemplateFileInput.value = ''; });
+    });
   }
 
   if (addPublishScheduleRowBtn) {

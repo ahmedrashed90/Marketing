@@ -3875,3 +3875,26 @@ body.sidebar-collapsed .database-main {
   font-weight: 900 !important;
   padding: 6px 12px !important;
 }
+
+/* Filled Excel template import inside create task */
+.create-task-template-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.create-task-template-actions .soft-btn {
+  white-space: nowrap;
+}
+
+@media (max-width: 720px) {
+  .create-task-template-actions {
+    width: 100%;
+    justify-content: stretch;
+  }
+  .create-task-template-actions .soft-btn {
+    flex: 1;
+  }
+}

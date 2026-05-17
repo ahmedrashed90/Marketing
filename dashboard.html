@@ -424,7 +424,11 @@
               <span class="eyebrow">بيانات التاسك</span>
               <h4>اختيار النوع وبيانات الحملة</h4>
             </div>
-            <a class="soft-btn" href="templates.html">إدارة القوالب</a>
+            <div class="create-task-template-actions">
+              <button class="soft-btn" type="button" id="uploadFilledTemplateBtn">تحميل Template جاهز</button>
+              <input id="filledTemplateFile" type="file" accept=".xlsx,.xls,.csv" hidden>
+              <a class="soft-btn" href="templates.html">إدارة القوالب</a>
+            </div>
           </div>
 
           <div class="create-task-grid">
@@ -557,6 +561,7 @@
 
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="firebase-config.js"></script>
   <script src="routes.js"></script>
   <script src="auth.js"></script>

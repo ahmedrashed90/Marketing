@@ -3729,3 +3729,94 @@ body.sidebar-collapsed .database-main {
   color: var(--muted, #9ca3af);
   font-size: 12px;
 }
+
+/* Task attachment table with delete actions */
+.task-attachment-list.is-table {
+  padding: 12px !important;
+  border-radius: 18px !important;
+  background: rgba(255,255,255,.06) !important;
+  border: 1px dashed rgba(74, 36, 31, .18) !important;
+}
+.task-attachment-head {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 10px !important;
+  margin-bottom: 10px !important;
+}
+.task-attachment-head strong {
+  font-size: 13px !important;
+  color: var(--text, #3f211c) !important;
+}
+.task-attachment-head small {
+  color: var(--muted, #9b8276) !important;
+  font-weight: 800 !important;
+}
+.task-attachment-table-wrap {
+  width: 100% !important;
+  overflow-x: auto !important;
+}
+.task-attachment-table {
+  width: 100% !important;
+  border-collapse: separate !important;
+  border-spacing: 0 8px !important;
+  table-layout: fixed !important;
+}
+.task-attachment-table th {
+  font-size: 11px !important;
+  color: var(--muted, #9b8276) !important;
+  font-weight: 900 !important;
+  text-align: center !important;
+  padding: 3px 6px !important;
+}
+.task-attachment-table td {
+  background: rgba(255,255,255,.75) !important;
+  border-top: 1px solid rgba(74, 36, 31, .08) !important;
+  border-bottom: 1px solid rgba(74, 36, 31, .08) !important;
+  padding: 9px 8px !important;
+  font-size: 12px !important;
+  font-weight: 800 !important;
+  text-align: center !important;
+  vertical-align: middle !important;
+}
+.task-attachment-table td:first-child {
+  width: 42px !important;
+  border-radius: 12px 0 0 12px !important;
+  color: var(--muted, #9b8276) !important;
+}
+.task-attachment-table td:last-child {
+  width: 82px !important;
+  border-radius: 0 12px 12px 0 !important;
+}
+.task-attachment-table a {
+  color: var(--primary, #4a241f) !important;
+  text-decoration: none !important;
+  display: block !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+.task-attachment-table a:hover {
+  text-decoration: underline !important;
+}
+.task-attachment-table tr.is-empty td {
+  color: var(--muted, #9b8276) !important;
+  opacity: .8 !important;
+}
+.task-attachment-delete-btn {
+  border: 0 !important;
+  border-radius: 999px !important;
+  padding: 7px 12px !important;
+  background: rgba(140, 42, 35, .12) !important;
+  color: #8c2a23 !important;
+  font-weight: 900 !important;
+  cursor: pointer !important;
+  white-space: nowrap !important;
+}
+.task-attachment-delete-btn:hover:not(:disabled) {
+  background: rgba(140, 42, 35, .2) !important;
+}
+.task-attachment-delete-btn:disabled {
+  opacity: .55 !important;
+  cursor: not-allowed !important;
+}

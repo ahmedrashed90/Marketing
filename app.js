@@ -281,19 +281,71 @@ function getDeptAttachmentFiles(dept) {
   });
 }
 
+function taskAttachmentKey(file) {
+  const normalized = normalizeTaskFileRecord(file) || {};
+  return String(
+    normalized.fileId ||
+    normalized.id ||
+    normalized.fileUrl ||
+    normalized.url ||
+    normalized.webViewLink ||
+    normalized.name ||
+    normalized.fileName ||
+    normalized.index ||
+    ''
+  ).trim();
+}
+
 function renderTaskAttachmentList(meta) {
   const dept = getTaskDeptByMeta(meta);
-  const files = getDeptAttachmentFiles(dept);
-  if (!files.length) {
-    return '<div class="task-attachment-empty">لم يتم رفع ملفات لهذا القسم حتى الآن.</div>';
-  }
-  return `<div class="task-attachment-list"><strong>الملفات المرفوعة</strong>${files.map((file) => {
+  const files = getDeptAttachmentFiles(dept).slice(0, 4);
+  const rows = [];
+  for (let index = 0; index < 4; index += 1) {
+    const file = files[index];
+    if (!file) {
+      rows.push(`
+        <tr class="is-empty">
+          <td>${index + 1}</td>
+          <td colspan="3">لا يوجد ملف في هذا الصف</td>
+        </tr>
+      `);
+      continue;
+    }
     const url = file.fileUrl || file.url || '';
     const name = file.fileName || file.name || 'ملف مرفق';
-    const date = file.uploadedAt ? String(file.uploadedAt).slice(0, 10) : '';
-    if (url) return `<a class="task-attachment-link" href="${escapeHTML(url)}" target="_blank" rel="noopener"><span>${escapeHTML(name)}</span>${date ? `<small>${escapeHTML(date)}</small>` : ''}</a>`;
-    return `<span class="task-attachment-link is-disabled"><span>${escapeHTML(name)}</span>${date ? `<small>${escapeHTML(date)}</small>` : ''}</span>`;
-  }).join('')}</div>`;
+    const date = file.uploadedAt ? String(file.uploadedAt).slice(0, 10) : '-';
+    const key = taskAttachmentKey(file) || String(index);
+    rows.push(`
+      <tr>
+        <td>${index + 1}</td>
+        <td>${url ? `<a href="${escapeHTML(url)}" target="_blank" rel="noopener">${escapeHTML(name)}</a>` : `<span>${escapeHTML(name)}</span>`}</td>
+        <td>${escapeHTML(date)}</td>
+        <td><button type="button" class="danger-soft-btn task-attachment-delete-btn" data-delete-task-attachment="${escapeHTML(encodeURIComponent(key))}">مسح</button></td>
+      </tr>
+    `);
+  }
+
+  return `
+    <div class="task-attachment-list is-table">
+      <div class="task-attachment-head">
+        <strong>المرفقات الحالية</strong>
+        <small>${files.length} / 4</small>
+      </div>
+      <div class="task-attachment-table-wrap">
+        <table class="task-attachment-table">
+          <thead>
+            <tr>
+              <th>م</th>
+              <th>الملف</th>
+              <th>تاريخ الرفع</th>
+              <th>إجراء</th>
+            </tr>
+          </thead>
+          <tbody>${rows.join('')}</tbody>
+        </table>
+      </div>
+    </div>
+  `;
 }
 
 function attachmentLabelForDeptKey(deptKeyValue) {
@@ -373,6 +425,76 @@ async function uploadTaskFileToDrive(file, meta) {
   };
 }
 
+function filterAttachmentArrayByKey(value, fileKey) {
+  if (!Array.isArray(value)) return [];
+  return value.filter((item) => taskAttachmentKey(item) !== String(fileKey || ''));
+}
+
+async function removeTaskAttachmentFromFirebase(meta, encodedFileKey) {
+  const fileKey = decodeURIComponent(String(encodedFileKey || ''));
+  if (!fileKey) throw new Error('لم يتم تحديد الملف المطلوب مسحه.');
+  if (!meta?.taskId) throw new Error('لا يوجد رقم للتاسك لمسح المرفق.');
+  if (!window.firebase || !window.MZJ_FIREBASE_CONFIG || !firebase.firestore) throw new Error('Firebase SDK غير موجود.');
+  if (!firebase.apps.length) firebase.initializeApp(window.MZJ_FIREBASE_CONFIG);
+
+  const db = firebase.firestore();
+  const docRef = db.collection('workspace_tasks').doc(String(meta.taskId));
+  const snap = await docRef.get();
+  if (!snap.exists) throw new Error('لم يتم العثور على الحملة في workspace_tasks لمسح المرفق.');
+
+  const data = snap.data() || {};
+  const departmentTasks = Array.isArray(data.departmentTasks) ? data.departmentTasks : [];
+  let removed = false;
+  const updatedDepartments = departmentTasks.map((dept) => {
+    const sameDept = rawDeptIdentity(dept) === String(meta.deptIdentity || '');
+    if (!sameDept) return dept;
+
+    const beforeCount = getDeptAttachmentFiles(dept).length;
+    const nextFiles = filterAttachmentArrayByKey(dept.files, fileKey);
+    const nextAttachments = filterAttachmentArrayByKey(dept.attachments, fileKey);
+    const nextDriveFiles = filterAttachmentArrayByKey(dept.driveFiles, fileKey);
+    const nextDept = {
+      ...dept,
+      files: nextFiles,
+      attachments: nextAttachments,
+      driveFiles: nextDriveFiles,
+      updatedAt: new Date().toISOString()
+    };
+    if (taskAttachmentKey({ fileUrl: dept.fileUrl || dept.attachmentUrl || '', name: dept.attachmentLabel || 'ملف مرفق' }) === fileKey) {
+      nextDept.fileUrl = '';
+      nextDept.attachmentUrl = '';
+    }
+    const afterCount = getDeptAttachmentFiles(nextDept).length;
+    if (afterCount < beforeCount) removed = true;
+    return nextDept;
+  });
+
+  await docRef.set({
+    departmentTasks: updatedDepartments,
+    updatedAt: new Date().toISOString()
+  }, { merge: true });
+
+  if (meta.deptData && typeof meta.deptData === 'object') {
+    const nextDeptData = {
+      ...meta.deptData,
+      files: filterAttachmentArrayByKey(meta.deptData.files, fileKey),
+      attachments: filterAttachmentArrayByKey(meta.deptData.attachments, fileKey),
+      driveFiles: filterAttachmentArrayByKey(meta.deptData.driveFiles, fileKey),
+      updatedAt: new Date().toISOString()
+    };
+    if (taskAttachmentKey({ fileUrl: meta.deptData.fileUrl || meta.deptData.attachmentUrl || '', name: meta.deptData.attachmentLabel || 'ملف مرفق' }) === fileKey) {
+      nextDeptData.fileUrl = '';
+      nextDeptData.attachmentUrl = '';
+    }
+    meta.deptData = nextDeptData;
+  }
+
+  if (typeof window.MZJRefreshDashboardTaskCache === 'function') {
+    window.MZJRefreshDashboardTaskCache(String(meta.taskId), updatedDepartments);
+  }
+  return removed;
+}
+
 async function saveTaskAttachmentToFirebase(meta, fileRecord) {
   if (!meta?.taskId) throw new Error('لا يوجد رقم للتاسك لحفظ المرفق.');
   if (!window.firebase || !window.MZJ_FIREBASE_CONFIG || !firebase.firestore) throw new Error('Firebase SDK غير موجود.');
@@ -439,6 +561,11 @@ async function handleTaskAttachmentSelected(event) {
   if (!file || !activeTaskDetailsMeta) return;
   const uploadButton = taskDetailsModal?.querySelector('[data-upload-task-attachment]');
   const oldText = uploadButton?.textContent || '';
+  const currentFilesCount = getDeptAttachmentFiles(getTaskDeptByMeta(activeTaskDetailsMeta)).length;
+  if (currentFilesCount >= 4) {
+    alert('الحد الأقصى 4 مرفقات. امسح ملف قديم أولاً ثم ارفع الملف الجديد.');
+    return;
+  }
   try {
     if (uploadButton) { uploadButton.disabled = true; uploadButton.textContent = 'جاري الرفع...'; }
     const fileRecord = await uploadTaskFileToDrive(file, activeTaskDetailsMeta);
@@ -542,6 +669,32 @@ document.addEventListener('click', (event) => {
   const uploadTaskAttachment = event.target.closest('[data-upload-task-attachment]');
   if (uploadTaskAttachment) {
     ensureTaskAttachmentInput().click();
+  }
+
+  const deleteTaskAttachment = event.target.closest('[data-delete-task-attachment]');
+  if (deleteTaskAttachment) {
+    const encodedKey = deleteTaskAttachment.getAttribute('data-delete-task-attachment') || '';
+    if (!encodedKey || !activeTaskDetailsMeta) return;
+    if (!confirm('هل تريد مسح هذا المرفق من قاعدة البيانات؟')) return;
+    const oldText = deleteTaskAttachment.textContent;
+    deleteTaskAttachment.disabled = true;
+    deleteTaskAttachment.textContent = 'جاري المسح...';
+    removeTaskAttachmentFromFirebase(activeTaskDetailsMeta, encodedKey)
+      .then(() => {
+        const attachBox = taskDetailsModal?.querySelector('[data-task-attachment-box]');
+        if (attachBox) {
+          attachBox.innerHTML = `<button class="soft-btn upload-task-file-btn" type="button" data-upload-task-attachment>${attachmentLabelForDeptKey(activeTaskDetailsMeta?.deptKey || '')}</button>${renderTaskAttachmentList(activeTaskDetailsMeta)}`;
+        }
+        if (window.renderDashboardTasks) window.renderDashboardTasks();
+      })
+      .catch((error) => {
+        console.error('task attachment delete failed:', error);
+        alert('فشل مسح المرفق: ' + (error.message || error.code || error));
+      })
+      .finally(() => {
+        deleteTaskAttachment.disabled = false;
+        deleteTaskAttachment.textContent = oldText || 'مسح';
+      });
   }
 
   const stepButton = event.target.closest('.task-step-btn');

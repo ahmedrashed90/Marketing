@@ -2433,14 +2433,65 @@ function initCreateTaskFromTemplate() {
     const carName = templateCellText(value.carName || value.name || value.title || '');
     const statement = templateCellText(value.statement || value.description || '');
     const model = templateCellText(value.model || value.year || '');
+    const exteriorColor = templateCellText(value.exteriorColor || value.extColor || value.color || value.outerColor || '');
+    const interiorColor = templateCellText(value.interiorColor || value.intColor || value.insideColor || '');
     const status = templateCellText(value.status || '');
-    const display = [carName, statement, model, vin ? `VIN: ${vin}` : '', status].filter(Boolean).join(' | ');
-    return { id: templateCellText(value.docId || vin || display), vin, carName, statement, model, status, display };
+    const display = [carName, statement, model, exteriorColor, interiorColor, vin ? `VIN: ${vin}` : '', status].filter(Boolean).join(' | ');
+    return { id: templateCellText(value.docId || vin || display), vin, carName, statement, model, exteriorColor, interiorColor, status, display };
+  }
+
+  function stockSpecKey(car) {
+    return [car?.carName || 'بدون ماركة', car?.statement || 'بدون مواصفة', car?.model || 'بدون موديل'].join(' | ');
+  }
+
+  function buildStockSpecsForDropdown(cars) {
+    const map = new Map();
+    (cars || []).forEach((car) => {
+      if (!car?.carName && !car?.statement && !car?.model) return;
+      const key = stockSpecKey(car);
+      if (!map.has(key)) {
+        map.set(key, {
+          id: key,
+          carName: car.carName,
+          statement: car.statement,
+          model: car.model,
+          count: 0,
+          exteriorColors: new Set(),
+          interiorColors: new Set(),
+          statuses: new Map()
+        });
+      }
+      const item = map.get(key);
+      item.count += 1;
+      if (car.exteriorColor) item.exteriorColors.add(car.exteriorColor);
+      if (car.interiorColor) item.interiorColors.add(car.interiorColor);
+      if (car.status) item.statuses.set(car.status, (item.statuses.get(car.status) || 0) + 1);
+    });
+
+    return Array.from(map.values()).map((item) => {
+      const exterior = Array.from(item.exteriorColors).sort((a, b) => a.localeCompare(b, 'ar', { numeric: true })).join(' / ');
+      const interior = Array.from(item.interiorColors).sort((a, b) => a.localeCompare(b, 'ar', { numeric: true })).join(' / ');
+      const statuses = Array.from(item.statuses.entries()).sort((a, b) => b[1] - a[1]).map(([status, count]) => `${status}: ${count}`).join(' / ');
+      const display = [
+        item.carName,
+        item.statement,
+        item.model,
+        exterior ? `ألوان خارجية: ${exterior}` : '',
+        interior ? `ألوان داخلية: ${interior}` : '',
+        `العدد: ${item.count}`,
+        statuses
+      ].filter(Boolean).join(' | ');
+      return { ...item, display };
+    }).filter((item) => item.display).sort((a, b) => {
+      if (b.count !== a.count) return b.count - a.count;
+      return a.display.localeCompare(b.display, 'ar', { numeric: true });
+    });
   }
 
   function shouldHideStockCar(car) {
     const status = templateCellText(car?.status).toLowerCase();
-    return !car?.display || status.includes('أرشيف') || status.includes('مؤرشف') || status.includes('مباع تم التسليم');
+    const hasSpec = !!(car?.carName || car?.statement || car?.model);
+    return !hasSpec || status.includes('أرشيف') || status.includes('مؤرشف') || status.includes('مباع تم التسليم');
   }
 
   async function loadStockCarsForDropdown(force = false) {
@@ -2459,13 +2510,7 @@ function initCreateTaskFromTemplate() {
         const car = normalizeStockCar({ ...(doc.data() || {}), docId: doc.id });
         if (!shouldHideStockCar(car)) items.push(car);
       });
-      const seen = new Set();
-      stockCarsCache = items.filter((car) => {
-        const key = car.display.toLowerCase();
-        if (seen.has(key)) return false;
-        seen.add(key);
-        return true;
-      }).sort((a, b) => a.display.localeCompare(b.display, 'ar', { numeric: true }));
+      stockCarsCache = buildStockSpecsForDropdown(items);
     } catch (error) {
       console.warn('Stock cars dropdown load failed:', error);
       stockCarsCache = [];
@@ -2483,7 +2528,7 @@ function initCreateTaskFromTemplate() {
       <div class="content-type-link-assignment" data-content-type-link-assignment>
         <label class="mzj-field"><span>القسم</span><select data-content-type-department>${renderDepartmentOptions()}</select></label>
         <label class="mzj-field"><span>اليوزر في القسم</span><select data-content-type-user><option value="">اختار القسم الأول</option></select></label>
-        <label class="mzj-field content-type-car-field"><span>السيارة المطلوبة</span><input type="text" list="stockCarsDatalist" data-content-type-car placeholder="ابحث واختار من الاستوك"></label>
+        <label class="mzj-field content-type-car-field"><span>السيارة المطلوبة من حصر الماركات والمواصفات والألوان</span><input type="text" list="stockCarsDatalist" data-content-type-car placeholder="ابحث بالماركة / المواصفة / اللون"></label>
         <button class="danger-btn ghost-btn content-type-link-remove" type="button" data-remove-content-type-link title="مسح هذا الربط">مسح</button>
       </div>`;
   }

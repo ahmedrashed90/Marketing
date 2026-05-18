@@ -227,22 +227,61 @@ function renderTaskRequirementDetails(requiredText, deptKeyValue) {
   const parts = clean.split('|').map(x => x.trim()).filter(Boolean);
 
   if (deptKeyValue === 'shooting') {
-    const rows = parts.map((part, index) => {
-      const carMatch = part.match(/نوع السيارة\s*:?\s*([^—|]+)/);
-      const contentMatch = part.match(/نوع المحتوى\s*:?\s*(.+)$/);
-      const car = carMatch ? carMatch[1].trim() : part.replace(/^مطلوب\s*\d+\s*:?/,'').trim();
-      const content = contentMatch ? contentMatch[1].trim() : '—';
-      return `<article class="photo-required-row">
-        <div class="photo-required-cell"><small>نوع السيارة</small><strong>${safe(car || '—')}</strong></div>
-        <div class="photo-required-cell"><small>نوع المحتوى</small><strong>${safe(content || '—')}</strong></div>
-      </article>`;
-    }).join('');
-    return `<div class="photo-required-grid">${rows}</div>`;
+    const looksLikePhotoItems = parts.some((part) => /نوع السيارة|نوع المحتوى/.test(part));
+    const looksLikeCampaignDetails = parts.some((part) => /الهدف|الفكرة|وصف المحتوى|المطلوب من الكاتب|CTA/.test(part));
+    if (looksLikePhotoItems && !looksLikeCampaignDetails) {
+      const rows = parts.map((part, index) => {
+        const carMatch = part.match(/نوع السيارة\s*:?\s*([^—|]+)/);
+        const contentMatch = part.match(/نوع المحتوى\s*:?\s*(.+)$/);
+        const car = carMatch ? carMatch[1].trim() : part.replace(/^مطلوب\s*\d+\s*:?/,'').trim();
+        const content = contentMatch ? contentMatch[1].trim() : '—';
+        return `<article class="photo-required-row">
+          <div class="photo-required-cell"><small>نوع السيارة</small><strong>${safe(car || '—')}</strong></div>
+          <div class="photo-required-cell"><small>نوع المحتوى</small><strong>${safe(content || '—')}</strong></div>
+        </article>`;
+      }).join('');
+      return `<div class="photo-required-grid">${rows}</div>`;
+    }
+  }
+
+  const labelMap = [
+    { key: 'taskNo', label: 'رقم التاسك', patterns: ['رقم التاسك', 'رقم المهمة'] },
+    { key: 'contentType', label: 'نوع المحتوى', patterns: ['نوع المحتوى'] },
+    { key: 'goal', label: 'الهدف', patterns: ['الهدف'] },
+    { key: 'tangibleGoal', label: 'الهدف الملموس', patterns: ['الهدف الملموس'] },
+    { key: 'idea', label: 'الفكرة', patterns: ['الفكرة'] },
+    { key: 'description', label: 'وصف المحتوى', patterns: ['وصف المحتوى', 'وصف المحتوي'] },
+    { key: 'message', label: 'الرسالة', patterns: ['الرسالة'] },
+    { key: 'writerRequest', label: 'المطلوب من الكاتب', patterns: ['المطلوب من اليوزر / المطلوب من الكاتب', 'المطلوب من الكاتب', 'المطلوب من اليوزر'] },
+    { key: 'cta', label: 'CTA', patterns: ['CTA'] }
+  ];
+  const labeledRows = [];
+  const usedParts = new Set();
+
+  labelMap.forEach((field) => {
+    const foundIndex = parts.findIndex((part, index) => {
+      if (usedParts.has(index)) return false;
+      return field.patterns.some((pattern) => part.trim().startsWith(pattern + ':') || part.trim().startsWith(pattern + ' :'));
+    });
+    if (foundIndex === -1) return;
+    const part = parts[foundIndex];
+    usedParts.add(foundIndex);
+    const splitIndex = part.indexOf(':');
+    const value = splitIndex >= 0 ? part.slice(splitIndex + 1).trim() : part;
+    if (!value) return;
+    labeledRows.push({ label: field.label, value });
+  });
+
+  if (labeledRows.length >= 3) {
+    return `<div class="campaign-task-details-list">${labeledRows.map((row) => `
+      <article class="campaign-task-detail-row">
+        <strong>${safe(row.label)}</strong>
+        <p>${safe(row.value)}</p>
+      </article>`).join('')}</div>`;
   }
 
   return parts.map(x => `<span class="task-required-line">${safe(x)}</span>`).join('');
 }
-
 
 function isAttachmentActionLabel(value) {
   const text = String(value || '').trim();

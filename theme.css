@@ -4319,3 +4319,47 @@ body.sidebar-collapsed .database-main {
   .content-type-linking-grid { grid-template-columns: 1fr; }
   .content-type-linking-panel > .primary-btn[data-apply-content-type-linking] { margin-inline: 0; width: 100%; }
 }
+
+/* Campaign sheet task details: show each imported field on its own clear row */
+.campaign-task-details-list{
+  display:grid;
+  gap:10px;
+  direction:rtl;
+}
+.campaign-task-detail-row{
+  display:grid;
+  grid-template-columns:minmax(130px, 180px) 1fr;
+  gap:12px;
+  align-items:start;
+  background:rgba(255,255,255,.78);
+  border:1px solid rgba(78,40,34,.10);
+  border-radius:16px;
+  padding:12px 14px;
+  box-shadow:0 10px 24px rgba(65,36,31,.045);
+}
+.campaign-task-detail-row strong{
+  display:block;
+  margin:0!important;
+  color:#4a241f!important;
+  font-size:14px!important;
+  line-height:1.8;
+  white-space:nowrap;
+}
+.campaign-task-detail-row p{
+  margin:0;
+  color:#4f3932;
+  font-weight:800;
+  line-height:1.9;
+  text-align:right;
+  white-space:pre-wrap;
+  overflow-wrap:anywhere;
+}
+@media(max-width:720px){
+  .campaign-task-detail-row{
+    grid-template-columns:1fr;
+    gap:4px;
+  }
+  .campaign-task-detail-row strong{
+    white-space:normal;
+  }
+}

@@ -85,16 +85,63 @@
     return role === 'admin' || role === 'administrator' || String(user.email||'').toLowerCase() === 'mr.ahmed_rashed@outlook.sa';
   }
 
+
+  const HIGH_LEVEL_RECORD_TYPES = new Set(['حملة','حمله','أجندة','اجندة','تاسك','campaign','agenda','task','campaigns','agendas','tasks']);
+
+  function cleanTypeText(value){
+    const text = String(value ?? '').trim();
+    if(!text) return '';
+    const low = text.toLowerCase();
+    return HIGH_LEVEL_RECORD_TYPES.has(low) ? '' : text;
+  }
+
+  function campaignTypeCandidates(record){
+    if(!record || typeof record !== 'object') return [];
+    const nested = [];
+    ['campaignLogic','logic','campaignMeta','meta','templateMeta','sheetMeta'].forEach((key) => {
+      const obj = record[key];
+      if(obj && typeof obj === 'object'){
+        nested.push(obj.campaignTypeName, obj.campaignType, obj.type, obj.kind, obj.category, obj.categoryName, obj['نوع الحملة']);
+      }
+    });
+    return [
+      record.campaignTypeName,
+      record.campaignType,
+      record.campaign_type,
+      record.campaignKind,
+      record.campaignCategory,
+      record.campaignCategoryName,
+      record.campaignObjectiveType,
+      record.sheetCampaignType,
+      record.templateCampaignType,
+      record.originalCampaignType,
+      record.rawCampaignType,
+      record.type,
+      record.kind,
+      record['نوع الحملة'],
+      record['نوع الحملة / الأجندة'],
+      ...nested
+    ].map(cleanTypeText).filter(Boolean);
+  }
+
+  function pickCampaignTypeValue(record){
+    const candidates = campaignTypeCandidates(record);
+    return candidates[0] || '';
+  }
+
   function normalizeRecord(r, fallbackId){
     if(!r || typeof r !== 'object') return null;
-    const labelRaw = r.taskTypeLabel || r.taskType || r.type || r.kind || 'حملة';
+    const campaignTypeDisplay = pickCampaignTypeValue(r);
+    const labelRaw = r.taskTypeLabel || r.taskType || r.kind || 'حملة';
     const labelText = String(labelRaw).toLowerCase();
     const type = String(labelRaw).includes('أج') || labelText.includes('agenda') ? 'أجندة' : (String(labelRaw).includes('تاسك') ? 'تاسك' : 'حملة');
     const departmentTasks = Array.isArray(r.departmentTasks) ? r.departmentTasks : (Array.isArray(r.assignedDepartments) ? r.assignedDepartments : []);
     return {
       ...r,
       id: r.id || r.firestoreId || r.docId || fallbackId,
+      recordType: type,
       type,
+      campaignTypeName: campaignTypeDisplay || r.campaignTypeName || r.campaignType || '',
       name: r.name || r.campaignName || r.title || r.agendaName || r.taskName || 'حملة / أجندة',
       code: r.code || r.campaignCode || r.taskCode || r.campaignSerial || '',
       goal: r.goal || r.campaignGoal || r.taskGoal || r.objective || '',
@@ -122,7 +169,7 @@
 
 
   function recordTypeValue(record){
-    return String(record.campaignTypeName || record.campaignType || record.type || '').trim();
+    return pickCampaignTypeValue(record) || String(record.campaignTypeName || record.campaignType || '').trim();
   }
 
   function dateComparable(value){
@@ -678,7 +725,7 @@
       <th>عرض البيانات</th><th>إجراءات</th>
     </tr></thead><tbody>${records.map((r, idx) => {
       return `<tr data-record-id="${esc(r.id)}">
-        <td>${idx+1}</td><td>${esc(formatDate(r.taskDate || r.createdAt || r.launchDate))}</td><td>${esc(r.code || '--')}</td><td>${esc(r.name)}</td><td>${esc(r.campaignTypeName || r.type)}</td><td>${esc(r.goal || '--')}</td><td>${esc(formatDate(r.startDate || r.launchDate))}</td><td>${esc(formatDate(r.endDate))}</td>
+        <td>${idx+1}</td><td>${esc(formatDate(r.taskDate || r.createdAt || r.launchDate))}</td><td>${esc(r.code || '--')}</td><td>${esc(r.name)}</td><td>${esc(recordTypeValue(r) || '--')}</td><td>${esc(r.goal || '--')}</td><td>${esc(formatDate(r.startDate || r.launchDate))}</td><td>${esc(formatDate(r.endDate))}</td>
         <td>${renderDeptSummary(r,'photography')}</td><td>${renderDeptSummary(r,'content')}</td><td>${renderDeptSummary(r,'design')}</td><td>${renderDeptSummary(r,'video')}</td><td>${renderDeptSummary(r,'publish')}</td>
         <td>${renderSectionButton(r,'all','عرض البيانات')}</td><td>${isAdmin() ? `<div class="db-action-stack"><button class="soft-btn db-edit-btn" type="button" data-edit-record="${esc(r.id)}" onclick="window.openDatabaseEditCampaign && window.openDatabaseEditCampaign(this.dataset.editRecord)">تعديل</button><button class="danger-btn db-delete-btn" type="button" data-delete-record="${esc(r.id)}">مسح</button></div>` : '--'}</td>
       </tr>`;

@@ -2394,14 +2394,21 @@ function initCreateTaskFromTemplate() {
     if (sourceType === 'agenda') {
       return (tasks || []).map((task, index) => {
         const contentType = templateCellText(task?.contentType) || `محتوى ${index + 1}`;
-        const taskNo = templateCellText(task?.taskNo) || String(index + 1);
-        const title = templateCellText(task?.title || task?.description || '');
+        const rawTaskNo = templateCellText(task?.taskNo);
+        const rawTitle = templateCellText(task?.title || task?.description || '');
+        const normalize = (value) => templateCellText(value).toLowerCase().replace(/[\s_\-–—|/\\]+/g, '');
+        const contentKey = normalize(contentType);
+        const autoTaskNo = `AG-T${String(index + 1).padStart(2, '0')}`;
+        const taskNo = rawTaskNo && normalize(rawTaskNo) !== contentKey ? rawTaskNo : autoTaskNo;
+        const title = rawTitle && normalize(rawTitle) !== contentKey && normalize(rawTitle) !== normalize(taskNo) ? rawTitle : '';
         const linkKey = task.linkKey || `${contentType}__${taskNo}__${index}`;
         task.linkKey = linkKey;
+        const titleParts = [contentType, taskNo];
+        if (title) titleParts.push(title);
         return {
           linkKey,
           contentType,
-          label: `${contentType} - ${taskNo}${title ? ' - ' + title : ''}`,
+          label: titleParts.join(' - '),
           items: [task],
           isSingleAgendaItem: true
         };
@@ -3049,21 +3056,29 @@ function initCreateTaskFromTemplate() {
       if (!cells.some((cell) => templateCellText(cell))) continue;
       const contentType = templateCellText(cells[col.contentType]);
       if (!contentType) continue;
+      const safeColValue = (columnIndex) => columnIndex >= 0 ? templateCellText(cells[columnIndex]) : '';
+      const defaultTaskNo = `AG-T${String(importedRows.length + 1).padStart(2, '0')}`;
+      const rawTaskNo = safeColValue(col.taskNo);
+      const rawTitle = safeColValue(col.title);
+      const sameAsContentType = (value) => {
+        const normalize = (item) => templateCellText(item).toLowerCase().replace(/[\s_\-–—|/\\]+/g, '');
+        return normalize(value) && normalize(value) === normalize(contentType);
+      };
       const rowData = {
         campaignType: 'أجندة',
         contentType,
-        taskNo: templateCellText(cells[col.taskNo]) || `AG-T${String(importedRows.length + 1).padStart(2, '0')}`,
-        title: templateCellText(cells[col.title]),
-        goal: templateCellText(cells[col.goal]),
-        tangibleGoal: templateCellText(cells[col.tangibleGoal]),
-        idea: templateCellText(cells[col.idea]),
-        description: templateCellText(cells[col.description]),
-        message: templateCellText(cells[col.message]),
-        writerRequest: templateCellText(cells[col.writerRequest]),
-        cta: templateCellText(cells[col.cta]),
-        carType: templateCellText(cells[col.carType]),
-        requiredDate: normalizeImportedDate(templateCellText(cells[col.requiredDate])),
-        deliveryDate: normalizeImportedDate(templateCellText(cells[col.deliveryDate]))
+        taskNo: rawTaskNo && !sameAsContentType(rawTaskNo) ? rawTaskNo : defaultTaskNo,
+        title: rawTitle && !sameAsContentType(rawTitle) ? rawTitle : '',
+        goal: safeColValue(col.goal),
+        tangibleGoal: safeColValue(col.tangibleGoal),
+        idea: safeColValue(col.idea),
+        description: safeColValue(col.description),
+        message: safeColValue(col.message),
+        writerRequest: safeColValue(col.writerRequest),
+        cta: safeColValue(col.cta),
+        carType: safeColValue(col.carType),
+        requiredDate: normalizeImportedDate(safeColValue(col.requiredDate)),
+        deliveryDate: normalizeImportedDate(safeColValue(col.deliveryDate))
       };
       rowData.linkKey = `${rowData.contentType}__${rowData.taskNo}__${importedRows.length}`;
       rowData.requiredText = buildContentExecutionTaskText(rowData);

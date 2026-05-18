@@ -1425,6 +1425,7 @@ function buildSpecialDepartmentFields(kind) {
             <label class="mzj-field"><span>نوع المحتوى</span><select data-photo-content-type>${PHOTOGRAPHY_CONTENT_TYPES.map(t => `<option value="${escapeHTML(t)}">${escapeHTML(t)}</option>`).join('')}</select></label>
           </article>
         </div>
+        <label class="mzj-field full-width-field"><span>ملاحظات / تفاصيل التصوير</span><textarea data-required-text rows="3" placeholder="اكتب تفاصيل التصوير من التاسك"></textarea></label>
       </div>`;
   }
   if (kind === 'design') {
@@ -2311,11 +2312,72 @@ function initCreateTaskFromTemplate() {
     return rules;
   }
 
+  function uniqueContentTypesFromImportedTasks(tasks) {
+    const map = new Map();
+    (tasks || []).forEach((task) => {
+      const contentType = templateCellText(task?.contentType);
+      if (!contentType) return;
+      if (!map.has(contentType)) map.set(contentType, []);
+      map.get(contentType).push(task);
+    });
+    return Array.from(map.entries()).map(([contentType, items]) => ({ contentType, items }));
+  }
+
+  function renderDepartmentOptions(selectedId = '') {
+    return '<option value="">اختار القسم</option>' + departmentsCache.map((dept) => `<option value="${escapeHTML(dept.id)}" ${String(selectedId) === String(dept.id) ? 'selected' : ''}>${escapeHTML(dept.name)}</option>`).join('');
+  }
+
+  function departmentById(id) {
+    return departmentsCache.find((dept) => String(dept.id) === String(id));
+  }
+
+  function renderImportedUserOptionsForDepartment(deptId, selectedValue = '') {
+    const dept = departmentById(deptId);
+    const users = dept ? usersForDepartment(dept, usersCache) : [];
+    const html = renderUserOptions(users, '', false);
+    if (!selectedValue) return html;
+    const wrap = document.createElement('select');
+    wrap.innerHTML = html;
+    const wanted = templateCellText(selectedValue).toLowerCase();
+    const opt = Array.from(wrap.options).find((option) => {
+      const value = templateCellText(option.value).toLowerCase();
+      const text = templateCellText(option.textContent).toLowerCase();
+      const email = templateCellText(option.dataset.userEmail || '').toLowerCase();
+      const name = templateCellText(option.dataset.userName || '').toLowerCase();
+      return value === wanted || text.includes(wanted) || email === wanted || name === wanted;
+    });
+    if (opt) opt.selected = true;
+    return wrap.innerHTML;
+  }
+
+  function renderContentTypeLinkingPanel(context) {
+    const groups = uniqueContentTypesFromImportedTasks(context?.contentExecutionTasks || []);
+    if (!groups.length) return '';
+    return `
+      <div class="campaign-context-panel content-type-linking-panel" data-content-type-linking-panel>
+        <h5>ربط أنواع المحتوى بالأقسام</h5>
+        <p class="admin-only-note">السيستم قرأ أنواع المحتوى من الشيت. اختار لكل نوع محتوى القسم واليوزر المسؤول، وبعدها اضغط تطبيق الربط. كل التاسكات من نفس النوع هتنزل في القسم واليوزر المختارين.</p>
+        <div class="content-type-linking-grid">
+          ${groups.map((group) => `
+            <article class="content-type-link-card" data-content-type-link-row data-content-type="${escapeHTML(group.contentType)}">
+              <div class="content-type-link-title">
+                <strong>${escapeHTML(group.contentType)}</strong>
+                <span>${group.items.length} تاسك</span>
+              </div>
+              <label class="mzj-field"><span>القسم</span><select data-content-type-department>${renderDepartmentOptions()}</select></label>
+              <label class="mzj-field"><span>اليوزر في القسم</span><select data-content-type-user><option value="">اختار القسم الأول</option></select></label>
+            </article>`).join('')}
+        </div>
+        <button class="primary-btn" type="button" data-apply-content-type-linking>تطبيق الربط على التاسكات</button>
+      </div>`;
+  }
+
   function renderImportedCampaignContext(context) {
     if (!importedCampaignLogicSection || !importedCampaignLogicBox) return;
     const logic = Array.isArray(context?.campaignLogic) ? context.campaignLogic : [];
     const rules = Array.isArray(context?.writingRules) ? context.writingRules : [];
-    if (!logic.length && !rules.length) {
+    const linkingHtml = renderContentTypeLinkingPanel(context);
+    if (!logic.length && !rules.length && !linkingHtml) {
       importedCampaignLogicSection.hidden = true;
       importedCampaignLogicBox.innerHTML = '';
       return;
@@ -2333,7 +2395,79 @@ function initCreateTaskFromTemplate() {
         <h5>قواعد كتابة المحتوى</h5>
         <ul class="campaign-writing-rules">${rules.map((rule) => `<li>${escapeHTML(rule)}</li>`).join('')}</ul>
       </div>` : '';
-    importedCampaignLogicBox.innerHTML = logicHtml + rulesHtml;
+    importedCampaignLogicBox.innerHTML = logicHtml + rulesHtml + linkingHtml;
+  }
+
+  function findDepartmentRowById(id) {
+    return Array.from(departmentsList.querySelectorAll('.department-task-row')).find((row) => String(row.dataset.departmentId || '') === String(id));
+  }
+
+  function setAssignmentUserByValue(assignmentRow, rawValue) {
+    const select = assignmentRow?.querySelector('[data-user-select]');
+    if (!select) return;
+    const value = templateCellText(rawValue);
+    if (!value) return;
+    const wanted = value.toLowerCase();
+    const option = Array.from(select.options).find((opt) => {
+      const val = templateCellText(opt.value).toLowerCase();
+      const text = templateCellText(opt.textContent).toLowerCase();
+      const email = templateCellText(opt.dataset.userEmail || '').toLowerCase();
+      const name = templateCellText(opt.dataset.userName || '').toLowerCase();
+      return val === wanted || email === wanted || name === wanted || text.includes(wanted);
+    });
+    if (option) {
+      select.value = option.value;
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+  }
+
+  function clearImportedContentAssignments() {
+    renderAllDepartments();
+  }
+
+  function applyContentTypeLinkingFromPanel(panel) {
+    const tasks = importedTemplateContext.contentExecutionTasks || [];
+    if (!tasks.length) {
+      if (note) note.textContent = '⚠️ ارفع الشيت الأول علشان تظهر أنواع المحتوى.';
+      return;
+    }
+    const rows = Array.from(panel.querySelectorAll('[data-content-type-link-row]'));
+    const mapping = new Map();
+    rows.forEach((row) => {
+      const contentType = row.dataset.contentType || '';
+      const deptId = row.querySelector('[data-content-type-department]')?.value || '';
+      const userValue = row.querySelector('[data-content-type-user]')?.value || '';
+      if (contentType && deptId) mapping.set(contentType, { deptId, userValue });
+    });
+    if (!mapping.size) {
+      if (note) note.textContent = '⚠️ اختار قسم واحد على الأقل لنوع محتوى واحد.';
+      return;
+    }
+    clearImportedContentAssignments();
+    const perDeptCount = {};
+    let created = 0;
+    tasks.forEach((task) => {
+      const mapItem = mapping.get(templateCellText(task.contentType));
+      if (!mapItem) return;
+      const dept = departmentById(mapItem.deptId);
+      const deptRow = findDepartmentRowById(mapItem.deptId);
+      if (!dept || !deptRow) return;
+      const kind = deptRow.dataset.departmentKind || deptKindFromName(dept.name);
+      openAndEnableDepartmentRow(deptRow);
+      const key = String(mapItem.deptId);
+      const idx = perDeptCount[key] || 0;
+      perDeptCount[key] = idx + 1;
+      const assignmentRow = addOrGetDepartmentAssignment(deptRow, idx);
+      if (!assignmentRow) return;
+      assignmentRow.dataset.importedContentAssignment = 'true';
+      assignmentRow.dataset.importedContentType = task.contentType || '';
+      clearAssignmentRequirement(assignmentRow);
+      setAssignmentUserByValue(assignmentRow, mapItem.userValue);
+      fillAssignmentText(kind, assignmentRow, task.requiredText || buildContentExecutionTaskText(task));
+      created += 1;
+    });
+    importedTemplateContext.contentTypeMapping = Array.from(mapping.entries()).map(([contentType, item]) => ({ contentType, ...item }));
+    if (note) note.textContent = `✅ تم ربط ${created} تاسك حسب نوع المحتوى. راجع المطلوب واليوزرات ثم اضغط حفظ.`;
   }
 
   function campaignInfoValueBeforeExecution(rows, labels) {
@@ -2374,7 +2508,6 @@ function initCreateTaskFromTemplate() {
     };
     if (col.contentType < 0 || col.taskNo < 0) return false;
 
-    const deptIndexes = {};
     const importedRows = [];
     let lastCampaignType = '';
     for (let r = headerIndex + 1; r < rows.length; r += 1) {
@@ -2404,11 +2537,8 @@ function initCreateTaskFromTemplate() {
       rowData.requiredText = buildContentExecutionTaskText(rowData);
       importedRows.push(rowData);
 
-      // الربط بالأقسام يدوي حاليًا: لا نفتح تصميم/مونتاج/تصوير/نشر تلقائيًا.
-      // ننزل التاسكات الخام في قسم المحتوى فقط، وبعدها المدير يربط باقي الأقسام يدويًا.
-      addContentExecutionAssignment('content', deptIndexes, rowData, (assignmentRow) => {
-        fillAssignmentText('content', assignmentRow, rowData.requiredText);
-      });
+      // لا يتم تنزيل التاسك على أي قسم تلقائيًا.
+      // بعد الرفع تظهر لوحة ربط أنواع المحتوى بالأقسام واليوزرات.
     }
 
     if (!importedRows.length) return false;
@@ -2422,7 +2552,7 @@ function initCreateTaskFromTemplate() {
       contentExecutionTasks: importedRows
     };
     renderImportedCampaignContext(importedTemplateContext);
-    if (note) note.textContent = `✅ تم قراءة ${importedRows.length} تاسك من آلية تنفيذ المحتوى. تم تنزيلها في قسم المحتوى فقط، والربط بباقي الأقسام يدوي حاليًا.`;
+    if (note) note.textContent = `✅ تم قراءة ${importedRows.length} تاسك من آلية تنفيذ المحتوى. اختار لكل نوع محتوى القسم واليوزر من لوحة الربط، ثم اضغط تطبيق الربط.`;
     return true;
   }
 
@@ -2632,10 +2762,13 @@ function initCreateTaskFromTemplate() {
         carType: item.querySelector('[data-photo-car-type]')?.value.trim() || '',
         contentType: item.querySelector('[data-photo-content-type]')?.value || ''
       })).filter((item) => item.carType || item.contentType);
+      const notes = row.querySelector('[data-required-text]')?.value.trim() || '';
+      const itemText = items.map((item) => [item.carType ? `نوع السيارة: ${item.carType}` : '', item.contentType ? `نوع المحتوى: ${item.contentType}` : ''].filter(Boolean).join(' — ')).join(' | ');
       return {
         kind,
         items,
-        requiredText: items.map((item) => [item.carType ? `نوع السيارة: ${item.carType}` : '', item.contentType ? `نوع المحتوى: ${item.contentType}` : ''].filter(Boolean).join(' — ')).join(' | ')
+        notes,
+        requiredText: [itemText, notes].filter(Boolean).join(' — ')
       };
     }
     if (kind === 'design') {
@@ -2748,6 +2881,22 @@ function initCreateTaskFromTemplate() {
       if (typeSelect.value === 'agenda') applyAgendaDefaults(true);
     });
   });
+
+  if (importedCampaignLogicBox) {
+    importedCampaignLogicBox.addEventListener('change', (event) => {
+      const deptSelect = event.target.closest?.('[data-content-type-department]');
+      if (!deptSelect) return;
+      const row = deptSelect.closest('[data-content-type-link-row]');
+      const userSelect = row?.querySelector('[data-content-type-user]');
+      if (userSelect) userSelect.innerHTML = renderImportedUserOptionsForDepartment(deptSelect.value);
+    });
+    importedCampaignLogicBox.addEventListener('click', (event) => {
+      const btn = event.target.closest?.('[data-apply-content-type-linking]');
+      if (!btn) return;
+      const panel = btn.closest('[data-content-type-linking-panel]');
+      if (panel) applyContentTypeLinkingFromPanel(panel);
+    });
+  }
 
   if (generateCampaignCodeBtn) {
     generateCampaignCodeBtn.addEventListener('click', () => ensureGeneratedCode(true));

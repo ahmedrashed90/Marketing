@@ -4230,3 +4230,10 @@ body.sidebar-collapsed .database-main {
 .campaign-context-kv strong { display: block; margin-bottom: 6px; color: var(--mzj-brown, #4b241f); }
 .campaign-context-kv p { margin: 0; line-height: 1.8; white-space: normal; }
 .campaign-writing-rules { margin: 0; padding: 0 20px 0 0; line-height: 1.9; }
+
+.content-type-linking-panel { margin-top: 14px; }
+.content-type-linking-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; margin: 14px 0; }
+.content-type-link-card { border: 1px solid rgba(76, 35, 30, 0.14); border-radius: 16px; background: #fff; padding: 12px; display: grid; gap: 10px; }
+.content-type-link-title { display: flex; align-items: center; justify-content: space-between; gap: 10px; border-bottom: 1px solid rgba(76, 35, 30, 0.08); padding-bottom: 8px; }
+.content-type-link-title strong { color: var(--mzj-brown, #4b241f); }
+.content-type-link-title span { font-size: 12px; color: #8a6a5c; background: rgba(76, 35, 30, 0.08); padding: 4px 8px; border-radius: 999px; }

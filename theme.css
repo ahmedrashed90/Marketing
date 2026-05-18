@@ -4438,3 +4438,85 @@ body.sidebar-collapsed .database-main {
 .dashboard-review-section{margin:18px 0}.review-modal{position:fixed;inset:0;background:rgba(35,20,17,.55);z-index:9999;display:none;align-items:center;justify-content:center;padding:20px}.review-modal.is-open{display:flex}.review-modal-card{background:#fffaf3;border-radius:28px;width:min(980px,96vw);max-height:88vh;overflow:auto;padding:24px;position:relative;box-shadow:0 25px 80px rgba(0,0,0,.22);direction:rtl}.review-modal-card h3{font-size:1.45rem;color:#3f1e1a;margin:0 0 6px}.review-lines{display:grid;gap:8px;margin:16px 0}.review-line{border:1px solid rgba(75,36,31,.12);background:#fff;border-radius:12px;text-align:right;padding:10px 12px;line-height:1.8;font-family:inherit;font-weight:700;color:#3f1e1a;cursor:pointer}.review-line.is-marked{background:#fff1d6;border-color:#d89a72;box-shadow:inset 4px 0 0 #d89a72}.modal-close{position:absolute;left:18px;top:18px;width:42px;height:42px;border:0;border-radius:14px;background:#4b241f;color:#fff;font-size:24px;font-weight:900;cursor:pointer}
 .content-type-link-card .content-type-link-title strong{line-height:1.5}
 @media (max-width:720px){.review-upload-box{align-items:stretch;flex-direction:column}.campaign-tabs-actions button{flex:1}.review-modal{padding:8px}.review-modal-card{border-radius:20px;padding:18px}}
+
+/* Review workflow polish */
+.review-upload-box{
+  padding:20px 22px;
+  border-style:solid;
+  border-color:rgba(75,36,31,.10);
+  background:linear-gradient(135deg, rgba(255,255,255,.92), rgba(248,238,230,.95));
+  box-shadow:0 14px 36px rgba(75,36,31,.06);
+}
+.review-upload-copy{display:grid;gap:6px}
+.review-upload-trigger{
+  display:inline-flex;
+  align-items:center;
+  gap:12px;
+  min-width:240px;
+  border:0;
+  border-radius:18px;
+  padding:14px 18px;
+  background:linear-gradient(135deg, #4b241f, #6a352d);
+  color:#fff;
+  box-shadow:0 16px 28px rgba(75,36,31,.22);
+  cursor:pointer;
+  transition:transform .18s ease, box-shadow .18s ease, opacity .18s ease;
+}
+.review-upload-trigger:hover{transform:translateY(-1px);box-shadow:0 20px 34px rgba(75,36,31,.26)}
+.review-upload-trigger:disabled{opacity:.78;cursor:not-allowed;transform:none}
+.review-upload-trigger__icon{
+  width:42px;height:42px;border-radius:14px;display:grid;place-items:center;
+  background:rgba(255,255,255,.16);font-size:1.35rem;font-weight:900;flex:0 0 auto;
+}
+.review-upload-trigger__text{display:grid;text-align:right;gap:2px}
+.review-upload-trigger__text strong,.review-upload-trigger__text small{color:#fff;margin:0}
+.review-open-btn{min-width:120px;font-weight:800}
+.review-modal{backdrop-filter:blur(3px)}
+.review-modal-card.review-modal-card--split{width:min(1320px,97vw);padding:26px 26px 22px}
+.review-modal-head{padding:0 6px 18px;margin-bottom:18px;border-bottom:1px solid rgba(75,36,31,.10)}
+.review-modal-head p{margin:6px 0 0;color:#8d7062;font-weight:700}
+.review-status-badge{display:inline-flex;align-items:center;justify-content:center;padding:8px 14px;border-radius:999px;background:rgba(75,36,31,.08);color:#4b241f;font-weight:900;font-size:.84rem;margin-bottom:10px}
+.review-modal-layout{display:grid;grid-template-columns:minmax(320px, 36%) minmax(0, 1fr);gap:18px;align-items:start}
+.review-pane{display:grid;gap:16px;min-width:0}
+.review-block{background:#fff;border:1px solid rgba(75,36,31,.10);border-radius:22px;padding:18px;box-shadow:0 8px 20px rgba(75,36,31,.05)}
+.review-block-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px}
+.review-block-head h4,.review-block h4{margin:0;color:#3f1e1a;font-size:1.05rem}
+.review-block-head small{color:#9a7e71;font-weight:700}
+.review-info-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.review-info-item{padding:12px 14px;border-radius:16px;background:#fcf6f1;border:1px solid rgba(75,36,31,.08)}
+.review-info-item span{display:block;color:#9a7e71;font-size:.82rem;font-weight:800;margin-bottom:6px}
+.review-info-item strong{display:block;color:#3f1e1a;font-size:1rem;line-height:1.6}
+.review-rich-lines,.review-task-list{display:grid;gap:12px}
+.review-rich-line,.review-rule-line,.review-task-card{
+  width:100%;border:1px solid rgba(75,36,31,.10);background:#fff;text-align:right;
+  border-radius:18px;padding:14px 16px;cursor:pointer;transition:all .18s ease;box-shadow:none;
+}
+.review-rich-line:hover,.review-rule-line:hover,.review-task-card:hover{border-color:rgba(75,36,31,.2);background:#fffdfb}
+.review-rich-line strong{display:block;margin-bottom:8px;color:#4b241f;font-size:.97rem}
+.review-rich-line span,.review-rule-line span{display:block;color:#5d4037;line-height:1.95;font-weight:700;white-space:pre-wrap}
+.review-rule-line span{position:relative;padding-right:18px}
+.review-rule-line span::before{content:'•';position:absolute;right:0;top:0;color:#b67c57;font-size:1.2rem;line-height:1}
+.review-line.is-marked{background:#fff3e2 !important;border-color:#d89a72 !important;box-shadow:inset -4px 0 0 #d89a72}
+.review-task-card__head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px}
+.review-task-card__head strong{display:block;color:#3f1e1a;font-size:1.02rem;margin-bottom:4px}
+.review-task-card__head small{display:block;color:#8d7062;font-weight:800}
+.review-task-chip{display:inline-flex;align-items:center;padding:8px 12px;border-radius:999px;background:#fcf1e7;color:#6a352d;font-weight:900;font-size:.78rem}
+.review-task-card__body{display:grid;gap:10px}
+.review-detail-row{display:grid;grid-template-columns:160px minmax(0,1fr);gap:12px;align-items:start;padding:10px 0;border-top:1px dashed rgba(75,36,31,.10)}
+.review-detail-row:first-child{border-top:0;padding-top:0}
+.review-detail-label{color:#6c4a3e;font-weight:900;line-height:1.7}
+.review-detail-value{margin:0;color:#4d352e;line-height:1.9;font-weight:700}
+.review-modal-actions{justify-content:flex-end;gap:10px;margin-top:14px}
+.review-block--notes textarea{min-height:140px}
+@media (max-width:1024px){
+  .review-modal-card.review-modal-card--split{width:min(98vw,1100px)}
+  .review-modal-layout{grid-template-columns:1fr}
+}
+@media (max-width:720px){
+  .review-upload-box{padding:16px}
+  .review-upload-trigger{width:100%;justify-content:center}
+  .review-modal-card.review-modal-card--split{padding:18px 14px}
+  .review-info-grid{grid-template-columns:1fr}
+  .review-detail-row{grid-template-columns:1fr;gap:6px}
+  .review-block,.review-task-card,.review-rich-line,.review-rule-line{border-radius:16px}
+}

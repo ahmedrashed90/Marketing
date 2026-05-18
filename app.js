@@ -3665,9 +3665,15 @@ initCreateTaskFromTemplate();
           <button class="soft-btn" type="button" data-calendar-tab="reviews">حملات تحت المراجعة</button>
         </div>
         <div class="review-upload-box">
-          <div><strong>رفع حملة للمراجعة والاعتماد</strong><small>اليوزر يرفع شيت الحملة، والأدمن يعلّم الملاحظات ويعتمدها.</small></div>
+          <div class="review-upload-copy"><strong>رفع حملة للمراجعة والاعتماد</strong><small>اليوزر يرفع شيت الحملة، والأدمن يراجعها ويكتب الملاحظات ثم يعتمدها.</small></div>
           <input id="reviewCampaignFile" type="file" accept=".xlsx,.xls" hidden>
-          <button class="secondary-btn" id="uploadReviewCampaignBtn" type="button">رفع شيت حملة للمراجعة</button>
+          <button class="review-upload-trigger" id="uploadReviewCampaignBtn" type="button">
+            <span class="review-upload-trigger__icon">⇪</span>
+            <span class="review-upload-trigger__text">
+              <strong>رفع شيت حملة للمراجعة</strong>
+              <small>Excel / XLSX</small>
+            </span>
+          </button>
         </div>
       </section>
       <section class="workspace-card"><div id="campaignCalendarList" class="review-cards-grid"></div></section>
@@ -3705,7 +3711,7 @@ initCreateTaskFromTemplate();
       ${types ? `<p>${types}</p>` : ''}
       ${review.adminNotes ? `<p class="review-note">ملاحظات الأدمن: ${esc(review.adminNotes)}</p>` : ''}
       <div class="task-card-actions">
-        <button class="secondary-btn" type="button" data-open-review="${esc(review.firestoreId || review.id)}">${canReview ? 'مراجعة وتعليم' : 'عرض الملاحظات'}</button>
+        <button class="secondary-btn review-open-btn" type="button" data-open-review="${esc(review.firestoreId || review.id)}">${canReview ? 'مراجعة' : 'عرض الملاحظات'}</button>
       </div>
     </article>`;
   }
@@ -3717,13 +3723,14 @@ initCreateTaskFromTemplate();
       const file = fileInput.files && fileInput.files[0];
       if (!file) return;
       uploadBtn.disabled = true;
-      uploadBtn.textContent = 'جاري الرفع...';
+      uploadBtn.classList.add('is-loading');
+      uploadBtn.innerHTML = '<span class="review-upload-trigger__icon">…</span><span class="review-upload-trigger__text"><strong>جاري رفع الشيت...</strong><small>يرجى الانتظار</small></span>'; 
       try {
         await addReviewDocument(file);
         await renderCampaignsCalendarList('reviews');
         document.querySelectorAll('[data-calendar-tab]').forEach((btn) => btn.classList.toggle('is-active', btn.dataset.calendarTab === 'reviews'));
       } catch (error) { alert('فشل رفع الحملة للمراجعة: ' + (error?.message || error)); }
-      finally { uploadBtn.disabled = false; uploadBtn.textContent = 'رفع شيت حملة للمراجعة'; fileInput.value = ''; }
+      finally { uploadBtn.disabled = false; uploadBtn.classList.remove('is-loading'); uploadBtn.innerHTML = '<span class="review-upload-trigger__icon">⇪</span><span class="review-upload-trigger__text"><strong>رفع شيت حملة للمراجعة</strong><small>Excel / XLSX</small></span>'; fileInput.value = ''; }
     });
     pageRoot?.addEventListener('click', async (event) => {
       const tabBtn = event.target.closest('[data-calendar-tab]');
@@ -3737,6 +3744,130 @@ initCreateTaskFromTemplate();
       if (openBtn) openReviewModal(openBtn.dataset.openReview);
     });
   }
+
+  function extractReviewSections(rows){
+    const matrix = (rows || []).map((row) => (row || []).map(cellText));
+    const findSectionIndex = (pattern) => matrix.findIndex((row) => row.some((cell) => pattern.test(cell)));
+    const logicIndex = findSectionIndex(/campaign logic/i);
+    const writingIndex = findSectionIndex(/Writing Rules|قواعد كتابة المحتوى/i);
+    const executionIndex = findSectionIndex(/Content Execution Direction|آلية تنفيذ المحتوى/i);
+
+    const logicItems = [];
+    if (logicIndex >= 0) {
+      const stop = writingIndex > logicIndex ? writingIndex : (executionIndex > logicIndex ? executionIndex : matrix.length);
+      for (let i = logicIndex; i < stop; i += 1) {
+        const row = matrix[i];
+        if (!row.some(Boolean)) continue;
+        const label = i === logicIndex ? (row[1] || row[0] || '') : (row[1] || '');
+        const value = i === logicIndex ? (row[2] || row[1] || '') : (row[2] || '');
+        if (!label && !value) continue;
+        if (/campaign logic/i.test(label) && !value) continue;
+        logicItems.push({ rowIndex: i, label, value });
+      }
+    }
+
+    const writingRules = [];
+    if (writingIndex >= 0) {
+      const stop = executionIndex > writingIndex ? executionIndex : matrix.length;
+      for (let i = writingIndex + 1; i < stop; i += 1) {
+        const row = matrix[i];
+        const values = row.filter(Boolean);
+        if (!values.length) continue;
+        const candidate = values[values.length - 1];
+        if (!candidate || /قواعد كتابة المحتوى|Writing Rules/i.test(candidate)) continue;
+        writingRules.push({ rowIndex: i, text: candidate });
+      }
+    }
+
+    const headerRowIndex = findHeaderRow(matrix);
+    const tasks = [];
+    if (headerRowIndex >= 0) {
+      const headers = matrix[headerRowIndex].map(cellText);
+      const getCol = (pattern) => headers.findIndex((cell) => pattern.test(cell));
+      const cols = {
+        campaignType: getCol(/نوع الحمله|نوع الحملة|Campaign Type/i),
+        contentType: getCol(/نوع المحتو[ىي]|Content Type/i),
+        taskNo: getCol(/رقم التاسك|Task/i),
+        goal: getCol(/^الهدف$|Goal/i),
+        tangibleGoal: getCol(/الهدف الملموس/i),
+        idea: getCol(/الفكرة|Idea/i),
+        description: getCol(/وصف المحتو[ىي]|Description/i),
+        message: getCol(/الرسالة|Message/i),
+        writerRequest: getCol(/المطلوب من الكاتب|Writer/i),
+        cta: getCol(/CTA/i)
+      };
+      for (let i = headerRowIndex + 1; i < matrix.length; i += 1) {
+        const row = matrix[i];
+        if (!row.some(Boolean)) continue;
+        const contentType = cols.contentType >= 0 ? cellText(row[cols.contentType]) : '';
+        const taskNo = cols.taskNo >= 0 ? cellText(row[cols.taskNo]) : '';
+        if (!contentType && !taskNo) continue;
+        tasks.push({
+          rowIndex: i,
+          campaignType: cols.campaignType >= 0 ? cellText(row[cols.campaignType]) : '',
+          contentType,
+          taskNo,
+          goal: cols.goal >= 0 ? cellText(row[cols.goal]) : '',
+          tangibleGoal: cols.tangibleGoal >= 0 ? cellText(row[cols.tangibleGoal]) : '',
+          idea: cols.idea >= 0 ? cellText(row[cols.idea]) : '',
+          description: cols.description >= 0 ? cellText(row[cols.description]) : '',
+          message: cols.message >= 0 ? cellText(row[cols.message]) : '',
+          writerRequest: cols.writerRequest >= 0 ? cellText(row[cols.writerRequest]) : '',
+          cta: cols.cta >= 0 ? cellText(row[cols.cta]) : ''
+        });
+      }
+    }
+
+    return { logicItems, writingRules, tasks };
+  }
+
+  function renderReviewField(label, value){
+    if (!value) return '';
+    return `<div class="review-detail-row"><span class="review-detail-label">${esc(label)}</span><p class="review-detail-value">${esc(value)}</p></div>`;
+  }
+
+  function renderReviewTaskCard(task, marks){
+    const markedClass = marks.has(task.rowIndex) ? 'is-marked' : '';
+    return `<button type="button" class="review-task-card review-line ${markedClass}" data-review-line="${task.rowIndex}">
+      <div class="review-task-card__head">
+        <div>
+          <strong>${esc(task.contentType || 'نوع محتوى')}</strong>
+          <small>${esc(task.taskNo || '')}</small>
+        </div>
+        ${task.campaignType ? `<span class="review-task-chip">${esc(task.campaignType)}</span>` : ''}
+      </div>
+      <div class="review-task-card__body">
+        ${renderReviewField('الهدف', task.goal)}
+        ${renderReviewField('الهدف الملموس', task.tangibleGoal)}
+        ${renderReviewField('الفكرة', task.idea)}
+        ${renderReviewField('وصف المحتوى', task.description)}
+        ${renderReviewField('الرسالة', task.message)}
+        ${renderReviewField('المطلوب من الكاتب', task.writerRequest)}
+        ${renderReviewField('CTA', task.cta)}
+      </div>
+    </button>`;
+  }
+
+  function closeReviewModal(modal){
+    const target = modal || document.querySelector('.review-modal.is-open');
+    target?.classList.remove('is-open');
+    target?.setAttribute('aria-hidden','true');
+  }
+
+  async function refreshReviewViews(){
+    const activeTab = pageRoot?.querySelector('[data-calendar-tab].is-active')?.dataset.calendarTab;
+    if (activeTab) await renderCampaignsCalendarList(activeTab);
+    const dashboardRoot = document.getElementById(dashboardReviewRootId);
+    if (dashboardRoot && isAdmin()) {
+      try {
+        const reviews = (await loadReviews()).filter((review) => review.status !== 'approved');
+        dashboardRoot.innerHTML = reviews.length ? reviews.map(renderReviewCard).join('') : '<p class="task-empty-note">لا توجد حملات تحت المراجعة حالياً.</p>';
+      } catch (error) {
+        dashboardRoot.innerHTML = `<p class="task-empty-note">⚠️ فشل تحميل مراجعات الحملات: ${esc(error?.message || error)}</p>`;
+      }
+    }
+  }
+
   async function openReviewModal(id){
     const modal = document.getElementById('campaignReviewModal') || document.getElementById('dashboardCampaignReviewModal');
     if (!modal) return;
@@ -3744,21 +3875,62 @@ initCreateTaskFromTemplate();
     const review = reviews.find((item) => String(item.firestoreId || item.id) === String(id));
     if (!review) return;
     const rows = safeReviewRowsToMatrix(review.rows || []);
-    const textRows = rows.slice(0, 80).map((row, index) => ({ index, text: row.filter(Boolean).join(' | ') })).filter((item) => item.text);
+    const sections = extractReviewSections(rows);
     const marks = new Set((review.marks || []).map((m) => Number(m.rowIndex)));
-    modal.innerHTML = `<div class="review-modal-card">
+    const canEdit = isAdmin();
+    modal.innerHTML = `<div class="review-modal-card review-modal-card--split">
       <button class="modal-close" type="button" data-close-review-modal>×</button>
-      <h3>${esc(review.campaignName || review.fileName || 'حملة تحت المراجعة')}</h3>
-      <p>${esc(review.campaignTypeName || '')} · ${statusLabel(review.status)}</p>
-      <div class="review-lines">${textRows.map((item) => `<button type="button" class="review-line ${marks.has(item.index) ? 'is-marked' : ''}" data-review-line="${item.index}">${esc(item.text)}</button>`).join('')}</div>
-      <label class="mzj-field"><span>ملاحظات الأدمن لليوزر</span><textarea data-review-admin-notes rows="4" placeholder="اكتب الملاحظات هنا">${esc(review.adminNotes || '')}</textarea></label>
-      <div class="task-card-actions">
-        ${isAdmin() ? `<button class="secondary-btn" type="button" data-save-review-marks="${esc(review.firestoreId || review.id)}">حفظ الملاحظات</button><button class="primary-btn" type="button" data-approve-review="${esc(review.firestoreId || review.id)}">اعتماد وفتح للربط</button>` : ''}
+      <div class="review-modal-head">
+        <div>
+          <span class="review-status-badge">${esc(statusLabel(review.status))}</span>
+          <h3>${esc(review.campaignName || review.fileName || 'حملة تحت المراجعة')}</h3>
+          <p>${esc(review.campaignTypeName || 'نوع غير محدد')} · بواسطة ${esc(review.submittedByName || review.submittedByEmail || 'غير محدد')}</p>
+        </div>
+      </div>
+      <div class="review-modal-layout">
+        <section class="review-pane review-pane--meta">
+          <div class="review-block">
+            <h4>بيانات الحملة</h4>
+            <div class="review-info-grid">
+              <div class="review-info-item"><span>اسم الحملة</span><strong>${esc(review.campaignName || '-')}</strong></div>
+              <div class="review-info-item"><span>نوع الحملة</span><strong>${esc(review.campaignTypeName || '-')}</strong></div>
+              <div class="review-info-item"><span>حالة المراجعة</span><strong>${esc(statusLabel(review.status))}</strong></div>
+              <div class="review-info-item"><span>عدد أنواع المحتوى</span><strong>${esc(String((review.contentTypes || []).length || 0))}</strong></div>
+            </div>
+          </div>
+          <div class="review-block">
+            <div class="review-block-head"><h4>Campaign Logic</h4><small>تعليم أي سطر يحتاج تعديل</small></div>
+            <div class="review-rich-lines">
+              ${sections.logicItems.length ? sections.logicItems.map((item) => `<button type="button" class="review-line review-rich-line ${marks.has(item.rowIndex) ? 'is-marked' : ''}" data-review-line="${item.rowIndex}"><strong>${esc(item.label)}</strong><span>${esc(item.value)}</span></button>`).join('') : '<p class="task-empty-note">لا توجد بيانات campaign logic.</p>'}
+            </div>
+          </div>
+          <div class="review-block">
+            <div class="review-block-head"><h4>قواعد كتابة المحتوى</h4><small>يمكن تعليم أي قاعدة تحتاج تعديل</small></div>
+            <div class="review-rich-lines review-rich-lines--rules">
+              ${sections.writingRules.length ? sections.writingRules.map((item) => `<button type="button" class="review-line review-rule-line ${marks.has(item.rowIndex) ? 'is-marked' : ''}" data-review-line="${item.rowIndex}"><span>${esc(item.text)}</span></button>`).join('') : '<p class="task-empty-note">لا توجد قواعد كتابة محتوى.</p>'}
+            </div>
+          </div>
+        </section>
+        <section class="review-pane review-pane--tasks">
+          <div class="review-block">
+            <div class="review-block-head"><h4>Content Execution Direction</h4><small>كل كارت يمثل سطر/تاسك مستقل من الشيت</small></div>
+            <div class="review-task-list">
+              ${sections.tasks.length ? sections.tasks.map((task) => renderReviewTaskCard(task, marks)).join('') : '<p class="task-empty-note">لا توجد تاسكات لعرضها.</p>'}
+            </div>
+          </div>
+          <div class="review-block review-block--notes">
+            <label class="mzj-field"><span>ملاحظات الأدمن لليوزر</span><textarea data-review-admin-notes rows="6" placeholder="اكتب الملاحظات هنا">${esc(review.adminNotes || '')}</textarea></label>
+            <div class="task-card-actions review-modal-actions">
+              ${canEdit ? `<button class="secondary-btn" type="button" data-save-review-marks="${esc(review.firestoreId || review.id)}">حفظ الملاحظات</button><button class="primary-btn" type="button" data-approve-review="${esc(review.firestoreId || review.id)}">اعتماد وفتح للربط</button>` : ''}
+            </div>
+          </div>
+        </section>
       </div>
     </div>`;
     modal.classList.add('is-open');
     modal.setAttribute('aria-hidden','false');
   }
+
   async function saveReviewFromModal(id, status){
     const modal = document.querySelector('.review-modal.is-open');
     const marked = Array.from(modal.querySelectorAll('.review-line.is-marked')).map((btn) => ({ rowIndex: Number(btn.dataset.reviewLine), markedAt: new Date().toISOString() }));
@@ -3772,21 +3944,28 @@ initCreateTaskFromTemplate();
   }
   document.addEventListener('click', async (event) => {
     const close = event.target.closest('[data-close-review-modal]');
-    if (close) { const modal = close.closest('.review-modal'); modal?.classList.remove('is-open'); modal?.setAttribute('aria-hidden','true'); }
+    if (close) { closeReviewModal(close.closest('.review-modal')); }
+    const modalShell = event.target.classList?.contains('review-modal') ? event.target : null;
+    if (modalShell) closeReviewModal(modalShell);
     const line = event.target.closest('[data-review-line]');
     if (line && isAdmin()) line.classList.toggle('is-marked');
     const save = event.target.closest('[data-save-review-marks]');
-    if (save) { await saveReviewFromModal(save.dataset.saveReviewMarks); alert('تم حفظ الملاحظات.'); }
+    if (save) {
+      await saveReviewFromModal(save.dataset.saveReviewMarks);
+      closeReviewModal();
+      await refreshReviewViews();
+    }
     const approve = event.target.closest('[data-approve-review]');
     if (approve) {
       const review = await saveReviewFromModal(approve.dataset.approveReview, 'approved');
-      document.querySelector('.review-modal.is-open')?.classList.remove('is-open');
+      closeReviewModal();
+      await refreshReviewViews();
       if (window.MZJLoadReviewCampaignInCreateModal && review) window.MZJLoadReviewCampaignInCreateModal(review);
       else alert('تم الاعتماد. افتح الداش بورد لربط الحملة.');
     }
   });
   document.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape') document.querySelectorAll('.review-modal.is-open').forEach((modal) => modal.classList.remove('is-open'));
+    if (event.key === 'Escape') document.querySelectorAll('.review-modal.is-open').forEach((modal) => closeReviewModal(modal));
   });
 
   async function renderDashboardReviewBox(){

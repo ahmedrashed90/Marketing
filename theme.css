@@ -4696,3 +4696,28 @@ body.sidebar-collapsed .database-main {
   min-width:190px;
   justify-content:center;
 }
+
+
+.review-modal-card.review-modal-card--sheet-view{width:min(1500px,98vw);padding:24px 24px 22px}
+.review-modal-head--sheet-view{padding-inline-end:56px}
+.review-modal-layout.review-modal-layout--stacked{display:block}
+.review-pane--full{display:grid;gap:18px}
+.review-block--sheet{background:rgba(255,255,255,.94);border-radius:24px}
+.review-rich-lines--sheet{display:grid;gap:12px}
+.review-rich-lines--sheet .review-rich-line,
+.review-rich-lines--sheet .review-rule-line{padding:16px 18px;border-radius:18px;background:#fff}
+.review-rich-lines--sheet .review-rich-line strong{font-size:1rem;margin-bottom:10px}
+.review-rich-lines--sheet .review-rich-line span,
+.review-rich-lines--sheet .review-rule-line span{line-height:2;white-space:pre-wrap}
+.review-info-grid--sheet-meta{margin-bottom:14px}
+.review-execution-table-wrap{max-height:none}
+.review-execution-table{min-width:1700px}
+.review-execution-table th,.review-execution-table td{font-size:.95rem}
+.review-execution-table td{white-space:pre-wrap}
+.review-execution-table th:nth-child(1),.review-execution-table td:nth-child(1),
+.review-execution-table th:nth-child(2),.review-execution-table td:nth-child(2),
+.review-execution-table th:nth-child(3),.review-execution-table td:nth-child(3){white-space:nowrap;text-align:center;font-weight:900}
+@media (max-width: 900px){
+  .review-modal-card.review-modal-card--sheet-view{width:min(99vw,99vw);padding:18px 12px 16px}
+  .review-modal-head--sheet-view{padding-inline-end:40px}
+}

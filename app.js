@@ -3648,7 +3648,20 @@ initCreateTaskFromTemplate();
     return '';
   }
   function findHeaderRow(rows){
-    return (rows || []).findIndex((row) => (row || []).some((cell) => /نوع المحتو[ىي]|Content Type/i.test(cellText(cell))));
+    const list = rows || [];
+    const executionIndex = list.findIndex((row) => (row || []).some((cell) => /Content Execution Direction|آلية تنفيذ المحتوى|الية تنفيذ المحتوى/i.test(cellText(cell))));
+    const start = executionIndex >= 0 ? executionIndex + 1 : 0;
+    for (let i = start; i < list.length; i += 1) {
+      const cells = (list[i] || []).map((cell) => cellText(cell));
+      const joined = cells.join(' | ');
+      const hasContentType = /نوع المحتو[ىي]|Content Type/i.test(joined);
+      const hasTaskNo = /رقم التاسك|Task/i.test(joined);
+      if (hasContentType && hasTaskNo) return i;
+    }
+    return list.findIndex((row) => {
+      const joined = (row || []).map((cell) => cellText(cell)).join(' | ');
+      return /نوع المحتو[ىي]|Content Type/i.test(joined) && /رقم التاسك|Task/i.test(joined);
+    });
   }
   function contentTypesFromRows(rows){
     const idx = findHeaderRow(rows);
@@ -3855,15 +3868,18 @@ initCreateTaskFromTemplate();
         writerRequest: getCol(/المطلوب من الكاتب|Writer/i),
         cta: getCol(/CTA/i)
       };
+      let lastCampaignType = '';
       for (let i = headerRowIndex + 1; i < matrix.length; i += 1) {
         const row = matrix[i];
         if (!row.some(Boolean)) continue;
         const contentType = cols.contentType >= 0 ? cellText(row[cols.contentType]) : '';
         const taskNo = cols.taskNo >= 0 ? cellText(row[cols.taskNo]) : '';
         if (!contentType && !taskNo) continue;
+        const campaignTypeRaw = cols.campaignType >= 0 ? cellText(row[cols.campaignType]) : '';
+        if (campaignTypeRaw) lastCampaignType = campaignTypeRaw;
         tasks.push({
           rowIndex: i,
-          campaignType: cols.campaignType >= 0 ? cellText(row[cols.campaignType]) : '',
+          campaignType: campaignTypeRaw || lastCampaignType,
           contentType,
           taskNo,
           goal: cols.goal >= 0 ? cellText(row[cols.goal]) : '',
@@ -3931,42 +3947,31 @@ initCreateTaskFromTemplate();
     const sections = extractReviewSections(rows);
     const marks = new Set((review.marks || []).map((m) => Number(m.rowIndex)));
     const canEdit = isAdmin();
-    modal.innerHTML = `<div class="review-modal-card review-modal-card--split">
+    modal.innerHTML = `<div class="review-modal-card review-modal-card--sheet-view">
       <button class="modal-close" type="button" data-close-review-modal>×</button>
-      <div class="review-modal-head">
+      <div class="review-modal-head review-modal-head--sheet-view">
         <div>
           <span class="review-status-badge">${esc(statusLabel(review.status))}</span>
           <h3>${esc(review.campaignName || review.fileName || 'حملة تحت المراجعة')}</h3>
           <p>${esc(review.campaignTypeName || 'نوع غير محدد')} · بواسطة ${esc(review.submittedByName || review.submittedByEmail || 'غير محدد')}</p>
         </div>
       </div>
-      <div class="review-modal-layout">
-        <section class="review-pane review-pane--meta">
-          <div class="review-block">
-            <h4>بيانات الحملة</h4>
-            <div class="review-info-grid">
-              <div class="review-info-item"><span>اسم الحملة</span><strong>${esc(review.campaignName || '-')}</strong></div>
-              <div class="review-info-item"><span>نوع الحملة</span><strong>${esc(review.campaignTypeName || '-')}</strong></div>
-              <div class="review-info-item"><span>حالة المراجعة</span><strong>${esc(statusLabel(review.status))}</strong></div>
-              <div class="review-info-item"><span>عدد أنواع المحتوى</span><strong>${esc(String((review.contentTypes || []).length || 0))}</strong></div>
-            </div>
-          </div>
-          <div class="review-block">
-            <div class="review-block-head"><h4>Campaign Logic</h4><small>تعليم أي سطر يحتاج تعديل</small></div>
-            <div class="review-rich-lines">
+      <div class="review-modal-layout review-modal-layout--stacked">
+        <section class="review-pane review-pane--full">
+          <div class="review-block review-block--sheet">
+            <div class="review-block-head"><h4>Campaign Logic</h4><small>اضغط على أي سطر لتعليمه للمراجعة</small></div>
+            <div class="review-rich-lines review-rich-lines--sheet">
               ${sections.logicItems.length ? sections.logicItems.map((item) => `<button type="button" class="review-line review-rich-line ${marks.has(item.rowIndex) ? 'is-marked' : ''}" data-review-line="${item.rowIndex}"><strong>${esc(item.label)}</strong><span>${esc(item.value)}</span></button>`).join('') : '<p class="task-empty-note">لا توجد بيانات campaign logic.</p>'}
             </div>
           </div>
-          <div class="review-block">
-            <div class="review-block-head"><h4>قواعد كتابة المحتوى</h4><small>يمكن تعليم أي قاعدة تحتاج تعديل</small></div>
-            <div class="review-rich-lines review-rich-lines--rules">
+          <div class="review-block review-block--sheet">
+            <div class="review-block-head"><h4>قواعد كتابة المحتوى</h4><small>القواعد المقروءة من نفس الشيت</small></div>
+            <div class="review-rich-lines review-rich-lines--rules review-rich-lines--sheet">
               ${sections.writingRules.length ? sections.writingRules.map((item) => `<button type="button" class="review-line review-rule-line ${marks.has(item.rowIndex) ? 'is-marked' : ''}" data-review-line="${item.rowIndex}"><span>${esc(item.text)}</span></button>`).join('') : '<p class="task-empty-note">لا توجد قواعد كتابة محتوى.</p>'}
             </div>
           </div>
-        </section>
-        <section class="review-pane review-pane--tasks">
-          <div class="review-block">
-            <div class="review-block-head"><h4>Content Execution Direction</h4><small>كل كارت يمثل سطر/تاسك مستقل من الشيت</small></div>
+          <div class="review-block review-block--sheet">
+            <div class="review-block-head"><h4>Content Execution Direction</h4><small>البيانات المعروضة هنا مقروءة من الشيت: نوع الحملة، نوع المحتوى، رقم التاسك، الهدف، الهدف الملموس، الفكرة، وصف المحتوى، الرسالة، المطلوب من الكاتب، CTA</small></div>
             ${sections.tasks.length ? `
               <div class="review-execution-table-wrap">
                 <table class="review-execution-table">
@@ -3987,6 +3992,12 @@ initCreateTaskFromTemplate();
               </div>` : '<p class="task-empty-note">لا توجد تاسكات لعرضها.</p>'}
           </div>
           <div class="review-block review-block--notes">
+            <div class="review-info-grid review-info-grid--sheet-meta">
+              <div class="review-info-item"><span>اسم الحملة</span><strong>${esc(review.campaignName || '-')}</strong></div>
+              <div class="review-info-item"><span>نوع الحملة</span><strong>${esc(review.campaignTypeName || '-')}</strong></div>
+              <div class="review-info-item"><span>حالة المراجعة</span><strong>${esc(statusLabel(review.status))}</strong></div>
+              <div class="review-info-item"><span>عدد أنواع المحتوى</span><strong>${esc(String((review.contentTypes || []).length || 0))}</strong></div>
+            </div>
             <label class="mzj-field"><span>ملاحظات الأدمن لليوزر</span><textarea data-review-admin-notes rows="6" placeholder="اكتب الملاحظات هنا">${esc(review.adminNotes || '')}</textarea></label>
             <div class="task-card-actions review-modal-actions">
               ${canEdit ? `<button class="secondary-btn" type="button" data-save-review-marks="${esc(review.firestoreId || review.id)}">حفظ الملاحظات</button><button class="primary-btn" type="button" data-approve-review="${esc(review.firestoreId || review.id)}">اعتماد وفتح للربط</button>` : ''}

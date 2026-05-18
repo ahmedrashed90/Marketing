@@ -120,6 +120,52 @@
     return Array.from(map.values()).sort((a,b) => String(b.createdAt||'').localeCompare(String(a.createdAt||'')));
   }
 
+
+  function recordTypeValue(record){
+    return String(record.campaignTypeName || record.campaignType || record.type || '').trim();
+  }
+
+  function dateComparable(value){
+    const raw = normalizeDate(value);
+    if(!raw || raw === '--') return '';
+    const d = new Date(raw);
+    if(!Number.isNaN(d.getTime())) return d.toISOString().slice(0,10);
+    const m = String(raw).match(/(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})/);
+    if(m) return `${m[1]}-${String(m[2]).padStart(2,'0')}-${String(m[3]).padStart(2,'0')}`;
+    return '';
+  }
+
+  function updateCampaignTypeFilter(records){
+    const select = document.getElementById('campaignTypeFilter');
+    if(!select) return;
+    const current = select.value;
+    const types = Array.from(new Set(records.map(recordTypeValue).filter(Boolean))).sort((a,b) => a.localeCompare(b, 'ar'));
+    select.innerHTML = '<option value="">كل الأنواع</option>' + types.map(type => `<option value="${esc(type)}">${esc(type)}</option>`).join('');
+    if(types.includes(current)) select.value = current;
+  }
+
+  function applyDatabaseFilters(records){
+    const search = String(document.getElementById('campaignSearch')?.value || '').trim().toLowerCase();
+    const selectedType = String(document.getElementById('campaignTypeFilter')?.value || '').trim().toLowerCase();
+    const startFilter = document.getElementById('campaignStartDateFilter')?.value || '';
+    const endFilter = document.getElementById('campaignEndDateFilter')?.value || '';
+
+    return records.filter((r) => {
+      if(search){
+        const haystack = [r.name, r.code, recordTypeValue(r), r.type, r.goal, r.launchDate, r.startDate, r.endDate]
+          .map(v => String(v || '').toLowerCase());
+        if(!haystack.some(v => v.includes(search))) return false;
+      }
+      if(selectedType && recordTypeValue(r).toLowerCase() !== selectedType) return false;
+
+      const recordStart = dateComparable(r.startDate || r.launchDate || r.campaignStartDate);
+      const recordEnd = dateComparable(r.endDate || r.campaignEndDate || r.finishDate);
+      if(startFilter && (!recordStart || recordStart < startFilter)) return false;
+      if(endFilter && (!recordEnd || recordEnd > endFilter)) return false;
+      return true;
+    });
+  }
+
   async function loadUsersAndDepartments(){
     if(!window.firebase || !window.MZJ_FIREBASE_CONFIG || !firebase.firestore) return;
     try{
@@ -619,11 +665,9 @@
   function render(){
     const holder = document.getElementById('campaignRecordsLive');
     if(!holder) return;
-    const search = String(document.getElementById('campaignSearch')?.value || '').trim().toLowerCase();
-    let records = loadRecords();
-    if(search){
-      records = records.filter(r => [r.name,r.code,r.type,r.goal,r.launchDate].some(v => String(v||'').toLowerCase().includes(search)));
-    }
+    const allRecords = loadRecords();
+    updateCampaignTypeFilter(allRecords);
+    const records = applyDatabaseFilters(allRecords);
     if(!records.length){
       holder.innerHTML='<article class="empty-database-state"><div class="empty-icon">DB</div><div><span class="eyebrow">قاعدة البيانات جاهزة</span><h4>لا توجد حملات أو أجندات مطابقة</h4><p>الحملات والأجندات تظهر هنا من Firebase من مسار workspace_tasks فقط.</p></div></article>';
       return;
@@ -752,6 +796,16 @@
     loadUsersAndDepartments().then(loadFirestoreRecords);
     const search = document.getElementById('campaignSearch');
     if(search) search.addEventListener('input', render);
+    ['campaignTypeFilter','campaignStartDateFilter','campaignEndDateFilter'].forEach((id) => {
+      const el = document.getElementById(id);
+      if(el) el.addEventListener('change', render);
+    });
+    const resetFilters = document.getElementById('campaignFilterReset');
+    if(resetFilters) resetFilters.addEventListener('click', () => {
+      const ids = ['campaignSearch','campaignTypeFilter','campaignStartDateFilter','campaignEndDateFilter'];
+      ids.forEach((id) => { const el = document.getElementById(id); if(el) el.value = ''; });
+      render();
+    });
     const editForm = document.getElementById('dbEditForm');
     if(editForm) editForm.addEventListener('submit', saveDbEdit);
   });

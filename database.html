@@ -46,12 +46,30 @@
   </aside>
 
   <main class="main-shell database-main">
-    <section class="database-search-only" aria-label="بحث قاعدة البيانات">
+    <section class="database-search-only database-filter-panel" aria-label="بحث وفلاتر قاعدة البيانات">
       <div class="database-search-card">
         <label for="campaignSearch">بحث سريع</label>
         <div class="search-box">
           <input id="campaignSearch" type="search" placeholder="ابحث باسم الحملة، الكود، النوع، الهدف..." />
           <button type="button">بحث</button>
+        </div>
+
+        <div class="db-filter-grid" aria-label="فلاتر قاعدة البيانات">
+          <label class="db-filter-field" for="campaignTypeFilter">
+            <span>نوع الحملة / الأجندة</span>
+            <select id="campaignTypeFilter">
+              <option value="">كل الأنواع</option>
+            </select>
+          </label>
+          <label class="db-filter-field" for="campaignStartDateFilter">
+            <span>تاريخ بداية الحملة</span>
+            <input id="campaignStartDateFilter" type="date" />
+          </label>
+          <label class="db-filter-field" for="campaignEndDateFilter">
+            <span>تاريخ نهاية الحملة</span>
+            <input id="campaignEndDateFilter" type="date" />
+          </label>
+          <button class="soft-btn db-filter-reset" id="campaignFilterReset" type="button">مسح الفلتر</button>
         </div>
       </div>
     </section>

@@ -99,6 +99,15 @@ function getDriveUploadWebAppUrl() {
   return String(window.MZJ_DRIVE_UPLOAD_WEB_APP_URL || '').trim();
 }
 
+function getDriveUploadEndpoint() {
+  // على Vercel نستخدم API Proxy من نفس الدومين حتى نقدر نقرأ رد Apps Script ونحفظ رابط الملف.
+  // لو فتحت المشروع محليًا أو خارج Vercel يرجع للرابط المباشر الموجود في firebase-config.js.
+  if (location.hostname && location.hostname.includes('vercel.app')) {
+    return '/api/zoho-upload';
+  }
+  return getDriveUploadWebAppUrl();
+}
+
 function rawDeptIdentity(dept) {
   if (!dept || typeof dept !== 'object') return '';
   return [
@@ -476,33 +485,42 @@ function fileToBase64(file) {
 }
 
 async function uploadTaskFileToDrive(file, meta) {
-  const webAppUrl = getDriveUploadWebAppUrl();
-  if (!webAppUrl) {
+  const directWebAppUrl = getDriveUploadWebAppUrl();
+  const uploadEndpoint = getDriveUploadEndpoint();
+  if (!directWebAppUrl && !uploadEndpoint) {
     throw new Error('رابط Apps Script Web App غير مضاف. افتح firebase-config.js وضع الرابط في window.MZJ_DRIVE_UPLOAD_WEB_APP_URL.');
   }
 
   const base64 = await fileToBase64(file);
   const uploadedBy = window.MZJAuth?.getUser?.()?.email || window.MZJAuth?.getUser?.()?.name || '';
+  const taskId = meta?.taskId || '';
+  const departmentName = meta?.departmentName || '';
+
+  // نرسل الشكلين معًا:
+  // 1) الشكل القديم الذي كان Google Drive Apps Script يستخدمه.
+  // 2) الشكل الجديد الذي Zoho Apps Script يقبله.
   const payload = {
-    // Fields kept for the old Google Drive Apps Script format.
     action: 'uploadTaskAttachment',
     fileName: file.name,
-    mimeType: file.type || 'application/octet-stream',
-    base64,
-
-    // Fields required by the current Zoho WorkDrive Apps Script.
-    file: base64,
     name: file.name,
+    filename: file.name,
+    mimeType: file.type || 'application/octet-stream',
     type: file.type || 'application/octet-stream',
-    taskId: meta?.taskId || meta?.campaignCode || meta?.campaignName || 'general',
-    task_id: meta?.taskId || '',
-    docId: meta?.taskId || '',
-
+    contentType: file.type || 'application/octet-stream',
+    base64,
+    file: base64,
+    fileBase64: base64,
+    content: base64,
+    taskId,
+    task_id: taskId,
+    departmentName,
+    campaignName: meta?.campaignName || '',
+    campaignCode: meta?.campaignCode || '',
     meta: {
-      taskId: meta?.taskId || '',
+      taskId,
       departmentIdentity: meta?.deptIdentity || '',
       departmentKey: meta?.deptKey || '',
-      departmentName: meta?.departmentName || '',
+      departmentName,
       campaignName: meta?.campaignName || '',
       campaignCode: meta?.campaignCode || '',
       taskType: meta?.taskType || '',
@@ -510,30 +528,48 @@ async function uploadTaskFileToDrive(file, meta) {
     }
   };
 
-  // Google Apps Script Web Apps can complete the upload but block browser access
-  // to the JSON response because of CORS redirects. no-cors prevents the visible
-  // "Failed to fetch" error; the response is opaque, so we save a local record.
-  await fetch(webAppUrl, {
+  const response = await fetch(uploadEndpoint, {
     method: 'POST',
-    mode: 'no-cors',
     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
     body: JSON.stringify(payload)
   });
 
+  const text = await response.text();
+  let result = null;
+  try {
+    result = JSON.parse(text);
+  } catch (error) {
+    result = { ok: response.ok, success: response.ok, raw: text };
+  }
+
+  const isSuccess = response.ok && (result.ok === true || result.success === true);
+  if (!isSuccess) {
+    throw new Error(result.error || result.message || result.raw || 'فشل رفع الملف على Zoho WorkDrive.');
+  }
+
+  const fileUrl =
+    result.fileUrl ||
+    result.url ||
+    result.viewUrl ||
+    result.webViewLink ||
+    result.permalink ||
+    result.downloadUrl ||
+    '';
+
   return {
-    name: file.name,
-    fileName: file.name,
-    url: '',
-    fileUrl: '',
-    webViewLink: '',
-    fileId: '',
-    mimeType: file.type || 'application/octet-stream',
+    name: result.name || result.fileName || file.name,
+    fileName: result.fileName || result.name || file.name,
+    url: fileUrl,
+    fileUrl: fileUrl,
+    webViewLink: result.webViewLink || result.viewUrl || fileUrl,
+    downloadUrl: result.downloadUrl || '',
+    fileId: result.fileId || result.id || result.resource_id || '',
+    mimeType: file.type || result.mimeType || '',
     size: file.size || 0,
     uploadedAt: new Date().toISOString(),
     uploadedBy,
     departmentKey: payload.meta.departmentKey,
-    departmentName: payload.meta.departmentName,
-    storage: 'zoho-workdrive'
+    departmentName: payload.meta.departmentName
   };
 }
 

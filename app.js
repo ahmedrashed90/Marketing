@@ -3667,13 +3667,7 @@ initCreateTaskFromTemplate();
         <div class="review-upload-box">
           <div class="review-upload-copy"><strong>رفع حملة للمراجعة والاعتماد</strong><small>اليوزر يرفع شيت الحملة، والأدمن يراجعها ويكتب الملاحظات ثم يعتمدها.</small></div>
           <input id="reviewCampaignFile" type="file" accept=".xlsx,.xls" hidden>
-          <button class="review-upload-trigger" id="uploadReviewCampaignBtn" type="button">
-            <span class="review-upload-trigger__icon">⇪</span>
-            <span class="review-upload-trigger__text">
-              <strong>رفع شيت حملة للمراجعة</strong>
-              <small>Excel / XLSX</small>
-            </span>
-          </button>
+          <button class="secondary-btn" id="uploadReviewCampaignBtn" type="button">رفع شيت حملة للمراجعة</button>
         </div>
       </section>
       <section class="workspace-card"><div id="campaignCalendarList" class="review-cards-grid"></div></section>
@@ -3723,14 +3717,13 @@ initCreateTaskFromTemplate();
       const file = fileInput.files && fileInput.files[0];
       if (!file) return;
       uploadBtn.disabled = true;
-      uploadBtn.classList.add('is-loading');
-      uploadBtn.innerHTML = '<span class="review-upload-trigger__icon">…</span><span class="review-upload-trigger__text"><strong>جاري رفع الشيت...</strong><small>يرجى الانتظار</small></span>'; 
+      uploadBtn.textContent = 'جاري الرفع...';
       try {
         await addReviewDocument(file);
         await renderCampaignsCalendarList('reviews');
         document.querySelectorAll('[data-calendar-tab]').forEach((btn) => btn.classList.toggle('is-active', btn.dataset.calendarTab === 'reviews'));
       } catch (error) { alert('فشل رفع الحملة للمراجعة: ' + (error?.message || error)); }
-      finally { uploadBtn.disabled = false; uploadBtn.classList.remove('is-loading'); uploadBtn.innerHTML = '<span class="review-upload-trigger__icon">⇪</span><span class="review-upload-trigger__text"><strong>رفع شيت حملة للمراجعة</strong><small>Excel / XLSX</small></span>'; fileInput.value = ''; }
+      finally { uploadBtn.disabled = false; uploadBtn.textContent = 'رفع شيت حملة للمراجعة'; fileInput.value = ''; }
     });
     pageRoot?.addEventListener('click', async (event) => {
       const tabBtn = event.target.closest('[data-calendar-tab]');
@@ -3826,26 +3819,20 @@ initCreateTaskFromTemplate();
     return `<div class="review-detail-row"><span class="review-detail-label">${esc(label)}</span><p class="review-detail-value">${esc(value)}</p></div>`;
   }
 
-  function renderReviewTaskCard(task, marks){
+  function renderReviewTaskRow(task, marks){
     const markedClass = marks.has(task.rowIndex) ? 'is-marked' : '';
-    return `<button type="button" class="review-task-card review-line ${markedClass}" data-review-line="${task.rowIndex}">
-      <div class="review-task-card__head">
-        <div>
-          <strong>${esc(task.contentType || 'نوع محتوى')}</strong>
-          <small>${esc(task.taskNo || '')}</small>
-        </div>
-        ${task.campaignType ? `<span class="review-task-chip">${esc(task.campaignType)}</span>` : ''}
-      </div>
-      <div class="review-task-card__body">
-        ${renderReviewField('الهدف', task.goal)}
-        ${renderReviewField('الهدف الملموس', task.tangibleGoal)}
-        ${renderReviewField('الفكرة', task.idea)}
-        ${renderReviewField('وصف المحتوى', task.description)}
-        ${renderReviewField('الرسالة', task.message)}
-        ${renderReviewField('المطلوب من الكاتب', task.writerRequest)}
-        ${renderReviewField('CTA', task.cta)}
-      </div>
-    </button>`;
+    return `<tr class="review-exec-row review-line ${markedClass}" data-review-line="${task.rowIndex}">
+      <td>${esc(task.campaignType || '')}</td>
+      <td class="review-content-type-cell">${esc(task.contentType || '')}</td>
+      <td>${esc(task.taskNo || '')}</td>
+      <td>${esc(task.goal || '')}</td>
+      <td>${esc(task.tangibleGoal || '')}</td>
+      <td>${esc(task.idea || '')}</td>
+      <td>${esc(task.description || '')}</td>
+      <td>${esc(task.message || '')}</td>
+      <td>${esc(task.writerRequest || '')}</td>
+      <td>${esc(task.cta || '')}</td>
+    </tr>`;
   }
 
   function closeReviewModal(modal){
@@ -3914,9 +3901,24 @@ initCreateTaskFromTemplate();
         <section class="review-pane review-pane--tasks">
           <div class="review-block">
             <div class="review-block-head"><h4>Content Execution Direction</h4><small>كل كارت يمثل سطر/تاسك مستقل من الشيت</small></div>
-            <div class="review-task-list">
-              ${sections.tasks.length ? sections.tasks.map((task) => renderReviewTaskCard(task, marks)).join('') : '<p class="task-empty-note">لا توجد تاسكات لعرضها.</p>'}
-            </div>
+            ${sections.tasks.length ? `
+              <div class="review-execution-table-wrap">
+                <table class="review-execution-table">
+                  <thead><tr>
+                    <th>نوع الحملة</th>
+                    <th>نوع المحتوى</th>
+                    <th>رقم التاسك</th>
+                    <th>الهدف</th>
+                    <th>الهدف الملموس</th>
+                    <th>الفكرة</th>
+                    <th>وصف المحتوى</th>
+                    <th>الرسالة</th>
+                    <th>المطلوب من الكاتب</th>
+                    <th>CTA</th>
+                  </tr></thead>
+                  <tbody>${sections.tasks.map((task) => renderReviewTaskRow(task, marks)).join('')}</tbody>
+                </table>
+              </div>` : '<p class="task-empty-note">لا توجد تاسكات لعرضها.</p>'}
           </div>
           <div class="review-block review-block--notes">
             <label class="mzj-field"><span>ملاحظات الأدمن لليوزر</span><textarea data-review-admin-notes rows="6" placeholder="اكتب الملاحظات هنا">${esc(review.adminNotes || '')}</textarea></label>

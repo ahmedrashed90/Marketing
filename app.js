@@ -2879,6 +2879,11 @@ function initCreateTaskFromTemplate() {
     });
   }
 
+  function closeCreateTaskModal() {
+    modal.classList.remove('is-open');
+    modal.setAttribute('aria-hidden', 'true');
+  }
+
   if (openBtn) openBtn.addEventListener('click', openCreateTaskModal);
   if (openBtnMini) openBtnMini.addEventListener('click', openCreateTaskModal);
 
@@ -3075,8 +3080,13 @@ function initCreateTaskFromTemplate() {
 
   document.addEventListener('click', (event) => {
     if (event.target.closest('[data-close-create-task]') || event.target === modal) {
-      modal.classList.remove('is-open');
-      modal.setAttribute('aria-hidden', 'true');
+      closeCreateTaskModal();
+    }
+  });
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && modal.classList.contains('is-open')) {
+      closeCreateTaskModal();
     }
   });
 
@@ -3167,6 +3177,7 @@ function initCreateTaskFromTemplate() {
     }
     if (typeof window.refreshWorkspaceTasksFromFirestore === 'function') await window.refreshWorkspaceTasksFromFirestore();
     else if (typeof window.renderDashboardTasks === 'function') window.renderDashboardTasks();
+    closeCreateTaskModal();
   });
 }
 

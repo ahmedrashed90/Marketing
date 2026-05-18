@@ -3746,7 +3746,7 @@ initCreateTaskFromTemplate();
         <div class="review-upload-box">
           <div class="review-upload-copy"><strong>رفع حملة للمراجعة والاعتماد</strong><small>اليوزر يرفع شيت الحملة، والأدمن يراجعها ويكتب الملاحظات ثم يعتمدها.</small></div>
           <input id="reviewCampaignFile" type="file" accept=".xlsx,.xls" hidden>
-          <button class="secondary-btn" id="uploadReviewCampaignBtn" type="button">رفع شيت حملة للمراجعة</button>
+          <button class="primary-btn" id="uploadReviewCampaignBtn" type="button">رفع شيت حملة للمراجعة</button>
         </div>
       </section>
       <section class="workspace-card"><div id="campaignCalendarList" class="review-cards-grid"></div></section>
@@ -3901,19 +3901,35 @@ initCreateTaskFromTemplate();
     return `<div class="review-detail-row"><span class="review-detail-label">${esc(label)}</span><p class="review-detail-value">${esc(value)}</p></div>`;
   }
 
+  function reviewCellKey(rowIndex, field) {
+    return `${rowIndex}:${field}`;
+  }
+
+  function isReviewMarked(marks, rowIndex, field = '') {
+    if (!marks || !marks.size) return false;
+    if (field) return marks.has(reviewCellKey(rowIndex, field));
+    return marks.has(String(rowIndex)) || marks.has(Number(rowIndex));
+  }
+
+  function reviewTaskCell(task, marks, field, extraClass = '') {
+    const key = reviewCellKey(task.rowIndex, field);
+    const isMarked = isReviewMarked(marks, task.rowIndex, field);
+    const value = task?.[field] || '';
+    return `<td class="review-mark-cell ${extraClass} ${isMarked ? 'is-marked' : ''}" data-review-cell="${esc(key)}" data-review-line="${task.rowIndex}" data-review-field="${esc(field)}">${esc(value)}</td>`;
+  }
+
   function renderReviewTaskRow(task, marks){
-    const markedClass = marks.has(task.rowIndex) ? 'is-marked' : '';
-    return `<tr class="review-exec-row review-line ${markedClass}" data-review-line="${task.rowIndex}">
-      <td>${esc(task.campaignType || '')}</td>
-      <td class="review-content-type-cell">${esc(task.contentType || '')}</td>
-      <td>${esc(task.taskNo || '')}</td>
-      <td>${esc(task.goal || '')}</td>
-      <td>${esc(task.tangibleGoal || '')}</td>
-      <td>${esc(task.idea || '')}</td>
-      <td>${esc(task.description || '')}</td>
-      <td>${esc(task.message || '')}</td>
-      <td>${esc(task.writerRequest || '')}</td>
-      <td>${esc(task.cta || '')}</td>
+    return `<tr class="review-exec-row" data-review-row="${task.rowIndex}">
+      ${reviewTaskCell(task, marks, 'campaignType')}
+      ${reviewTaskCell(task, marks, 'contentType', 'review-content-type-cell')}
+      ${reviewTaskCell(task, marks, 'taskNo')}
+      ${reviewTaskCell(task, marks, 'goal')}
+      ${reviewTaskCell(task, marks, 'tangibleGoal')}
+      ${reviewTaskCell(task, marks, 'idea')}
+      ${reviewTaskCell(task, marks, 'description')}
+      ${reviewTaskCell(task, marks, 'message')}
+      ${reviewTaskCell(task, marks, 'writerRequest')}
+      ${reviewTaskCell(task, marks, 'cta')}
     </tr>`;
   }
 
@@ -3945,7 +3961,11 @@ initCreateTaskFromTemplate();
     if (!review) return;
     const rows = safeReviewRowsToMatrix(review.rows || []);
     const sections = extractReviewSections(rows);
-    const marks = new Set((review.marks || []).map((m) => Number(m.rowIndex)));
+    const marks = new Set((review.marks || []).map((m) => {
+      if (m && m.cellKey) return String(m.cellKey);
+      if (m && m.field) return reviewCellKey(Number(m.rowIndex), m.field);
+      return Number(m.rowIndex);
+    }));
     const canEdit = isAdmin();
     modal.innerHTML = `<div class="review-modal-card review-modal-card--sheet-view">
       <button class="modal-close" type="button" data-close-review-modal>×</button>
@@ -4012,7 +4032,17 @@ initCreateTaskFromTemplate();
 
   async function saveReviewFromModal(id, status){
     const modal = document.querySelector('.review-modal.is-open');
-    const marked = Array.from(modal.querySelectorAll('.review-line.is-marked')).map((btn) => ({ rowIndex: Number(btn.dataset.reviewLine), markedAt: new Date().toISOString() }));
+    const tableMarked = Array.from(modal.querySelectorAll('[data-review-cell].is-marked')).map((cell) => ({
+      rowIndex: Number(cell.dataset.reviewLine),
+      field: cell.dataset.reviewField || '',
+      cellKey: cell.dataset.reviewCell || '',
+      markedAt: new Date().toISOString()
+    }));
+    const lineMarked = Array.from(modal.querySelectorAll('.review-line.is-marked:not([data-review-cell])')).map((btn) => ({
+      rowIndex: Number(btn.dataset.reviewLine),
+      markedAt: new Date().toISOString()
+    }));
+    const marked = tableMarked.concat(lineMarked);
     const notes = modal.querySelector('[data-review-admin-notes]')?.value || '';
     const db = ensureFirebase();
     const payload = { marks: marked, adminNotes: notes, updatedAt: new Date().toISOString() };
@@ -4026,6 +4056,11 @@ initCreateTaskFromTemplate();
     if (close) { closeReviewModal(close.closest('.review-modal')); }
     const modalShell = event.target.classList?.contains('review-modal') ? event.target : null;
     if (modalShell) closeReviewModal(modalShell);
+    const cell = event.target.closest('[data-review-cell]');
+    if (cell && isAdmin()) {
+      cell.classList.toggle('is-marked');
+      return;
+    }
     const line = event.target.closest('[data-review-line]');
     if (line && isAdmin()) line.classList.toggle('is-marked');
     const save = event.target.closest('[data-save-review-marks]');

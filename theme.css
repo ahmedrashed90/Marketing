@@ -4286,7 +4286,7 @@ body.sidebar-collapsed .database-main {
 }
 .content-type-link-assignment {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.35fr) auto;
   gap: 10px;
   align-items: end;
   padding: 12px;
@@ -4298,7 +4298,8 @@ body.sidebar-collapsed .database-main {
 .content-type-link-assignment .mzj-field {
   min-width: 0;
 }
-.content-type-link-assignment select {
+.content-type-link-assignment select,
+.content-type-link-assignment input {
   width: 100%;
 }
 .content-type-link-add {

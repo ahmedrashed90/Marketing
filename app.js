@@ -1570,6 +1570,8 @@ function initCreateTaskFromTemplate() {
   const addPublishScheduleRowBtn = document.getElementById('addPublishScheduleRow');
   const uploadFilledTemplateBtn = document.getElementById('uploadFilledTemplateBtn');
   const filledTemplateFileInput = document.getElementById('filledTemplateFile');
+  const uploadAgendaTemplateBtn = document.getElementById('uploadAgendaTemplateBtn');
+  const agendaTemplateFileInput = document.getElementById('agendaTemplateFile');
   const importedCampaignLogicSection = document.getElementById('importedCampaignLogicSection');
   const importedCampaignLogicBox = document.getElementById('importedCampaignLogicBox');
 
@@ -1588,6 +1590,8 @@ function initCreateTaskFromTemplate() {
     writingRules: [],
     contentExecutionTasks: []
   };
+  let stockCarsCache = [];
+  let stockCarsLoaded = false;
 
   function renderCampaignTypesOptions() {
     if (!campaignTypeSelect) return;
@@ -2423,11 +2427,63 @@ function initCreateTaskFromTemplate() {
     return wrap.innerHTML;
   }
 
+  function normalizeStockCar(doc) {
+    const value = doc || {};
+    const vin = templateCellText(value.vin || value.id || value.docId || '');
+    const carName = templateCellText(value.carName || value.name || value.title || '');
+    const statement = templateCellText(value.statement || value.description || '');
+    const model = templateCellText(value.model || value.year || '');
+    const status = templateCellText(value.status || '');
+    const display = [carName, statement, model, vin ? `VIN: ${vin}` : '', status].filter(Boolean).join(' | ');
+    return { id: templateCellText(value.docId || vin || display), vin, carName, statement, model, status, display };
+  }
+
+  function shouldHideStockCar(car) {
+    const status = templateCellText(car?.status).toLowerCase();
+    return !car?.display || status.includes('أرشيف') || status.includes('مؤرشف') || status.includes('مباع تم التسليم');
+  }
+
+  async function loadStockCarsForDropdown(force = false) {
+    if (stockCarsLoaded && !force) return stockCarsCache;
+    stockCarsLoaded = true;
+    stockCarsCache = [];
+    try {
+      if (!window.firebase || !firebase.firestore || !window.MZJ_STOCK_FIREBASE_CONFIG) return stockCarsCache;
+      const appName = 'mzjStockReadonlyApp';
+      let stockApp = null;
+      try { stockApp = firebase.app(appName); } catch (_error) { stockApp = firebase.initializeApp(window.MZJ_STOCK_FIREBASE_CONFIG, appName); }
+      const collectionName = window.MZJ_STOCK_CARS_COLLECTION || 'cars';
+      const snap = await stockApp.firestore().collection(collectionName).get();
+      const items = [];
+      snap.forEach((doc) => {
+        const car = normalizeStockCar({ ...(doc.data() || {}), docId: doc.id });
+        if (!shouldHideStockCar(car)) items.push(car);
+      });
+      const seen = new Set();
+      stockCarsCache = items.filter((car) => {
+        const key = car.display.toLowerCase();
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      }).sort((a, b) => a.display.localeCompare(b.display, 'ar', { numeric: true }));
+    } catch (error) {
+      console.warn('Stock cars dropdown load failed:', error);
+      stockCarsCache = [];
+    }
+    return stockCarsCache;
+  }
+
+  function renderStockCarsDatalist() {
+    if (!stockCarsCache.length) return '<datalist id="stockCarsDatalist"></datalist>';
+    return `<datalist id="stockCarsDatalist">${stockCarsCache.map((car) => `<option value="${escapeHTML(car.display)}"></option>`).join('')}</datalist>`;
+  }
+
   function renderContentTypeLinkAssignmentRow() {
     return `
       <div class="content-type-link-assignment" data-content-type-link-assignment>
         <label class="mzj-field"><span>القسم</span><select data-content-type-department>${renderDepartmentOptions()}</select></label>
         <label class="mzj-field"><span>اليوزر في القسم</span><select data-content-type-user><option value="">اختار القسم الأول</option></select></label>
+        <label class="mzj-field content-type-car-field"><span>السيارة المطلوبة</span><input type="text" list="stockCarsDatalist" data-content-type-car placeholder="ابحث واختار من الاستوك"></label>
         <button class="danger-btn ghost-btn content-type-link-remove" type="button" data-remove-content-type-link title="مسح هذا الربط">مسح</button>
       </div>`;
   }
@@ -2452,6 +2508,7 @@ function initCreateTaskFromTemplate() {
               <button class="secondary-btn content-type-link-add" type="button" data-add-content-type-link>+ إضافة قسم / يوزر</button>
             </article>`).join('')}
         </div>
+        ${renderStockCarsDatalist()}
         <button class="primary-btn" type="button" data-apply-content-type-linking>تطبيق الربط على التاسكات</button>
       </div>`;
   }
@@ -2521,7 +2578,8 @@ function initCreateTaskFromTemplate() {
       const contentType = row.dataset.contentType || '';
       const assignments = Array.from(row.querySelectorAll('[data-content-type-link-assignment]')).map((assignment) => ({
         deptId: assignment.querySelector('[data-content-type-department]')?.value || '',
-        userValue: assignment.querySelector('[data-content-type-user]')?.value || ''
+        userValue: assignment.querySelector('[data-content-type-user]')?.value || '',
+        carValue: assignment.querySelector('[data-content-type-car]')?.value || ''
       })).filter((item) => item.deptId);
       if (contentType && assignments.length) mapping.set(contentType, assignments);
     });
@@ -2549,7 +2607,9 @@ function initCreateTaskFromTemplate() {
         assignmentRow.dataset.importedContentType = task.contentType || '';
         clearAssignmentRequirement(assignmentRow);
         setAssignmentUserByValue(assignmentRow, mapItem.userValue);
-        fillAssignmentText(kind, assignmentRow, task.requiredText || buildContentExecutionTaskText(task));
+        const carLine = templateCellText(mapItem.carValue || task.carType) ? `السيارة المطلوبة: ${templateCellText(mapItem.carValue || task.carType)}` : '';
+        const taskText = [carLine, task.requiredText || buildContentExecutionTaskText(task)].filter(Boolean).join(' | ');
+        fillAssignmentText(kind, assignmentRow, taskText);
         created += 1;
       });
     });
@@ -2810,6 +2870,114 @@ function initCreateTaskFromTemplate() {
     if (note) note.textContent = `✅ تم تحميل بيانات Template من ملف ${fileName || 'Excel'} داخل نموذج إنشاء التاسك. راجع الأقسام والميزانية ثم اضغط حفظ.`;
   }
 
+  function findAgendaContentSheetName(workbook) {
+    const names = workbook.SheetNames || [];
+    const preferred = names.find((name) => /agenda|أجندة|اجندة/i.test(name));
+    if (preferred) return preferred;
+    const byHeader = names.find((name) => {
+      const rows = XLSX.utils.sheet_to_json(workbook.Sheets[name], { header: 1, defval: '', raw: false });
+      return rows.slice(0, 20).some((row) => (row || []).some((cell) => templateCellText(cell).includes('نوع المحتوى')));
+    });
+    return byHeader || names[0];
+  }
+
+  function findAgendaHeaderRow(rows) {
+    return (rows || []).findIndex((row) => {
+      const cells = (row || []).map(templateCellText);
+      return cells.some((cell) => cell.includes('نوع المحتوى') || cell.includes('نوع المحتوي'));
+    });
+  }
+
+  function applyAgendaTemplateRows(rows, fileName = '', sheetName = '') {
+    typeSelect.value = 'agenda';
+    typeSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    const headerIndex = findAgendaHeaderRow(rows);
+    if (headerIndex < 0) {
+      if (note) note.textContent = '⚠️ شيت الأجندة لازم يكون فيه عامود اسمه نوع المحتوى.';
+      return false;
+    }
+    const headers = rows[headerIndex] || [];
+    const col = {
+      contentType: findHeaderColumnLoose(headers, ['نوع المحتوى', 'نوع المحتوي', 'Content Type']),
+      taskNo: findHeaderColumnLoose(headers, ['رقم التاسك', 'رقم المهمة', 'Task No']),
+      title: findHeaderColumnLoose(headers, ['العنوان', 'اسم التاسك', 'الموضوع']),
+      goal: findHeaderColumnLoose(headers, ['الهدف']),
+      tangibleGoal: findHeaderColumnLoose(headers, ['الهدف الملموس']),
+      idea: findHeaderColumnLoose(headers, ['الفكرة', 'الفكره']),
+      description: findHeaderColumnLoose(headers, ['وصف المحتوى', 'وصف المحتوي', 'الوصف']),
+      message: findHeaderColumnLoose(headers, ['الرسالة', 'الرساله']),
+      writerRequest: findHeaderColumnLoose(headers, ['المطلوب من الكاتب', 'المطلوب من اليوزر', 'المطلوب']),
+      cta: findHeaderColumnLoose(headers, ['CTA']),
+      carType: findHeaderColumnLoose(headers, ['السيارة المطلوبة', 'السيارة', 'نوع السيارة']),
+      requiredDate: findHeaderColumnLoose(headers, ['التاريخ المطلوب', 'تاريخ النشر', 'تاريخ المحتوى']),
+      deliveryDate: findHeaderColumnLoose(headers, ['تاريخ التسليم'])
+    };
+    if (col.contentType < 0) return false;
+    const importedRows = [];
+    for (let r = headerIndex + 1; r < rows.length; r += 1) {
+      const cells = rows[r] || [];
+      if (!cells.some((cell) => templateCellText(cell))) continue;
+      const contentType = templateCellText(cells[col.contentType]);
+      if (!contentType) continue;
+      const rowData = {
+        campaignType: 'أجندة',
+        contentType,
+        taskNo: templateCellText(cells[col.taskNo]) || `AG-T${String(importedRows.length + 1).padStart(2, '0')}`,
+        title: templateCellText(cells[col.title]),
+        goal: templateCellText(cells[col.goal]),
+        tangibleGoal: templateCellText(cells[col.tangibleGoal]),
+        idea: templateCellText(cells[col.idea]),
+        description: templateCellText(cells[col.description]),
+        message: templateCellText(cells[col.message]),
+        writerRequest: templateCellText(cells[col.writerRequest]),
+        cta: templateCellText(cells[col.cta]),
+        carType: templateCellText(cells[col.carType]),
+        requiredDate: normalizeImportedDate(templateCellText(cells[col.requiredDate])),
+        deliveryDate: normalizeImportedDate(templateCellText(cells[col.deliveryDate]))
+      };
+      rowData.requiredText = buildContentExecutionTaskText(rowData);
+      importedRows.push(rowData);
+    }
+    if (!importedRows.length) {
+      if (note) note.textContent = '⚠️ لم يتم العثور على صفوف أجندة بعد عامود نوع المحتوى.';
+      return false;
+    }
+    const agendaName = campaignInfoValueBeforeExecution(rows, ['اسم الأجندة', 'اسم الاجندة', 'اسم الحملة / الأجندة']);
+    if (agendaName && campaignNameInput) campaignNameInput.value = templateCellText(agendaName);
+    importedTemplateContext = {
+      loaded: true,
+      fileName: fileName || '',
+      sheetName: sheetName || '',
+      campaignLogic: [],
+      writingRules: [],
+      contentExecutionTasks: importedRows,
+      sourceType: 'agenda'
+    };
+    renderImportedCampaignContext(importedTemplateContext);
+    if (note) note.textContent = `✅ تم قراءة ${importedRows.length} تاسك من شيت الأجندة. اختار لكل نوع محتوى الأقسام واليوزرات والسيارة المطلوبة، ثم اضغط تطبيق الربط.`;
+    return true;
+  }
+
+  async function handleAgendaTemplateUpload(file) {
+    if (!file) return;
+    if (!window.XLSX) {
+      if (note) note.textContent = '⚠️ مكتبة قراءة Excel لم يتم تحميلها. تأكد من الاتصال بالإنترنت.';
+      return;
+    }
+    try {
+      await ensureDepartments();
+      await loadStockCarsForDropdown();
+      const buffer = await file.arrayBuffer();
+      const workbook = XLSX.read(buffer, { type: 'array', cellDates: true });
+      const sheetName = findAgendaContentSheetName(workbook);
+      const rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1, defval: '', raw: false });
+      const cleanRows = rows.map((row) => (row || []).map((cell) => templateCellText(cell))).filter((row) => row.some(Boolean));
+      applyAgendaTemplateRows(cleanRows, file.name, sheetName);
+    } catch (error) {
+      if (note) note.textContent = '⚠️ فشل تحميل شيت الأجندة: ' + (error?.message || error);
+    }
+  }
+
   async function handleFilledTemplateUpload(file) {
     if (!file) return;
     if (!window.XLSX) {
@@ -2818,6 +2986,7 @@ function initCreateTaskFromTemplate() {
     }
     try {
       await ensureDepartments();
+      await loadStockCarsForDropdown();
       const buffer = await file.arrayBuffer();
       const workbook = XLSX.read(buffer, { type: 'array', cellDates: true });
       const sheetName = pickCampaignContentSheetName(workbook);
@@ -3135,6 +3304,14 @@ function initCreateTaskFromTemplate() {
     filledTemplateFileInput.addEventListener('change', () => {
       const file = filledTemplateFileInput.files && filledTemplateFileInput.files[0];
       handleFilledTemplateUpload(file).finally(() => { filledTemplateFileInput.value = ''; });
+    });
+  }
+
+  if (uploadAgendaTemplateBtn && agendaTemplateFileInput) {
+    uploadAgendaTemplateBtn.addEventListener('click', () => agendaTemplateFileInput.click());
+    agendaTemplateFileInput.addEventListener('change', () => {
+      const file = agendaTemplateFileInput.files && agendaTemplateFileInput.files[0];
+      handleAgendaTemplateUpload(file).finally(() => { agendaTemplateFileInput.value = ''; });
     });
   }
 

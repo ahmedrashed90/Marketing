@@ -4841,3 +4841,42 @@ body.sidebar-collapsed .database-main {
   font-weight:900;
   font-size:12px;
 }
+
+
+.is-agenda-group-card{
+  grid-column:auto;
+}
+.agenda-task-link-list{
+  display:grid;
+  gap:14px;
+  margin-top:12px;
+}
+.agenda-task-link-block{
+  border:1px dashed rgba(75,36,31,.18);
+  border-radius:18px;
+  padding:14px;
+  background:rgba(255,250,244,.72);
+}
+.agenda-task-link-head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  margin-bottom:12px;
+  padding-bottom:10px;
+  border-bottom:1px solid rgba(75,36,31,.08);
+}
+.agenda-task-link-head strong{
+  color:var(--brown,#4b241f);
+  font-weight:900;
+}
+.agenda-task-link-head span{
+  color:#8e766c;
+  font-weight:800;
+  font-size:12px;
+  line-height:1.6;
+  max-width:70%;
+}
+.agenda-task-link-block .content-type-link-add{
+  margin-top:10px;
+}

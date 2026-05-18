@@ -2551,25 +2551,49 @@ function initCreateTaskFromTemplate() {
       </div>`;
   }
 
+
+  function agendaTaskDisplayNo(task, index) {
+    return templateCellText(task?.taskNo) || `AG-T${String(index + 1).padStart(2, '0')}`;
+  }
+
+  function renderAgendaTaskLinkBlock(task, index) {
+    const taskNo = agendaTaskDisplayNo(task, index);
+    const description = templateCellText(task?.title || task?.description || task?.idea || '');
+    return `
+      <div class="agenda-task-link-block" data-agenda-task-link-block data-task-link-key="${escapeHTML(task.linkKey || '')}">
+        <div class="agenda-task-link-head">
+          <strong>${escapeHTML(taskNo)}</strong>
+          ${description ? `<span>${escapeHTML(description)}</span>` : ''}
+        </div>
+        <div class="content-type-link-assignments" data-content-type-link-list>
+          ${renderContentTypeLinkAssignmentRow()}
+        </div>
+        <button class="secondary-btn content-type-link-add" type="button" data-add-content-type-link>+ إضافة قسم / يوزر</button>
+      </div>`;
+  }
+
   function renderContentTypeLinkingPanel(context) {
     const groups = uniqueContentTypesFromImportedTasks(context?.contentExecutionTasks || [], { sourceType: context?.sourceType || '' });
     if (!groups.length) return '';
     return `
       <div class="campaign-context-panel content-type-linking-panel" data-content-type-linking-panel>
         <h5>ربط أنواع المحتوى بالأقسام</h5>
-        <p class="admin-only-note">السيستم قرأ أنواع المحتوى من الشيت. لكل نوع محتوى تقدر تضيف أكتر من قسم وأكتر من يوزر. اضغط إضافة قسم / يوزر، وبعدها تطبيق الربط.</p>
+        <p class="admin-only-note">السيستم قرأ أنواع المحتوى من الشيت. لو ده شيت أجندة، كل نوع محتوى يظهر ككارت واحد وجواه كل التكرارات تحت بعض، وكل تاسك له القسم واليوزر والسيارة الخاصة به.</p>
         <div class="content-type-linking-grid">
           ${groups.map((group) => `
-            <article class="content-type-link-card" data-content-type-link-row data-content-type="${escapeHTML(group.contentType)}" data-link-key="${escapeHTML(group.linkKey || group.contentType)}">
+            <article class="content-type-link-card ${group.isAgendaGroup ? 'is-agenda-group-card' : ''}" data-content-type-link-row data-content-type="${escapeHTML(group.contentType)}" data-link-key="${escapeHTML(group.linkKey || group.contentType)}">
               <div class="content-type-link-title">
                 <strong>${escapeHTML(group.label || group.contentType)}</strong>
                 <span>${group.items.length} تاسك</span>
               </div>
-              ${group.isAgendaGroup && group.items.length ? `<div class="agenda-group-task-list">${group.items.map((item, itemIndex) => `<span>${escapeHTML(item.taskNo || ('AG-T' + String(itemIndex + 1).padStart(2, '0')))}</span>`).join('')}</div>` : ''}
-              <div class="content-type-link-assignments" data-content-type-link-list>
-                ${renderContentTypeLinkAssignmentRow()}
-              </div>
-              <button class="secondary-btn content-type-link-add" type="button" data-add-content-type-link>+ إضافة قسم / يوزر</button>
+              ${group.isAgendaGroup ? `
+                <div class="agenda-task-link-list">
+                  ${group.items.map((item, itemIndex) => renderAgendaTaskLinkBlock(item, itemIndex)).join('')}
+                </div>` : `
+                <div class="content-type-link-assignments" data-content-type-link-list>
+                  ${renderContentTypeLinkAssignmentRow()}
+                </div>
+                <button class="secondary-btn content-type-link-add" type="button" data-add-content-type-link>+ إضافة قسم / يوزر</button>`}
             </article>`).join('')}
         </div>
         ${renderStockCarsDatalist()}
@@ -2702,11 +2726,27 @@ function initCreateTaskFromTemplate() {
       if (note) note.textContent = '⚠️ ارفع الشيت الأول علشان تظهر أنواع المحتوى.';
       return;
     }
-    const rows = Array.from(panel.querySelectorAll('[data-content-type-link-row]'));
     const mapping = new Map();
+
+    const rows = Array.from(panel.querySelectorAll('[data-content-type-link-row]'));
     rows.forEach((row) => {
       const contentType = row.dataset.contentType || '';
       const linkKey = row.dataset.linkKey || contentType;
+
+      const agendaBlocks = Array.from(row.querySelectorAll('[data-agenda-task-link-block]'));
+      if (agendaBlocks.length) {
+        agendaBlocks.forEach((block) => {
+          const taskLinkKey = block.dataset.taskLinkKey || '';
+          const assignments = Array.from(block.querySelectorAll('[data-content-type-link-assignment]')).map((assignment) => ({
+            deptId: assignment.querySelector('[data-content-type-department]')?.value || '',
+            userValue: assignment.querySelector('[data-content-type-user]')?.value || '',
+            carValue: assignment.querySelector('[data-content-type-car]')?.value || ''
+          })).filter((item) => item.deptId);
+          if (taskLinkKey && assignments.length) mapping.set(taskLinkKey, assignments);
+        });
+        return;
+      }
+
       const assignments = Array.from(row.querySelectorAll('[data-content-type-link-assignment]')).map((assignment) => ({
         deptId: assignment.querySelector('[data-content-type-department]')?.value || '',
         userValue: assignment.querySelector('[data-content-type-user]')?.value || '',
@@ -2714,15 +2754,18 @@ function initCreateTaskFromTemplate() {
       })).filter((item) => item.deptId);
       if (linkKey && assignments.length) mapping.set(linkKey, assignments);
     });
+
     if (!mapping.size) {
-      if (note) note.textContent = '⚠️ اختار قسم واحد على الأقل لنوع محتوى واحد.';
+      if (note) note.textContent = '⚠️ اختار قسم واحد على الأقل لتاسك واحد.';
       return;
     }
+
     clearImportedContentAssignments();
     const perDeptCount = {};
     let created = 0;
     tasks.forEach((task) => {
-      const links = mapping.get(task.linkKey || templateCellText(task.contentType)) || mapping.get(templateCellText(task.contentType)) || [];
+      const taskKey = task.linkKey || templateCellText(task.contentType);
+      const links = mapping.get(taskKey) || mapping.get(templateCellText(task.contentType)) || [];
       links.forEach((mapItem) => {
         const dept = departmentById(mapItem.deptId);
         const deptRow = findDepartmentRowById(mapItem.deptId);
@@ -2745,7 +2788,7 @@ function initCreateTaskFromTemplate() {
       });
     });
     importedTemplateContext.contentTypeMapping = Array.from(mapping.entries()).map(([linkKey, items]) => ({ linkKey, contentType: linkKey, items }));
-    if (note) note.textContent = `✅ تم ربط ${created} تكليف حسب نوع المحتوى. راجع المطلوب واليوزرات ثم اضغط حفظ.`;
+    if (note) note.textContent = `✅ تم ربط ${created} تكليف. راجع المطلوب واليوزرات ثم اضغط حفظ.`;
   }
 
   function campaignInfoValueBeforeExecution(rows, labels) {

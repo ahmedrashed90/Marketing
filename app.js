@@ -335,17 +335,58 @@ function isAttachmentActionLabel(value) {
     text === 'إرفاق ملف اسكريبت';
 }
 
+function buildZohoFileUrlFromRecord(file) {
+  if (!file || typeof file !== 'object') return '';
+
+  const existingUrl =
+    file.fileUrl ||
+    file.url ||
+    file.webViewLink ||
+    file.viewUrl ||
+    file.attachmentUrl ||
+    file.link ||
+    file.permalink ||
+    file.downloadUrl ||
+    '';
+
+  if (existingUrl) return existingUrl;
+
+  const fileId =
+    file.fileId ||
+    file.id ||
+    file.resource_id ||
+    file.resourceId ||
+    '';
+
+  if (!fileId) return '';
+
+  return `https://workdrive.zoho.sa/file/${encodeURIComponent(fileId)}`;
+}
+
 function normalizeTaskFileRecord(file, index) {
   if (!file) return null;
+
   if (typeof file === 'string') {
     if (isAttachmentActionLabel(file)) return null;
     return { name: file, fileName: file, url: file, fileUrl: file, index };
   }
-  const url = file.fileUrl || file.url || file.webViewLink || file.attachmentUrl || file.link || '';
+
+  const url = buildZohoFileUrlFromRecord(file);
   const rawName = file.fileName || file.name || file.title || file.label || '';
+
   if (!url && isAttachmentActionLabel(rawName)) return null;
+
   const name = rawName || (url ? 'ملف مرفق' : 'مرفق');
-  return { ...file, name, fileName: name, url, fileUrl: url, index };
+
+  return {
+    ...file,
+    name,
+    fileName: name,
+    url,
+    fileUrl: url,
+    webViewLink: file.webViewLink || file.viewUrl || url,
+    index
+  };
 }
 
 function getTaskDeptByMeta(meta) {
@@ -547,6 +588,13 @@ async function uploadTaskFileToDrive(file, meta) {
     throw new Error(result.error || result.message || result.raw || 'فشل رفع الملف على Zoho WorkDrive.');
   }
 
+  const fileId =
+    result.fileId ||
+    result.id ||
+    result.resource_id ||
+    result.resourceId ||
+    '';
+
   const fileUrl =
     result.fileUrl ||
     result.url ||
@@ -554,7 +602,7 @@ async function uploadTaskFileToDrive(file, meta) {
     result.webViewLink ||
     result.permalink ||
     result.downloadUrl ||
-    '';
+    (fileId ? `https://workdrive.zoho.sa/file/${encodeURIComponent(fileId)}` : '');
 
   return {
     name: result.name || result.fileName || file.name,
@@ -563,7 +611,7 @@ async function uploadTaskFileToDrive(file, meta) {
     fileUrl: fileUrl,
     webViewLink: result.webViewLink || result.viewUrl || fileUrl,
     downloadUrl: result.downloadUrl || '',
-    fileId: result.fileId || result.id || result.resource_id || '',
+    fileId,
     mimeType: file.type || result.mimeType || '',
     size: file.size || 0,
     uploadedAt: new Date().toISOString(),

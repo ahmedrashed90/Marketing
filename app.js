@@ -1496,6 +1496,8 @@ function initCreateTaskFromTemplate() {
   const addPublishScheduleRowBtn = document.getElementById('addPublishScheduleRow');
   const uploadFilledTemplateBtn = document.getElementById('uploadFilledTemplateBtn');
   const filledTemplateFileInput = document.getElementById('filledTemplateFile');
+  const importedCampaignLogicSection = document.getElementById('importedCampaignLogicSection');
+  const importedCampaignLogicBox = document.getElementById('importedCampaignLogicBox');
 
   if (!modal || !form || !typeSelect || !templateSelect || !departmentsList) return;
 
@@ -1504,6 +1506,14 @@ function initCreateTaskFromTemplate() {
   let departmentIndex = 0;
   let platformsCache = [];
   let campaignTypesCache = [];
+  let importedTemplateContext = {
+    loaded: false,
+    fileName: '',
+    sheetName: '',
+    campaignLogic: [],
+    writingRules: [],
+    contentExecutionTasks: []
+  };
 
   function renderCampaignTypesOptions() {
     if (!campaignTypeSelect) return;
@@ -2239,7 +2249,114 @@ function initCreateTaskFromTemplate() {
     return true;
   }
 
-  function applyContentExecutionDirectionFromRows(rows) {
+  function findSectionMarkerRow(rows, variants) {
+    const wanted = variants.map((v) => templateCellText(v).toLowerCase());
+    return rows.findIndex((row) => (row || []).some((cell) => {
+      const text = templateCellText(cell).toLowerCase();
+      return text && wanted.some((variant) => text.includes(variant));
+    }));
+  }
+
+  function findCellPosition(rows, variants) {
+    const wanted = variants.map((v) => templateCellText(v).toLowerCase());
+    for (let r = 0; r < rows.length; r += 1) {
+      const row = rows[r] || [];
+      for (let c = 0; c < row.length; c += 1) {
+        const text = templateCellText(row[c]).toLowerCase();
+        if (text && wanted.some((variant) => text.includes(variant))) return { row: r, col: c };
+      }
+    }
+    return { row: -1, col: -1 };
+  }
+
+  function extractCampaignLogicFromRows(rows) {
+    const marker = findCellPosition(rows, ['campaign logic']);
+    if (marker.row < 0) return [];
+    const stopWords = ['writing rules', 'قواعد كتابة المحتوى', 'content execution direction', 'آلية تنفيذ المحتوى', 'الية تنفيذ المحتوى'];
+    const labelCol = marker.col + 1;
+    const valueCol = marker.col + 2;
+    const items = [];
+    for (let r = marker.row; r < rows.length; r += 1) {
+      const row = rows[r] || [];
+      if (r > marker.row) {
+        const joined = row.map(templateCellText).join(' ').toLowerCase();
+        if (stopWords.some((word) => joined.includes(word))) break;
+      }
+      const label = templateCellText(row[labelCol]) || templateCellText(row.find((cell, i) => i !== marker.col && i !== valueCol && templateCellText(cell)));
+      const value = templateCellText(row[valueCol]) || templateCellText(row[labelCol + 1]);
+      if (!label || !value) continue;
+      if (label.toLowerCase().includes('campaign logic')) continue;
+      items.push({ label, value });
+    }
+    return items;
+  }
+
+  function extractWritingRulesFromRows(rows) {
+    const start = findSectionMarkerRow(rows, ['Writing Rules', 'قواعد كتابة المحتوى']);
+    if (start < 0) return [];
+    const end = findSectionMarkerRow(rows.slice(start + 1), ['Content Execution Direction', 'آلية تنفيذ المحتوى', 'الية تنفيذ المحتوى']);
+    const until = end >= 0 ? start + 1 + end : rows.length;
+    const rules = [];
+    const skip = ['writing rules', 'قواعد كتابة المحتوى', 'محتوي حملات mzj', 'محتوى حملات mzj'];
+    for (let r = start + 1; r < until; r += 1) {
+      const row = rows[r] || [];
+      row.forEach((cell) => {
+        const text = templateCellText(cell);
+        if (!text) return;
+        const lower = text.toLowerCase();
+        if (skip.some((word) => lower.includes(word.toLowerCase()))) return;
+        if (!rules.includes(text)) rules.push(text);
+      });
+    }
+    return rules;
+  }
+
+  function renderImportedCampaignContext(context) {
+    if (!importedCampaignLogicSection || !importedCampaignLogicBox) return;
+    const logic = Array.isArray(context?.campaignLogic) ? context.campaignLogic : [];
+    const rules = Array.isArray(context?.writingRules) ? context.writingRules : [];
+    if (!logic.length && !rules.length) {
+      importedCampaignLogicSection.hidden = true;
+      importedCampaignLogicBox.innerHTML = '';
+      return;
+    }
+    importedCampaignLogicSection.hidden = false;
+    const logicHtml = logic.length ? `
+      <div class="campaign-context-panel">
+        <h5>campaign logic</h5>
+        <div class="campaign-context-kv">
+          ${logic.map((item) => `<article><strong>${escapeHTML(item.label)}</strong><p>${escapeHTML(item.value).replace(/\n/g, '<br>')}</p></article>`).join('')}
+        </div>
+      </div>` : '';
+    const rulesHtml = rules.length ? `
+      <div class="campaign-context-panel">
+        <h5>قواعد كتابة المحتوى</h5>
+        <ul class="campaign-writing-rules">${rules.map((rule) => `<li>${escapeHTML(rule)}</li>`).join('')}</ul>
+      </div>` : '';
+    importedCampaignLogicBox.innerHTML = logicHtml + rulesHtml;
+  }
+
+  function campaignInfoValueBeforeExecution(rows, labels) {
+    const executionHeader = findContentExecutionHeader(rows);
+    const limit = executionHeader > 0 ? executionHeader : rows.length;
+    return findImportedValue(rows.slice(0, limit), labels);
+  }
+
+  function buildContentExecutionTaskText(rowData) {
+    return compactTaskText([
+      rowData.taskNo ? `رقم التاسك: ${rowData.taskNo}` : '',
+      rowData.contentType ? `نوع المحتوى: ${rowData.contentType}` : '',
+      rowData.goal ? `الهدف: ${rowData.goal}` : '',
+      rowData.tangibleGoal ? `الهدف الملموس: ${rowData.tangibleGoal}` : '',
+      rowData.idea ? `الفكرة: ${rowData.idea}` : '',
+      rowData.description ? `وصف المحتوى: ${rowData.description}` : '',
+      rowData.message ? `الرسالة: ${rowData.message}` : '',
+      rowData.writerRequest ? `المطلوب من اليوزر / المطلوب من الكاتب: ${rowData.writerRequest}` : '',
+      rowData.cta ? `CTA: ${rowData.cta}` : ''
+    ]);
+  }
+
+  function applyContentExecutionDirectionFromRows(rows, context = {}) {
     const headerIndex = findContentExecutionHeader(rows);
     if (headerIndex < 0) return false;
     const headers = rows[headerIndex] || [];
@@ -2258,7 +2375,8 @@ function initCreateTaskFromTemplate() {
     if (col.contentType < 0 || col.taskNo < 0) return false;
 
     const deptIndexes = {};
-    let importedContentRows = 0;
+    const importedRows = [];
+    let lastCampaignType = '';
     for (let r = headerIndex + 1; r < rows.length; r += 1) {
       const cells = rows[r] || [];
       if (!cells.some((cell) => templateCellText(cell))) continue;
@@ -2267,9 +2385,10 @@ function initCreateTaskFromTemplate() {
       const contentType = templateCellText(cells[col.contentType]);
       const taskNo = templateCellText(cells[col.taskNo]);
       if (!contentType || !taskNo) continue;
-
+      const campaignType = templateCellText(cells[col.campaignType]) || lastCampaignType;
+      if (campaignType) lastCampaignType = campaignType;
       const rowData = {
-        campaignType: templateCellText(cells[col.campaignType]),
+        campaignType,
         contentType,
         taskNo,
         goal: templateCellText(cells[col.goal]),
@@ -2282,59 +2401,28 @@ function initCreateTaskFromTemplate() {
         requiredDate: '',
         deliveryDate: ''
       };
-      const rules = contentTypeRules(contentType, rowData);
-      const baseInfo = compactTaskText([
-        `رقم التاسك: ${rowData.taskNo}`,
-        `نوع المحتوى: ${rowData.contentType}`,
-        rowData.goal ? `الهدف: ${rowData.goal}` : '',
-        rowData.tangibleGoal ? `الهدف الملموس: ${rowData.tangibleGoal}` : '',
-        rowData.idea ? `الفكرة: ${rowData.idea}` : '',
-        rowData.description ? `وصف المحتوى: ${rowData.description}` : '',
-        rowData.message ? `الرسالة: ${rowData.message}` : '',
-        rowData.cta ? `CTA: ${rowData.cta}` : ''
-      ]);
+      rowData.requiredText = buildContentExecutionTaskText(rowData);
+      importedRows.push(rowData);
 
+      // الربط بالأقسام يدوي حاليًا: لا نفتح تصميم/مونتاج/تصوير/نشر تلقائيًا.
+      // ننزل التاسكات الخام في قسم المحتوى فقط، وبعدها المدير يربط باقي الأقسام يدويًا.
       addContentExecutionAssignment('content', deptIndexes, rowData, (assignmentRow) => {
-        fillAssignmentText('content', assignmentRow, compactTaskText([
-          baseInfo,
-          rowData.writerRequest ? `المطلوب من الكاتب:\n${rowData.writerRequest}` : ''
-        ]));
+        fillAssignmentText('content', assignmentRow, rowData.requiredText);
       });
-
-      if (rules.design.length) {
-        addContentExecutionAssignment('design', deptIndexes, rowData, (assignmentRow) => {
-          selectDeliverablesInsideAssignment('design', assignmentRow, rules.design.join(' | '));
-          fillAssignmentText('design', assignmentRow, baseInfo);
-        });
-      }
-
-      if (rules.montage.length) {
-        addContentExecutionAssignment('montage', deptIndexes, rowData, (assignmentRow) => {
-          selectDeliverablesInsideAssignment('montage', assignmentRow, rules.montage.join(' | '));
-          fillAssignmentText('montage', assignmentRow, baseInfo);
-        });
-      }
-
-      if (rules.photoType) {
-        addContentExecutionAssignment('photography', deptIndexes, rowData, (assignmentRow) => {
-          fillPhotoInsideAssignment(assignmentRow, '', rules.photoType, rules.photoText || baseInfo);
-        });
-      }
-
-      addContentExecutionAssignment('publish', deptIndexes, rowData, (assignmentRow) => {
-        fillAssignmentText('publish', assignmentRow, compactTaskText([
-          `نشر التاسك ${rowData.taskNo} - ${rowData.contentType}`,
-          rowData.message ? `الرسالة: ${rowData.message}` : '',
-          rowData.cta ? `CTA: ${rowData.cta}` : '',
-          'يراجع المنصة والكابشن النهائي بعد استلام المحتوى النهائي.'
-        ]));
-      });
-
-      importedContentRows += 1;
     }
 
-    if (!importedContentRows) return false;
-    if (note) note.textContent = `✅ تم تحويل ${importedContentRows} تاسك من آلية تنفيذ المحتوى إلى تكليفات مرتبطة بالأقسام. اختار اليوزرات من كل قسم ثم اضغط حفظ.`;
+    if (!importedRows.length) return false;
+    importedTemplateContext = {
+      ...importedTemplateContext,
+      loaded: true,
+      fileName: context.fileName || importedTemplateContext.fileName || '',
+      sheetName: context.sheetName || importedTemplateContext.sheetName || '',
+      campaignLogic: context.campaignLogic || importedTemplateContext.campaignLogic || [],
+      writingRules: context.writingRules || importedTemplateContext.writingRules || [],
+      contentExecutionTasks: importedRows
+    };
+    renderImportedCampaignContext(importedTemplateContext);
+    if (note) note.textContent = `✅ تم قراءة ${importedRows.length} تاسك من آلية تنفيذ المحتوى. تم تنزيلها في قسم المحتوى فقط، والربط بباقي الأقسام يدوي حاليًا.`;
     return true;
   }
 
@@ -2429,20 +2517,32 @@ function initCreateTaskFromTemplate() {
     updateBudgetTotal();
   }
 
-  function applyImportedTemplateRows(rows, fileName = '') {
-    const get = (labels) => findImportedValue(rows, labels);
-    const taskTypeValue = templateCellText(get(['نوع التاسك', 'نوع المهمة']));
+  function applyImportedTemplateRows(rows, fileName = '', sheetName = '') {
+    const getBeforeExecution = (labels) => campaignInfoValueBeforeExecution(rows, labels);
+    const taskTypeValue = templateCellText(getBeforeExecution(['نوع التاسك', 'نوع المهمة']));
     if (taskTypeValue.includes('أجندة')) typeSelect.value = 'agenda';
-    else if (taskTypeValue.includes('حملة') || typeSelect.value !== 'agenda') typeSelect.value = 'campaign';
+    else typeSelect.value = 'campaign';
     typeSelect.dispatchEvent(new Event('change', { bubbles: true }));
 
-    const taskDate = normalizeImportedDate(get(['التاريخ']));
-    const name = get(['اسم الحملة', 'اسم الأجندة', 'اسم الحملة / الأجندة']);
-    const code = get(['كود الحملة', 'كود الأجندة', 'كود الحملة / الأجندة']);
-    const goal = get(['الهدف من الحملة', 'الهدف من الأجندة', 'الهدف']);
-    const typeName = get(['نوع الحملة', 'نوع الأجندة']);
-    const startDate = normalizeImportedDate(get(['تاريخ بداية الحملة', 'تاريخ بداية الأجندة', 'تاريخ نزول الحملة']));
-    const endDate = normalizeImportedDate(get(['تاريخ نهاية الحملة', 'تاريخ نهاية الأجندة']));
+    const campaignLogic = extractCampaignLogicFromRows(rows);
+    const writingRules = extractWritingRulesFromRows(rows);
+    importedTemplateContext = {
+      loaded: false,
+      fileName: fileName || '',
+      sheetName: sheetName || '',
+      campaignLogic,
+      writingRules,
+      contentExecutionTasks: []
+    };
+    renderImportedCampaignContext(importedTemplateContext);
+
+    const taskDate = normalizeImportedDate(getBeforeExecution(['التاريخ']));
+    const name = getBeforeExecution(['اسم الحملة', 'اسم الأجندة', 'اسم الحملة / الأجندة']);
+    const code = getBeforeExecution(['كود الحملة', 'كود الأجندة', 'كود الحملة / الأجندة']);
+    const goal = getBeforeExecution(['الهدف من الحملة', 'الهدف من الأجندة', 'الهدف الاستراتيجي للحملة', 'الهدف النهائي للحملة']);
+    const typeName = getBeforeExecution(['نوع الحملة', 'نوع الحمله', 'نوع الأجندة']);
+    const startDate = normalizeImportedDate(getBeforeExecution(['تاريخ بداية الحملة', 'تاريخ بداية الأجندة', 'تاريخ نزول الحملة']));
+    const endDate = normalizeImportedDate(getBeforeExecution(['تاريخ نهاية الحملة', 'تاريخ نهاية الأجندة']));
 
     if (taskDate && form.elements.taskDate) form.elements.taskDate.value = taskDate;
     if (name && form.elements.campaignName) form.elements.campaignName.value = templateCellText(name);
@@ -2452,9 +2552,9 @@ function initCreateTaskFromTemplate() {
     if (startDate && form.elements.campaignStartDate) form.elements.campaignStartDate.value = startDate;
     if (endDate && form.elements.campaignEndDate) form.elements.campaignEndDate.value = endDate;
 
-    // شيت الحملات الاستراتيجي: نقرأ فقط جدول Content Execution Direction ونحوّله لتكليفات أقسام.
-    // هذا يمنع خلط قواعد الكتابة أو بيانات الحملة مع المطلوب من الأقسام.
-    if (applyContentExecutionDirectionFromRows(rows)) {
+    // شيت الحملات الاستراتيجي: نقرأ جدول Content Execution Direction كتاسكات خام فقط.
+    // الربط بتصميم/مونتاج/تصوير/نشر يدوي حاليًا، بدون أي تخمين من نوع المحتوى.
+    if (applyContentExecutionDirectionFromRows(rows, { fileName, sheetName, campaignLogic, writingRules })) {
       applyImportedSchedule(rows);
       applyImportedBudget(rows);
       return;
@@ -2506,7 +2606,7 @@ function initCreateTaskFromTemplate() {
       const sheetName = pickCampaignContentSheetName(workbook);
       const rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1, defval: '', raw: false });
       const cleanRows = rows.map((row) => (row || []).map((cell) => templateCellText(cell))).filter((row) => row.some(Boolean));
-      applyImportedTemplateRows(cleanRows, `${file.name} / ${sheetName}`);
+      applyImportedTemplateRows(cleanRows, file.name, sheetName);
     } catch (error) {
       if (note) note.textContent = '⚠️ فشل تحميل Template: ' + (error?.message || error);
     }
@@ -2809,8 +2909,8 @@ function initCreateTaskFromTemplate() {
       return;
     }
 
-    if (taskType === 'campaign' && !selectedTemplate) {
-      if (note) note.textContent = '⚠️ اختار قالب حملة محفوظ الأول.';
+    if (taskType === 'campaign' && !selectedTemplate && !importedTemplateContext.loaded) {
+      if (note) note.textContent = '⚠️ اختار قالب حملة محفوظ أو ارفع شيت حملة جاهز الأول.';
       return;
     }
 
@@ -2825,9 +2925,14 @@ function initCreateTaskFromTemplate() {
       taskType,
       taskTypeLabel: taskType === 'campaign' ? 'حملة' : 'أجندة',
       templateId: selectedTemplate?.id || '',
-      templateName: selectedTemplate?.name || '',
+      templateName: selectedTemplate?.name || importedTemplateContext.fileName || '',
       templateFields: selectedTemplate?.headers || [],
       templateValues: collectTemplateValues(),
+      importedTemplateFileName: importedTemplateContext.fileName || '',
+      importedTemplateSheetName: importedTemplateContext.sheetName || '',
+      campaignLogic: importedTemplateContext.campaignLogic || [],
+      writingRules: importedTemplateContext.writingRules || [],
+      contentExecutionTasks: importedTemplateContext.contentExecutionTasks || [],
       taskDate: formData.get('taskDate') || '',
       campaignName: taskType === 'agenda' ? getAgendaName(agendaMonthSelect?.value || '', agendaYearSelect?.value || '') : (formData.get('campaignName') || ''),
       campaignCode: formData.get('campaignCode') || generateCampaignCode(taskType),

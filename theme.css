@@ -4219,3 +4219,14 @@ body.sidebar-collapsed .database-main {
 .department-assignment-row .dept-special-fields {
   margin-top: 12px;
 }
+
+/* Imported campaign sheet context */
+.imported-campaign-context[hidden] { display: none !important; }
+.imported-campaign-logic-box { display: grid; gap: 16px; }
+.campaign-context-panel { border: 1px solid rgba(76, 35, 30, 0.12); border-radius: 18px; background: rgba(255, 250, 244, 0.82); padding: 16px; }
+.campaign-context-panel h5 { margin: 0 0 12px; font-size: 16px; color: var(--mzj-brown, #4b241f); }
+.campaign-context-kv { display: grid; gap: 10px; }
+.campaign-context-kv article { border: 1px solid rgba(76, 35, 30, 0.10); border-radius: 14px; background: #fff; padding: 12px; }
+.campaign-context-kv strong { display: block; margin-bottom: 6px; color: var(--mzj-brown, #4b241f); }
+.campaign-context-kv p { margin: 0; line-height: 1.8; white-space: normal; }
+.campaign-writing-rules { margin: 0; padding: 0 20px 0 0; line-height: 1.9; }

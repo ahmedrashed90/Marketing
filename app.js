@@ -2575,30 +2575,96 @@ function initCreateTaskFromTemplate() {
       </div>`;
   }
 
+  function renderImportedExecutionTable(tasks) {
+    if (!Array.isArray(tasks) || !tasks.length) return '';
+    const columns = [
+      ['campaignType', 'نوع الحملة', 'is-short'],
+      ['contentType', 'نوع المحتوى', 'is-short'],
+      ['taskNo', 'رقم التاسك', 'is-short'],
+      ['goal', 'الهدف', ''],
+      ['tangibleGoal', 'الهدف الملموس', ''],
+      ['idea', 'الفكرة', ''],
+      ['description', 'وصف المحتوى', ''],
+      ['message', 'الرسالة', ''],
+      ['writerRequest', 'المطلوب من الكاتب', ''],
+      ['cta', 'CTA', '']
+    ];
+    return `
+      <div class="campaign-context-panel campaign-execution-panel">
+        <div class="campaign-context-panel-head">
+          <div>
+            <span class="eyebrow">Content Execution Direction</span>
+            <h5>Content Execution Direction - آلية تنفيذ المحتوى</h5>
+            <p>الجدول ده بيعرض كل البيانات المقروءة من الشيت كما هي، بالترتيب داخل حقول واضحة.</p>
+          </div>
+          <span class="task-count-badge">${tasks.length} تاسك</span>
+        </div>
+        <div class="campaign-execution-table-wrap">
+          <table class="campaign-execution-table">
+            <thead>
+              <tr>
+                ${columns.map(([, label]) => `<th>${label}</th>`).join('')}
+              </tr>
+            </thead>
+            <tbody>
+              ${tasks.map((task) => `
+                <tr>
+                  ${columns.map(([key, , className]) => {
+                    const value = escapeHTML(task?.[key] || '—').replace(/\n/g, '<br>');
+                    return `<td class="${className}">${value}</td>`;
+                  }).join('')}
+                </tr>`).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>`;
+  }
+
   function renderImportedCampaignContext(context) {
     if (!importedCampaignLogicSection || !importedCampaignLogicBox) return;
     const logic = Array.isArray(context?.campaignLogic) ? context.campaignLogic : [];
     const rules = Array.isArray(context?.writingRules) ? context.writingRules : [];
+    const executionTasks = Array.isArray(context?.contentExecutionTasks) ? context.contentExecutionTasks : [];
     const linkingHtml = renderContentTypeLinkingPanel(context);
-    if (!logic.length && !rules.length && !linkingHtml) {
+    if (!logic.length && !rules.length && !executionTasks.length && !linkingHtml) {
       importedCampaignLogicSection.hidden = true;
       importedCampaignLogicBox.innerHTML = '';
       return;
     }
     importedCampaignLogicSection.hidden = false;
     const logicHtml = logic.length ? `
-      <div class="campaign-context-panel">
-        <h5>campaign logic</h5>
-        <div class="campaign-context-kv">
-          ${logic.map((item) => `<article><strong>${escapeHTML(item.label)}</strong><p>${escapeHTML(item.value).replace(/\n/g, '<br>')}</p></article>`).join('')}
+      <div class="campaign-context-panel campaign-sheet-panel">
+        <div class="campaign-context-panel-head">
+          <div>
+            <span class="eyebrow">campaign logic</span>
+            <h5>Campaign Logic</h5>
+            <p>القسم ده بيتغير حسب الشيت المرفوع، وبيعرض عناصر الـ Campaign Logic بشكل منظم وواضح.</p>
+          </div>
+        </div>
+        <div class="campaign-sheet-logic-list">
+          ${logic.map((item) => `
+            <article class="campaign-sheet-field">
+              <strong>${escapeHTML(item.label)}</strong>
+              <p>${escapeHTML(item.value).replace(/\n/g, '<br>')}</p>
+            </article>`).join('')}
         </div>
       </div>` : '';
     const rulesHtml = rules.length ? `
-      <div class="campaign-context-panel">
-        <h5>قواعد كتابة المحتوى</h5>
-        <ul class="campaign-writing-rules">${rules.map((rule) => `<li>${escapeHTML(rule)}</li>`).join('')}</ul>
+      <div class="campaign-context-panel campaign-sheet-panel">
+        <div class="campaign-context-panel-head">
+          <div>
+            <span class="eyebrow">قواعد كتابة المحتوى</span>
+            <h5>قواعد كتابة المحتوى</h5>
+            <p>القواعد دي متقروءة من نفس شيت محتوى الحملة، وبتظهر هنا بنفس النص الموجود في الشيت.</p>
+          </div>
+        </div>
+        <article class="campaign-sheet-field campaign-sheet-field--rules">
+          <strong>قواعد كتابة المحتوى</strong>
+          <ul class="campaign-writing-rules">${rules.map((rule) => `<li>${escapeHTML(rule)}</li>`).join('')}</ul>
+        </article>
       </div>` : '';
-    importedCampaignLogicBox.innerHTML = logicHtml + rulesHtml + linkingHtml;
+    const executionHtml = renderImportedExecutionTable(executionTasks);
+    importedCampaignLogicBox.innerHTML = logicHtml + rulesHtml + executionHtml + linkingHtml;
   }
 
   function findDepartmentRowById(id) {

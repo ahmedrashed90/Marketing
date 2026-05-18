@@ -4222,14 +4222,137 @@ body.sidebar-collapsed .database-main {
 
 /* Imported campaign sheet context */
 .imported-campaign-context[hidden] { display: none !important; }
-.imported-campaign-logic-box { display: grid; gap: 16px; }
-.campaign-context-panel { border: 1px solid rgba(76, 35, 30, 0.12); border-radius: 18px; background: rgba(255, 250, 244, 0.82); padding: 16px; }
-.campaign-context-panel h5 { margin: 0 0 12px; font-size: 16px; color: var(--mzj-brown, #4b241f); }
-.campaign-context-kv { display: grid; gap: 10px; }
-.campaign-context-kv article { border: 1px solid rgba(76, 35, 30, 0.10); border-radius: 14px; background: #fff; padding: 12px; }
-.campaign-context-kv strong { display: block; margin-bottom: 6px; color: var(--mzj-brown, #4b241f); }
-.campaign-context-kv p { margin: 0; line-height: 1.8; white-space: normal; }
-.campaign-writing-rules { margin: 0; padding: 0 20px 0 0; line-height: 1.9; }
+.imported-campaign-logic-box { display: grid; gap: 18px; }
+.campaign-context-panel {
+  border: 1px solid rgba(76, 35, 30, 0.12);
+  border-radius: 24px;
+  background: rgba(255, 250, 244, 0.82);
+  padding: 18px;
+  box-shadow: 0 14px 34px rgba(75, 36, 31, 0.05);
+}
+.campaign-context-panel-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.campaign-context-panel-head .eyebrow {
+  display: block;
+  margin-bottom: 4px;
+  color: rgba(75, 36, 31, 0.58);
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: .02em;
+}
+.campaign-context-panel-head h5 {
+  margin: 0;
+  font-size: 24px;
+  color: var(--mzj-brown, #4b241f);
+}
+.campaign-context-panel-head p {
+  margin: 8px 0 0;
+  color: rgba(75, 36, 31, 0.72);
+  line-height: 1.8;
+  font-weight: 700;
+}
+.campaign-sheet-logic-list,
+.campaign-context-kv { display: grid; gap: 12px; }
+.campaign-sheet-field,
+.campaign-context-kv article {
+  border: 1px solid rgba(76, 35, 30, 0.10);
+  border-radius: 18px;
+  background: #fff;
+  padding: 18px 20px;
+}
+.campaign-sheet-field strong,
+.campaign-context-kv strong {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--mzj-brown, #4b241f);
+  font-size: 18px;
+}
+.campaign-sheet-field p,
+.campaign-context-kv p {
+  margin: 0;
+  line-height: 2;
+  white-space: normal;
+  color: #4c342d;
+  font-weight: 700;
+}
+.campaign-sheet-field--rules strong { margin-bottom: 10px; }
+.campaign-writing-rules {
+  margin: 0;
+  padding: 0 22px 0 0;
+  line-height: 2;
+  color: #4c342d;
+  font-weight: 700;
+}
+.campaign-writing-rules li + li { margin-top: 4px; }
+.task-count-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 96px;
+  padding: 10px 14px;
+  border-radius: 999px;
+  background: rgba(75, 36, 31, 0.08);
+  color: var(--mzj-brown, #4b241f);
+  font-weight: 900;
+  white-space: nowrap;
+}
+.campaign-execution-table-wrap {
+  overflow: auto;
+  border: 1px solid rgba(75, 36, 31, 0.10);
+  border-radius: 20px;
+  background: #fff;
+}
+.campaign-execution-table {
+  width: 100%;
+  min-width: 1450px;
+  border-collapse: separate;
+  border-spacing: 0;
+  direction: rtl;
+}
+.campaign-execution-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #4b241f;
+  color: #fff;
+  font-weight: 900;
+  padding: 14px 12px;
+  text-align: center;
+  border-left: 1px solid rgba(255, 255, 255, 0.16);
+  white-space: nowrap;
+}
+.campaign-execution-table td {
+  padding: 14px 12px;
+  vertical-align: top;
+  text-align: right;
+  line-height: 1.95;
+  color: #4d352e;
+  border-bottom: 1px solid rgba(75, 36, 31, 0.10);
+  border-left: 1px solid rgba(75, 36, 31, 0.08);
+  background: #fff;
+  font-weight: 700;
+}
+.campaign-execution-table td.is-short {
+  text-align: center;
+  white-space: nowrap;
+  font-weight: 900;
+  color: #3f1e1a;
+  background: #fbf7f2;
+}
+.campaign-execution-table tbody tr:hover td { background: #fffaf4; }
+.campaign-execution-table tbody tr:hover td.is-short { background: #f6eee7; }
+@media (max-width: 900px) {
+  .campaign-context-panel { padding: 16px; }
+  .campaign-context-panel-head { flex-direction: column; align-items: flex-start; }
+  .campaign-context-panel-head h5 { font-size: 20px; }
+  .campaign-sheet-field strong,
+  .campaign-context-kv strong { font-size: 16px; }
+}
 
 .content-type-linking-panel {
   margin-top: 14px;

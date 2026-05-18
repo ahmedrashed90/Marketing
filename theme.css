@@ -4822,3 +4822,22 @@ body.sidebar-collapsed .database-main {
     width: 100%;
   }
 }
+
+
+.agenda-group-task-list{
+  display:flex;
+  flex-wrap:wrap;
+  gap:6px;
+  margin:10px 0 12px;
+}
+.agenda-group-task-list span{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  padding:6px 10px;
+  border-radius:999px;
+  background:rgba(75,36,31,.07);
+  color:var(--brown,#4b241f);
+  font-weight:900;
+  font-size:12px;
+}

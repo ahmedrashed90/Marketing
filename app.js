@@ -698,6 +698,7 @@ function openTaskDetails(button) {
   activeTaskDetailsMeta = {
     taskId: activeTaskCard?.dataset.taskId || '',
     deptIdentity: activeTaskCard?.dataset.deptIdentity || '',
+    legacyReadinessKey: activeTaskCard?.dataset.legacyReadinessKey || '',
     deptKey: button.dataset.deptKey || '',
     departmentName: button.dataset.dept || '',
     campaignName: button.dataset.taskTitle || '',
@@ -2392,27 +2393,20 @@ function initCreateTaskFromTemplate() {
   function uniqueContentTypesFromImportedTasks(tasks, options = {}) {
     const sourceType = options.sourceType || importedTemplateContext?.sourceType || '';
     if (sourceType === 'agenda') {
-      return (tasks || []).map((task, index) => {
+      const map = new Map();
+      (tasks || []).forEach((task, index) => {
         const contentType = templateCellText(task?.contentType) || `محتوى ${index + 1}`;
-        const rawTaskNo = templateCellText(task?.taskNo);
-        const rawTitle = templateCellText(task?.title || task?.description || '');
-        const normalize = (value) => templateCellText(value).toLowerCase().replace(/[\s_\-–—|/\\]+/g, '');
-        const contentKey = normalize(contentType);
-        const autoTaskNo = `AG-T${String(index + 1).padStart(2, '0')}`;
-        const taskNo = rawTaskNo && normalize(rawTaskNo) !== contentKey ? rawTaskNo : autoTaskNo;
-        const title = rawTitle && normalize(rawTitle) !== contentKey && normalize(rawTitle) !== normalize(taskNo) ? rawTitle : '';
-        const linkKey = task.linkKey || `${contentType}__${taskNo}__${index}`;
-        task.linkKey = linkKey;
-        const titleParts = [contentType, taskNo];
-        if (title) titleParts.push(title);
-        return {
-          linkKey,
-          contentType,
-          label: titleParts.join(' - '),
-          items: [task],
-          isSingleAgendaItem: true
-        };
+        task.linkKey = contentType;
+        if (!map.has(contentType)) map.set(contentType, []);
+        map.get(contentType).push(task);
       });
+      return Array.from(map.entries()).map(([contentType, items]) => ({
+        linkKey: contentType,
+        contentType,
+        label: contentType,
+        items,
+        isAgendaGroup: true
+      }));
     }
     const map = new Map();
     (tasks || []).forEach((task) => {
@@ -2571,6 +2565,7 @@ function initCreateTaskFromTemplate() {
                 <strong>${escapeHTML(group.label || group.contentType)}</strong>
                 <span>${group.items.length} تاسك</span>
               </div>
+              ${group.isAgendaGroup && group.items.length ? `<div class="agenda-group-task-list">${group.items.map((item, itemIndex) => `<span>${escapeHTML(item.taskNo || ('AG-T' + String(itemIndex + 1).padStart(2, '0')))}</span>`).join('')}</div>` : ''}
               <div class="content-type-link-assignments" data-content-type-link-list>
                 ${renderContentTypeLinkAssignmentRow()}
               </div>
@@ -4276,10 +4271,22 @@ initCreateTaskFromTemplate();
     const value = String(deptName || '').toLowerCase();
     return Object.entries(DEPT_MAP).find(([key, words]) => words.some(w => value.includes(String(w).toLowerCase())))?.[0] || 'content';
   }
-  function taskDeptProgress(task, deptTask){
+  function legacyDeptReadinessKey(deptTask){
+    return deptTask.departmentId || deptTask.departmentName || deptTask.userName || '';
+  }
+  function dashboardDeptReadinessKey(deptTask, deptIndex = 0){
+    const stable = deptTask.assignmentId || deptTask.linkKey || deptTask.taskNo || deptTask.contentTaskId || deptTask.contentType || deptTask.requiredText || deptIdentity(deptTask) || legacyDeptReadinessKey(deptTask) || 'dept';
+    return `${stable}::${deptIndex}`;
+  }
+  function readinessStepsForDept(task, deptTask, deptIndex = 0){
     const readiness = task.readiness || {};
-    const key = deptTask.departmentId || deptTask.departmentName || deptTask.userName || '';
-    const selected = Array.isArray(readiness[key]) ? readiness[key] : [];
+    const key = dashboardDeptReadinessKey(deptTask, deptIndex);
+    const legacyKey = legacyDeptReadinessKey(deptTask);
+    const selected = Array.isArray(readiness[key]) ? readiness[key] : (Array.isArray(readiness[legacyKey]) ? readiness[legacyKey] : []);
+    return selected;
+  }
+  function taskDeptProgress(task, deptTask, deptIndex = 0){
+    const selected = readinessStepsForDept(task, deptTask, deptIndex);
     const steps = taskStepsForDept(deptKey(deptTask.departmentName));
     const total = selected.reduce((sum, index) => sum + Number(steps[Number(index)]?.value || 0), 0);
     return Math.min(100, Math.round(total));
@@ -4287,7 +4294,7 @@ initCreateTaskFromTemplate();
   function taskReadiness(task){
     const depts = (task.departmentTasks || []).filter((d) => d && d.enabled !== false);
     if (!depts.length) return 0;
-    const total = depts.reduce((sum, d) => sum + taskDeptProgress(task, d), 0);
+    const total = depts.reduce((sum, d, index) => sum + taskDeptProgress(task, d, index), 0);
     return Math.round(total / depts.length);
   }
   function taskReceiptProgress(task){
@@ -4343,15 +4350,15 @@ initCreateTaskFromTemplate();
       <div class="task-template-top"><strong>${esc(taskTitle(task))}</strong><span>${meta(task)} — جاهزية ${ready}%</span></div>
       <div class="mini-progress"><span style="width:${ready}%"></span></div>
       <div class="readiness-grid readiness-dynamic-grid readiness-approval-grid">
-        ${depts.map((d) => {
+        ${depts.map((d, deptIndex) => {
           const dkey = deptKey(d.departmentName);
           const steps = encodeTaskSteps(getTaskDetailsSteps(dkey));
-          const key = d.departmentId || d.departmentName || d.userName || '';
-          const selected = ((task.readiness || {})[key] || []).join(',');
+          const key = dashboardDeptReadinessKey(d, deptIndex);
+          const selected = readinessStepsForDept(task, d, deptIndex).join(',');
           const departmentShare = Math.round((100 / deptCount) * 100) / 100;
-          const percent = taskDeptProgress(task, d);
+          const percent = taskDeptProgress(task, d, deptIndex);
           const requirement = formatDepartmentRequirement(d);
-          return `<div class="readiness-dept-item" data-dept-task-card data-task-id="${esc(task.id)}" data-task-type="${esc(task.taskTypeLabel || task.taskType || '')}" data-campaign-code="${esc(task.campaignCode || '')}" data-readiness-key="${esc(key)}" data-dept-identity="${esc(deptIdentity(d))}" data-dept-key="${esc(dkey)}" data-department-share="${esc(departmentShare)}" data-completed-steps="${esc(selected)}">
+          return `<div class="readiness-dept-item" data-dept-task-card data-task-id="${esc(task.id)}" data-task-type="${esc(task.taskTypeLabel || task.taskType || '')}" data-campaign-code="${esc(task.campaignCode || '')}" data-readiness-key="${esc(key)}" data-legacy-readiness-key="${esc(legacyDeptReadinessKey(d))}" data-dept-identity="${esc(deptIdentity(d))}" data-dept-key="${esc(dkey)}" data-department-share="${esc(departmentShare)}" data-completed-steps="${esc(selected)}">
             <button type="button" class="readiness-open-details" data-open-task-details data-dept-key="${esc(dkey)}" data-dept="${esc(d.departmentName || 'قسم')}" data-task-title="${esc(taskTitle(task))}" data-required="${esc(requirement)}" data-dept-task-json="${esc(encodeURIComponent(JSON.stringify(d || {})))}" data-steps="${esc(steps)}">
               <strong>${esc(d.departmentName || 'قسم')}</strong>
               <small>${percent}%</small>
@@ -4417,14 +4424,14 @@ initCreateTaskFromTemplate();
     return dashboardSearchHaystack(task).includes(q);
   }
 
-  function userDeptCard(task, deptTask){
-    const p = taskDeptProgress(task, deptTask);
+  function userDeptCard(task, deptTask, deptIndex = 0){
+    const p = taskDeptProgress(task, deptTask, deptIndex);
     const dkey = deptKey(deptTask.departmentName);
     const steps = encodeTaskSteps(getTaskDetailsSteps(dkey));
-    const key = deptTask.departmentId || deptTask.departmentName || deptTask.userName || '';
-    const selected = ((task.readiness || {})[key] || []).join(',');
+    const key = dashboardDeptReadinessKey(deptTask, deptIndex);
+    const selected = readinessStepsForDept(task, deptTask, deptIndex).join(',');
     const departmentShare = Math.round((100 / Math.max((task.departmentTasks||[]).length,1)) * 100) / 100;
-    return `<article class="department-task-card dynamic-dashboard-card user-task-card-clean" data-dept-task-card data-task-id="${esc(task.id)}" data-task-type="${esc(task.taskTypeLabel || task.taskType || '')}" data-campaign-code="${esc(task.campaignCode || '')}" data-readiness-key="${esc(key)}" data-dept-identity="${esc(deptIdentity(deptTask))}" data-dept-key="${esc(dkey)}" data-department-share="${esc(departmentShare)}" data-completed-steps="${esc(selected)}">
+    return `<article class="department-task-card dynamic-dashboard-card user-task-card-clean" data-dept-task-card data-task-id="${esc(task.id)}" data-task-type="${esc(task.taskTypeLabel || task.taskType || '')}" data-campaign-code="${esc(task.campaignCode || '')}" data-readiness-key="${esc(key)}" data-legacy-readiness-key="${esc(legacyDeptReadinessKey(deptTask))}" data-dept-identity="${esc(deptIdentity(deptTask))}" data-dept-key="${esc(dkey)}" data-department-share="${esc(departmentShare)}" data-completed-steps="${esc(selected)}">
       <div class="task-template-top user-task-title-only"><strong>${esc(taskTitle(task))}</strong></div>
       <div class="department-task-meta labeled-task-meta user-task-meta-clean">
         <span class="meta-person"><small>المسؤول</small><strong>${esc(deptTask.userDisplayName || deptTask.userName || deptTask.userEmail || 'بدون مسؤول')}</strong></span>
@@ -4462,10 +4469,10 @@ initCreateTaskFromTemplate();
         if (taskReceiptProgress(task) < 100) appendCard(required, requiredCard(task));
         appendCard(readiness, readinessCard(task));
       }
-      (task.departmentTasks || []).forEach(dept => {
+      (task.departmentTasks || []).forEach((dept, deptIndex) => {
         const visible = assignedToCurrentUser(dept, current);
         if (!visible) return;
-        appendCard(userLists[deptKey(dept.departmentName)], userDeptCard(task, dept));
+        appendCard(userLists[deptKey(dept.departmentName)], userDeptCard(task, dept, deptIndex));
       });
     });
     Object.entries(userLists).forEach(([key,el]) => ensureEmpty(el, 'لا توجد تاسكات حالياً.'));
@@ -4496,7 +4503,9 @@ initCreateTaskFromTemplate();
       const task = tasks.find(t => t.id === activeTaskCard.dataset.taskId);
       if (!task) return;
       const key = activeTaskCard.dataset.readinessKey || '';
+      const legacyKey = activeTaskDetailsMeta?.legacyReadinessKey || '';
       task.readiness = task.readiness || {};
+      if (legacyKey && legacyKey !== key) delete task.readiness[legacyKey];
       task.readiness[key] = (activeTaskCard.dataset.completedSteps || '').split(',').filter(Boolean).map(Number);
       autoStage(task);
       saveTaskToFirestore(task).then(() => window.renderDashboardTasks()).catch((error) => alert('فشل تحديث تفاصيل التاسك في Firebase: ' + (error?.message || error?.code || error)));

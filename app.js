@@ -1857,6 +1857,37 @@ function initCreateTaskFromTemplate() {
     return String(value).replace(/\s+/g, ' ').trim();
   }
 
+
+  function normalizedWorkbookSheetName(name) {
+    return templateCellText(name)
+      .toLowerCase()
+      .replace(/[\s_\-]+/g, '')
+      .replace(/[إأآا]/g, 'ا')
+      .replace(/[ىي]/g, 'ي')
+      .replace(/ة/g, 'ه');
+  }
+
+  function pickCampaignContentSheetName(workbook) {
+    const names = workbook?.SheetNames || [];
+    if (!names.length) return '';
+    const wanted = [
+      'محتوي الحمله',
+      'محتوى الحملة',
+      'محتوي الحملة',
+      'محتوى الحمله',
+      'campaign content',
+      'campaign_content'
+    ].map(normalizedWorkbookSheetName);
+    const exact = names.find((name) => wanted.includes(normalizedWorkbookSheetName(name)));
+    if (exact) return exact;
+    const loose = names.find((name) => {
+      const key = normalizedWorkbookSheetName(name);
+      return (key.includes('محتوي') || key.includes('محتوى')) && (key.includes('الحمله') || key.includes('الحملة'));
+    });
+    if (loose) return loose;
+    return names[0];
+  }
+
   function normalizeImportedDate(value) {
     if (value == null || value === '') return '';
     if (value instanceof Date && !Number.isNaN(value.getTime())) return value.toISOString().slice(0, 10);

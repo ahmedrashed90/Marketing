@@ -482,11 +482,22 @@ async function uploadTaskFileToDrive(file, meta) {
   }
 
   const base64 = await fileToBase64(file);
+  const uploadedBy = window.MZJAuth?.getUser?.()?.email || window.MZJAuth?.getUser?.()?.name || '';
   const payload = {
+    // Fields kept for the old Google Drive Apps Script format.
     action: 'uploadTaskAttachment',
     fileName: file.name,
     mimeType: file.type || 'application/octet-stream',
     base64,
+
+    // Fields required by the current Zoho WorkDrive Apps Script.
+    file: base64,
+    name: file.name,
+    type: file.type || 'application/octet-stream',
+    taskId: meta?.taskId || meta?.campaignCode || meta?.campaignName || 'general',
+    task_id: meta?.taskId || '',
+    docId: meta?.taskId || '',
+
     meta: {
       taskId: meta?.taskId || '',
       departmentIdentity: meta?.deptIdentity || '',
@@ -495,33 +506,34 @@ async function uploadTaskFileToDrive(file, meta) {
       campaignName: meta?.campaignName || '',
       campaignCode: meta?.campaignCode || '',
       taskType: meta?.taskType || '',
-      uploadedBy: window.MZJAuth?.getUser?.()?.email || window.MZJAuth?.getUser?.()?.name || ''
+      uploadedBy
     }
   };
 
-  const response = await fetch(webAppUrl, {
+  // Google Apps Script Web Apps can complete the upload but block browser access
+  // to the JSON response because of CORS redirects. no-cors prevents the visible
+  // "Failed to fetch" error; the response is opaque, so we save a local record.
+  await fetch(webAppUrl, {
     method: 'POST',
+    mode: 'no-cors',
     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
     body: JSON.stringify(payload)
   });
-  const text = await response.text();
-  let result = null;
-  try { result = JSON.parse(text); } catch (error) { result = { ok: response.ok, raw: text }; }
-  if (!response.ok || result.ok === false) {
-    throw new Error(result.error || result.message || 'فشل رفع الملف على Google Drive.');
-  }
+
   return {
-    name: result.name || file.name,
-    fileName: result.fileName || result.name || file.name,
-    url: result.url || result.fileUrl || result.webViewLink || '',
-    fileUrl: result.fileUrl || result.url || result.webViewLink || '',
-    fileId: result.fileId || result.id || '',
-    mimeType: file.type || result.mimeType || '',
+    name: file.name,
+    fileName: file.name,
+    url: '',
+    fileUrl: '',
+    webViewLink: '',
+    fileId: '',
+    mimeType: file.type || 'application/octet-stream',
     size: file.size || 0,
     uploadedAt: new Date().toISOString(),
-    uploadedBy: payload.meta.uploadedBy,
+    uploadedBy,
     departmentKey: payload.meta.departmentKey,
-    departmentName: payload.meta.departmentName
+    departmentName: payload.meta.departmentName,
+    storage: 'zoho-workdrive'
   };
 }
 

@@ -224,7 +224,11 @@ function renderTaskRequirementDetails(requiredText, deptKeyValue) {
   const clean = String(requiredText || '').trim();
   if (!clean) return '<span class="task-required-line">لا يوجد مطلوب مكتوب</span>';
   const safe = (value) => escapeHTML(value);
-  const parts = clean.split('|').map(x => x.trim()).filter(Boolean);
+  const splitRequirementParts = (text) => String(text || '')
+    .split(/\n|\r|\|/g)
+    .map(x => x.trim())
+    .filter(Boolean);
+  const parts = splitRequirementParts(clean);
 
   if (deptKeyValue === 'shooting') {
     const looksLikePhotoItems = parts.some((part) => /نوع السيارة|نوع المحتوى/.test(part));
@@ -271,6 +275,36 @@ function renderTaskRequirementDetails(requiredText, deptKeyValue) {
     if (!value) return;
     labeledRows.push({ label: field.label, value });
   });
+
+  if (labeledRows.length < 3) {
+    const markers = labelMap.flatMap((field) => field.patterns.map((pattern) => ({ label: field.label, pattern })));
+    const hits = [];
+    markers.forEach(({ label, pattern }) => {
+      const escapedPattern = pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const re = new RegExp(`(^|\\s)${escapedPattern}\\s*:`, 'u');
+      const match = clean.match(re);
+      if (match) hits.push({ label, pattern, index: match.index + (match[1] ? match[1].length : 0) });
+    });
+    hits.sort((a, b) => a.index - b.index);
+    const uniqueHits = [];
+    const seenLabels = new Set();
+    hits.forEach((hit) => {
+      if (seenLabels.has(hit.label)) return;
+      seenLabels.add(hit.label);
+      uniqueHits.push(hit);
+    });
+    if (uniqueHits.length >= 3) {
+      labeledRows.length = 0;
+      uniqueHits.forEach((hit, index) => {
+        const start = hit.index + hit.pattern.length;
+        const colonIndex = clean.indexOf(':', start);
+        const valueStart = colonIndex >= 0 ? colonIndex + 1 : start;
+        const end = index + 1 < uniqueHits.length ? uniqueHits[index + 1].index : clean.length;
+        const value = clean.slice(valueStart, end).replace(/^\s*[-–—|]*\s*/, '').trim();
+        if (value) labeledRows.push({ label: hit.label, value });
+      });
+    }
+  }
 
   if (labeledRows.length >= 3) {
     return `<div class="campaign-task-details-list">${labeledRows.map((row) => `

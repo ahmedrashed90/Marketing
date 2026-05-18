@@ -4426,3 +4426,15 @@ body.sidebar-collapsed .database-main {
     grid-template-columns: 1fr;
   }
 }
+
+/* Campaign review workflow */
+.campaign-tabs-actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:16px}
+.campaign-tabs-actions button.is-active{background:var(--brown,#4b241f);color:#fff}
+.review-upload-box{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:16px;border:1px dashed rgba(75,36,31,.22);border-radius:18px;background:rgba(255,255,255,.55)}
+.review-upload-box strong{display:block;color:var(--brown,#4b241f);font-weight:900;margin-bottom:6px}.review-upload-box small{color:#8e766c;font-weight:700}
+.review-cards-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px}
+.review-summary-card{background:#fff;border:1px solid rgba(75,36,31,.12);border-radius:18px;padding:16px;box-shadow:0 10px 28px rgba(75,36,31,.08)}
+.review-summary-card strong{display:block;color:#3f1e1a;font-weight:900;font-size:1.05rem;margin-bottom:6px}.review-summary-card span,.review-summary-card small{display:block;color:#866f64;font-weight:800;margin-bottom:5px}.review-summary-card p{color:#5d4037;font-weight:700;line-height:1.7}.review-note{background:#fff7ed;border-radius:12px;padding:10px}
+.dashboard-review-section{margin:18px 0}.review-modal{position:fixed;inset:0;background:rgba(35,20,17,.55);z-index:9999;display:none;align-items:center;justify-content:center;padding:20px}.review-modal.is-open{display:flex}.review-modal-card{background:#fffaf3;border-radius:28px;width:min(980px,96vw);max-height:88vh;overflow:auto;padding:24px;position:relative;box-shadow:0 25px 80px rgba(0,0,0,.22);direction:rtl}.review-modal-card h3{font-size:1.45rem;color:#3f1e1a;margin:0 0 6px}.review-lines{display:grid;gap:8px;margin:16px 0}.review-line{border:1px solid rgba(75,36,31,.12);background:#fff;border-radius:12px;text-align:right;padding:10px 12px;line-height:1.8;font-family:inherit;font-weight:700;color:#3f1e1a;cursor:pointer}.review-line.is-marked{background:#fff1d6;border-color:#d89a72;box-shadow:inset 4px 0 0 #d89a72}.modal-close{position:absolute;left:18px;top:18px;width:42px;height:42px;border:0;border-radius:14px;background:#4b241f;color:#fff;font-size:24px;font-weight:900;cursor:pointer}
+.content-type-link-card .content-type-link-title strong{line-height:1.5}
+@media (max-width:720px){.review-upload-box{align-items:stretch;flex-direction:column}.campaign-tabs-actions button{flex:1}.review-modal{padding:8px}.review-modal-card{border-radius:20px;padding:18px}}

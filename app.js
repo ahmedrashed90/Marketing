@@ -2389,7 +2389,24 @@ function initCreateTaskFromTemplate() {
     return rules;
   }
 
-  function uniqueContentTypesFromImportedTasks(tasks) {
+  function uniqueContentTypesFromImportedTasks(tasks, options = {}) {
+    const sourceType = options.sourceType || importedTemplateContext?.sourceType || '';
+    if (sourceType === 'agenda') {
+      return (tasks || []).map((task, index) => {
+        const contentType = templateCellText(task?.contentType) || `محتوى ${index + 1}`;
+        const taskNo = templateCellText(task?.taskNo) || String(index + 1);
+        const title = templateCellText(task?.title || task?.description || '');
+        const linkKey = task.linkKey || `${contentType}__${taskNo}__${index}`;
+        task.linkKey = linkKey;
+        return {
+          linkKey,
+          contentType,
+          label: `${contentType} - ${taskNo}${title ? ' - ' + title : ''}`,
+          items: [task],
+          isSingleAgendaItem: true
+        };
+      });
+    }
     const map = new Map();
     (tasks || []).forEach((task) => {
       const contentType = templateCellText(task?.contentType);
@@ -2397,7 +2414,7 @@ function initCreateTaskFromTemplate() {
       if (!map.has(contentType)) map.set(contentType, []);
       map.get(contentType).push(task);
     });
-    return Array.from(map.entries()).map(([contentType, items]) => ({ contentType, items }));
+    return Array.from(map.entries()).map(([contentType, items]) => ({ linkKey: contentType, contentType, label: contentType, items }));
   }
 
   function renderDepartmentOptions(selectedId = '') {
@@ -2534,7 +2551,7 @@ function initCreateTaskFromTemplate() {
   }
 
   function renderContentTypeLinkingPanel(context) {
-    const groups = uniqueContentTypesFromImportedTasks(context?.contentExecutionTasks || []);
+    const groups = uniqueContentTypesFromImportedTasks(context?.contentExecutionTasks || [], { sourceType: context?.sourceType || '' });
     if (!groups.length) return '';
     return `
       <div class="campaign-context-panel content-type-linking-panel" data-content-type-linking-panel>
@@ -2542,9 +2559,9 @@ function initCreateTaskFromTemplate() {
         <p class="admin-only-note">السيستم قرأ أنواع المحتوى من الشيت. لكل نوع محتوى تقدر تضيف أكتر من قسم وأكتر من يوزر. اضغط إضافة قسم / يوزر، وبعدها تطبيق الربط.</p>
         <div class="content-type-linking-grid">
           ${groups.map((group) => `
-            <article class="content-type-link-card" data-content-type-link-row data-content-type="${escapeHTML(group.contentType)}">
+            <article class="content-type-link-card" data-content-type-link-row data-content-type="${escapeHTML(group.contentType)}" data-link-key="${escapeHTML(group.linkKey || group.contentType)}">
               <div class="content-type-link-title">
-                <strong>${escapeHTML(group.contentType)}</strong>
+                <strong>${escapeHTML(group.label || group.contentType)}</strong>
                 <span>${group.items.length} تاسك</span>
               </div>
               <div class="content-type-link-assignments" data-content-type-link-list>
@@ -2621,12 +2638,13 @@ function initCreateTaskFromTemplate() {
     const mapping = new Map();
     rows.forEach((row) => {
       const contentType = row.dataset.contentType || '';
+      const linkKey = row.dataset.linkKey || contentType;
       const assignments = Array.from(row.querySelectorAll('[data-content-type-link-assignment]')).map((assignment) => ({
         deptId: assignment.querySelector('[data-content-type-department]')?.value || '',
         userValue: assignment.querySelector('[data-content-type-user]')?.value || '',
         carValue: assignment.querySelector('[data-content-type-car]')?.value || ''
       })).filter((item) => item.deptId);
-      if (contentType && assignments.length) mapping.set(contentType, assignments);
+      if (linkKey && assignments.length) mapping.set(linkKey, assignments);
     });
     if (!mapping.size) {
       if (note) note.textContent = '⚠️ اختار قسم واحد على الأقل لنوع محتوى واحد.';
@@ -2636,7 +2654,7 @@ function initCreateTaskFromTemplate() {
     const perDeptCount = {};
     let created = 0;
     tasks.forEach((task) => {
-      const links = mapping.get(templateCellText(task.contentType)) || [];
+      const links = mapping.get(task.linkKey || templateCellText(task.contentType)) || mapping.get(templateCellText(task.contentType)) || [];
       links.forEach((mapItem) => {
         const dept = departmentById(mapItem.deptId);
         const deptRow = findDepartmentRowById(mapItem.deptId);
@@ -2658,7 +2676,7 @@ function initCreateTaskFromTemplate() {
         created += 1;
       });
     });
-    importedTemplateContext.contentTypeMapping = Array.from(mapping.entries()).map(([contentType, items]) => ({ contentType, items }));
+    importedTemplateContext.contentTypeMapping = Array.from(mapping.entries()).map(([linkKey, items]) => ({ linkKey, contentType: linkKey, items }));
     if (note) note.textContent = `✅ تم ربط ${created} تكليف حسب نوع المحتوى. راجع المطلوب واليوزرات ثم اضغط حفظ.`;
   }
 
@@ -2726,6 +2744,7 @@ function initCreateTaskFromTemplate() {
         requiredDate: '',
         deliveryDate: ''
       };
+      rowData.linkKey = `${rowData.contentType}__${rowData.taskNo}__${importedRows.length}`;
       rowData.requiredText = buildContentExecutionTaskText(rowData);
       importedRows.push(rowData);
 
@@ -2980,6 +2999,7 @@ function initCreateTaskFromTemplate() {
         requiredDate: normalizeImportedDate(templateCellText(cells[col.requiredDate])),
         deliveryDate: normalizeImportedDate(templateCellText(cells[col.deliveryDate]))
       };
+      rowData.linkKey = `${rowData.contentType}__${rowData.taskNo}__${importedRows.length}`;
       rowData.requiredText = buildContentExecutionTaskText(rowData);
       importedRows.push(rowData);
     }
@@ -3170,6 +3190,27 @@ function initCreateTaskFromTemplate() {
     modal.classList.remove('is-open');
     modal.setAttribute('aria-hidden', 'true');
   }
+
+  window.MZJLoadReviewCampaignInCreateModal = async function(reviewDoc) {
+    try {
+      const review = reviewDoc || {};
+      const rows = safeReviewRowsToMatrix(review.rows || []);
+      if (!rows.length) {
+        alert('ملف المراجعة لا يحتوي على صفوف قابلة للربط.');
+        return;
+      }
+      await ensureDepartments();
+      await loadStockCarsForDropdown();
+      fillTemplateOptions();
+      applyImportedTemplateRows(rows, review.fileName || 'حملة تحت المراجعة', review.sheetName || 'محتوي الحمله');
+      modal.classList.add('is-open');
+      modal.setAttribute('aria-hidden', 'false');
+      if (note) note.textContent = '✅ تم فتح الحملة المعتمدة داخل إنشاء تاسك. راجع ربط أنواع المحتوى بالأقسام واليوزرات ثم احفظ.';
+    } catch (error) {
+      console.error('open review in create modal failed', error);
+      alert('فشل فتح الحملة للربط: ' + (error?.message || error));
+    }
+  };
 
   if (openBtn) openBtn.addEventListener('click', openCreateTaskModal);
   if (openBtnMini) openBtnMini.addEventListener('click', openCreateTaskModal);
@@ -3478,6 +3519,300 @@ function initCreateTaskFromTemplate() {
 
 initTemplatesPage();
 initCreateTaskFromTemplate();
+
+
+/* Campaign / agenda page + under review workflow */
+(function initCampaignsAndReviewWorkflow(){
+  const REVIEW_COLLECTION = 'campaign_reviews';
+  const TASK_COLLECTION = 'workspace_tasks';
+  const pageRoot = document.getElementById('campaignsCalendarApp');
+  const dashboardReviewRootId = 'adminCampaignReviewsList';
+
+  function currentUser(){ return window.MZJAuth?.getUser?.() || {}; }
+  function isAdmin(){
+    const role = String(currentUser().role || document.body.dataset.userRole || localStorage.getItem('mzj_user_role') || '').toLowerCase();
+    return ['admin','marketing_manager'].includes(role);
+  }
+  function esc(v){ return String(v || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c])); }
+  function cellText(value){ return String(value ?? '').replace(/\s+/g, ' ').trim(); }
+  function ensureFirebase(){
+    if (!window.firebase || !window.MZJ_FIREBASE_CONFIG || !firebase.firestore) throw new Error('Firebase SDK غير موجود');
+    if (!firebase.apps.length) firebase.initializeApp(window.MZJ_FIREBASE_CONFIG);
+    return firebase.firestore();
+  }
+  function rowToSafe(row){
+    const cells = {};
+    (row || []).forEach((cell, index) => {
+      const text = cellText(cell);
+      if (text) cells['c' + index] = text;
+    });
+    return { cells };
+  }
+  function safeReviewRowsToMatrix(rows){
+    return (rows || []).map((row) => {
+      const cells = row?.cells || {};
+      const indexes = Object.keys(cells).map((key) => Number(String(key).replace(/^c/, ''))).filter((n) => !Number.isNaN(n));
+      const max = indexes.length ? Math.max(...indexes) : -1;
+      const arr = [];
+      for (let i = 0; i <= max; i += 1) arr[i] = cells['c' + i] || '';
+      return arr;
+    }).filter((row) => row.some(Boolean));
+  }
+  window.safeReviewRowsToMatrix = safeReviewRowsToMatrix;
+
+  function findCampaignContentSheet(workbook){
+    const names = workbook.SheetNames || [];
+    return names.find((name) => /محتو[ىي]\s*الحمله|محتو[ىي]\s*الحملة/i.test(name)) ||
+      names.find((name) => /campaign/i.test(name)) || names[0];
+  }
+  function findValue(rows, labels){
+    const wanted = labels.map(cellText);
+    for (const row of rows || []) {
+      for (let i = 0; i < row.length; i += 1) {
+        const text = cellText(row[i]);
+        if (!text) continue;
+        if (wanted.some((label) => text === label || text.includes(label))) {
+          for (let j = i + 1; j < row.length; j += 1) {
+            const val = cellText(row[j]);
+            if (val && !wanted.includes(val)) return val;
+          }
+        }
+      }
+    }
+    return '';
+  }
+  function findHeaderRow(rows){
+    return (rows || []).findIndex((row) => (row || []).some((cell) => /نوع المحتو[ىي]|Content Type/i.test(cellText(cell))));
+  }
+  function contentTypesFromRows(rows){
+    const idx = findHeaderRow(rows);
+    if (idx < 0) return [];
+    const headers = rows[idx] || [];
+    const col = headers.findIndex((h) => /نوع المحتو[ىي]|Content Type/i.test(cellText(h)));
+    if (col < 0) return [];
+    const set = new Set();
+    rows.slice(idx + 1).forEach((row) => {
+      const val = cellText(row[col]);
+      if (val) set.add(val);
+    });
+    return Array.from(set);
+  }
+  async function parseReviewExcel(file){
+    if (!window.XLSX) throw new Error('مكتبة قراءة Excel غير محملة');
+    const buffer = await file.arrayBuffer();
+    const workbook = XLSX.read(buffer, { type: 'array', cellDates: true });
+    const sheetName = findCampaignContentSheet(workbook);
+    const rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1, defval: '', raw: false })
+      .map((row) => (row || []).map(cellText)).filter((row) => row.some(Boolean));
+    return {
+      sheetName,
+      rows,
+      campaignName: findValue(rows, ['اسم الحملة', 'اسم الحملة / الأجندة']) || file.name.replace(/\.xlsx?$/i, ''),
+      campaignTypeName: findValue(rows, ['نوع الحملة', 'نوع الحمله']) || '',
+      contentTypes: contentTypesFromRows(rows)
+    };
+  }
+  async function addReviewDocument(file){
+    const parsed = await parseReviewExcel(file);
+    const db = ensureFirebase();
+    const user = currentUser();
+    const id = 'review_' + Date.now();
+    const payload = {
+      id,
+      status: 'under_review',
+      fileName: file.name,
+      sheetName: parsed.sheetName,
+      campaignName: parsed.campaignName,
+      campaignTypeName: parsed.campaignTypeName,
+      contentTypes: parsed.contentTypes,
+      rows: parsed.rows.map(rowToSafe),
+      marks: [],
+      adminNotes: '',
+      submittedByName: user.name || user.displayName || user.email || '',
+      submittedByEmail: user.email || '',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    await db.collection(REVIEW_COLLECTION).doc(id).set(payload);
+    return payload;
+  }
+  async function loadReviews(){
+    const db = ensureFirebase();
+    const snap = await db.collection(REVIEW_COLLECTION).get();
+    const items = [];
+    snap.forEach((doc) => items.push({ firestoreId: doc.id, ...(doc.data() || {}) }));
+    return items.sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
+  }
+  async function loadTasks(){
+    const db = ensureFirebase();
+    const snap = await db.collection(TASK_COLLECTION).get();
+    const items = [];
+    snap.forEach((doc) => items.push({ firestoreId: doc.id, ...(doc.data() || {}) }));
+    return items.sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
+  }
+  function statusLabel(status){
+    if (status === 'approved') return 'معتمدة';
+    if (status === 'changes_requested') return 'مطلوب تعديل';
+    return 'تحت المراجعة';
+  }
+  function renderCampaignsCalendarPage(){
+    if (!pageRoot) return;
+    pageRoot.innerHTML = `
+      <section class="campaign-tabs workspace-card">
+        <div class="campaign-tabs-actions">
+          <button class="primary-btn is-active" type="button" data-calendar-tab="campaigns">الحملات</button>
+          <button class="soft-btn" type="button" data-calendar-tab="agendas">الأجندات</button>
+          <button class="soft-btn" type="button" data-calendar-tab="reviews">حملات تحت المراجعة</button>
+        </div>
+        <div class="review-upload-box">
+          <div><strong>رفع حملة للمراجعة والاعتماد</strong><small>اليوزر يرفع شيت الحملة، والأدمن يعلّم الملاحظات ويعتمدها.</small></div>
+          <input id="reviewCampaignFile" type="file" accept=".xlsx,.xls" hidden>
+          <button class="secondary-btn" id="uploadReviewCampaignBtn" type="button">رفع شيت حملة للمراجعة</button>
+        </div>
+      </section>
+      <section class="workspace-card"><div id="campaignCalendarList" class="review-cards-grid"></div></section>
+      <div id="campaignReviewModal" class="review-modal" aria-hidden="true"></div>`;
+    bindCampaignsCalendarEvents();
+    renderCampaignsCalendarList('campaigns');
+  }
+  async function renderCampaignsCalendarList(tab){
+    const list = document.getElementById('campaignCalendarList');
+    if (!list) return;
+    list.innerHTML = '<p class="task-empty-note">جاري التحميل...</p>';
+    try {
+      if (tab === 'reviews') {
+        const reviews = await loadReviews();
+        list.innerHTML = reviews.length ? reviews.map(renderReviewCard).join('') : '<p class="task-empty-note">لا توجد حملات تحت المراجعة حالياً.</p>';
+      } else {
+        const tasks = await loadTasks();
+        const filtered = tasks.filter((task) => tab === 'agendas' ? task.taskType === 'agenda' : task.taskType !== 'agenda');
+        list.innerHTML = filtered.length ? filtered.map(renderTaskSummaryCard).join('') : '<p class="task-empty-note">لا توجد نتائج حالياً.</p>';
+      }
+    } catch (error) {
+      list.innerHTML = `<p class="task-empty-note">⚠️ فشل تحميل البيانات: ${esc(error?.message || error)}</p>`;
+    }
+  }
+  function renderTaskSummaryCard(task){
+    return `<article class="review-summary-card"><strong>${esc(task.campaignName || task.templateName || 'بدون اسم')}</strong><span>${esc(task.campaignTypeName || task.taskTypeLabel || '')}</span><small>${esc(task.campaignCode || '')}</small></article>`;
+  }
+  function renderReviewCard(review){
+    const types = (review.contentTypes || []).slice(0, 6).map(esc).join('، ');
+    const canReview = isAdmin();
+    return `<article class="review-summary-card" data-review-id="${esc(review.firestoreId || review.id)}">
+      <strong>${esc(review.campaignName || review.fileName || 'حملة بدون اسم')}</strong>
+      <span>${esc(review.campaignTypeName || 'نوع غير محدد')} · ${statusLabel(review.status)}</span>
+      <small>بواسطة: ${esc(review.submittedByName || review.submittedByEmail || 'غير محدد')}</small>
+      ${types ? `<p>${types}</p>` : ''}
+      ${review.adminNotes ? `<p class="review-note">ملاحظات الأدمن: ${esc(review.adminNotes)}</p>` : ''}
+      <div class="task-card-actions">
+        <button class="secondary-btn" type="button" data-open-review="${esc(review.firestoreId || review.id)}">${canReview ? 'مراجعة وتعليم' : 'عرض الملاحظات'}</button>
+      </div>
+    </article>`;
+  }
+  function bindCampaignsCalendarEvents(){
+    const fileInput = document.getElementById('reviewCampaignFile');
+    const uploadBtn = document.getElementById('uploadReviewCampaignBtn');
+    uploadBtn?.addEventListener('click', () => fileInput?.click());
+    fileInput?.addEventListener('change', async () => {
+      const file = fileInput.files && fileInput.files[0];
+      if (!file) return;
+      uploadBtn.disabled = true;
+      uploadBtn.textContent = 'جاري الرفع...';
+      try {
+        await addReviewDocument(file);
+        await renderCampaignsCalendarList('reviews');
+        document.querySelectorAll('[data-calendar-tab]').forEach((btn) => btn.classList.toggle('is-active', btn.dataset.calendarTab === 'reviews'));
+      } catch (error) { alert('فشل رفع الحملة للمراجعة: ' + (error?.message || error)); }
+      finally { uploadBtn.disabled = false; uploadBtn.textContent = 'رفع شيت حملة للمراجعة'; fileInput.value = ''; }
+    });
+    pageRoot?.addEventListener('click', async (event) => {
+      const tabBtn = event.target.closest('[data-calendar-tab]');
+      if (tabBtn) {
+        pageRoot.querySelectorAll('[data-calendar-tab]').forEach((btn) => btn.classList.remove('is-active'));
+        tabBtn.classList.add('is-active');
+        await renderCampaignsCalendarList(tabBtn.dataset.calendarTab);
+        return;
+      }
+      const openBtn = event.target.closest('[data-open-review]');
+      if (openBtn) openReviewModal(openBtn.dataset.openReview);
+    });
+  }
+  async function openReviewModal(id){
+    const modal = document.getElementById('campaignReviewModal') || document.getElementById('dashboardCampaignReviewModal');
+    if (!modal) return;
+    const reviews = await loadReviews();
+    const review = reviews.find((item) => String(item.firestoreId || item.id) === String(id));
+    if (!review) return;
+    const rows = safeReviewRowsToMatrix(review.rows || []);
+    const textRows = rows.slice(0, 80).map((row, index) => ({ index, text: row.filter(Boolean).join(' | ') })).filter((item) => item.text);
+    const marks = new Set((review.marks || []).map((m) => Number(m.rowIndex)));
+    modal.innerHTML = `<div class="review-modal-card">
+      <button class="modal-close" type="button" data-close-review-modal>×</button>
+      <h3>${esc(review.campaignName || review.fileName || 'حملة تحت المراجعة')}</h3>
+      <p>${esc(review.campaignTypeName || '')} · ${statusLabel(review.status)}</p>
+      <div class="review-lines">${textRows.map((item) => `<button type="button" class="review-line ${marks.has(item.index) ? 'is-marked' : ''}" data-review-line="${item.index}">${esc(item.text)}</button>`).join('')}</div>
+      <label class="mzj-field"><span>ملاحظات الأدمن لليوزر</span><textarea data-review-admin-notes rows="4" placeholder="اكتب الملاحظات هنا">${esc(review.adminNotes || '')}</textarea></label>
+      <div class="task-card-actions">
+        ${isAdmin() ? `<button class="secondary-btn" type="button" data-save-review-marks="${esc(review.firestoreId || review.id)}">حفظ الملاحظات</button><button class="primary-btn" type="button" data-approve-review="${esc(review.firestoreId || review.id)}">اعتماد وفتح للربط</button>` : ''}
+      </div>
+    </div>`;
+    modal.classList.add('is-open');
+    modal.setAttribute('aria-hidden','false');
+  }
+  async function saveReviewFromModal(id, status){
+    const modal = document.querySelector('.review-modal.is-open');
+    const marked = Array.from(modal.querySelectorAll('.review-line.is-marked')).map((btn) => ({ rowIndex: Number(btn.dataset.reviewLine), markedAt: new Date().toISOString() }));
+    const notes = modal.querySelector('[data-review-admin-notes]')?.value || '';
+    const db = ensureFirebase();
+    const payload = { marks: marked, adminNotes: notes, updatedAt: new Date().toISOString() };
+    if (status) payload.status = status;
+    await db.collection(REVIEW_COLLECTION).doc(String(id)).update(payload);
+    const reviews = await loadReviews();
+    return reviews.find((item) => String(item.firestoreId || item.id) === String(id));
+  }
+  document.addEventListener('click', async (event) => {
+    const close = event.target.closest('[data-close-review-modal]');
+    if (close) { const modal = close.closest('.review-modal'); modal?.classList.remove('is-open'); modal?.setAttribute('aria-hidden','true'); }
+    const line = event.target.closest('[data-review-line]');
+    if (line && isAdmin()) line.classList.toggle('is-marked');
+    const save = event.target.closest('[data-save-review-marks]');
+    if (save) { await saveReviewFromModal(save.dataset.saveReviewMarks); alert('تم حفظ الملاحظات.'); }
+    const approve = event.target.closest('[data-approve-review]');
+    if (approve) {
+      const review = await saveReviewFromModal(approve.dataset.approveReview, 'approved');
+      document.querySelector('.review-modal.is-open')?.classList.remove('is-open');
+      if (window.MZJLoadReviewCampaignInCreateModal && review) window.MZJLoadReviewCampaignInCreateModal(review);
+      else alert('تم الاعتماد. افتح الداش بورد لربط الحملة.');
+    }
+  });
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') document.querySelectorAll('.review-modal.is-open').forEach((modal) => modal.classList.remove('is-open'));
+  });
+
+  async function renderDashboardReviewBox(){
+    const anchor = document.querySelector('.dashboard-main .stats-grid');
+    if (!anchor || document.getElementById('dashboardReviewSection') || !isAdmin()) return;
+    const section = document.createElement('section');
+    section.className = 'workspace-card dashboard-review-section';
+    section.id = 'dashboardReviewSection';
+    section.innerHTML = `<div class="board-head"><h3>حملات تحت المراجعة</h3><span class="column-hint">اعتماد الشيت وفتحه للربط</span></div><div id="${dashboardReviewRootId}" class="review-cards-grid"><p class="task-empty-note">جاري التحميل...</p></div><div id="dashboardCampaignReviewModal" class="review-modal" aria-hidden="true"></div>`;
+    anchor.insertAdjacentElement('afterend', section);
+    try {
+      const reviews = (await loadReviews()).filter((review) => review.status !== 'approved');
+      const root = document.getElementById(dashboardReviewRootId);
+      root.innerHTML = reviews.length ? reviews.map(renderReviewCard).join('') : '<p class="task-empty-note">لا توجد حملات تحت المراجعة حالياً.</p>';
+      root.addEventListener('click', (event) => {
+        const btn = event.target.closest('[data-open-review]');
+        if (btn) openReviewModal(btn.dataset.openReview);
+      });
+    } catch (error) {
+      document.getElementById(dashboardReviewRootId).innerHTML = `<p class="task-empty-note">⚠️ فشل تحميل مراجعات الحملات: ${esc(error?.message || error)}</p>`;
+    }
+  }
+  renderCampaignsCalendarPage();
+  renderDashboardReviewBox();
+})();
+
 
 
 /* Dashboard dynamic created tasks, user assignment, publishing workflow */

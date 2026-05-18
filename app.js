@@ -3748,6 +3748,15 @@ initCreateTaskFromTemplate();
     const role = String(currentUser().role || document.body.dataset.userRole || localStorage.getItem('mzj_user_role') || '').toLowerCase();
     return ['admin','marketing_manager'].includes(role);
   }
+  function currentUserEmail(){ return String(currentUser().email || '').trim().toLowerCase(); }
+  function isReviewOwner(review){
+    const email = currentUserEmail();
+    if (!email) return false;
+    return String(review.submittedByEmail || review.createdByEmail || review.uploadedByEmail || '').trim().toLowerCase() === email;
+  }
+  function visibleReviewsForCurrentUser(reviews){
+    return isAdmin() ? reviews : (reviews || []).filter(isReviewOwner);
+  }
   function esc(v){ return String(v || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c])); }
   function cellText(value){ return String(value ?? '').replace(/\s+/g, ' ').trim(); }
   function ensureFirebase(){
@@ -3858,6 +3867,9 @@ initCreateTaskFromTemplate();
       adminNotes: '',
       submittedByName: user.name || user.displayName || user.email || '',
       submittedByEmail: user.email || '',
+      submittedByUid: user.uid || user.id || '',
+      createdByEmail: user.email || '',
+      createdByUid: user.uid || user.id || '',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
@@ -3909,7 +3921,7 @@ initCreateTaskFromTemplate();
     list.innerHTML = '<p class="task-empty-note">جاري التحميل...</p>';
     try {
       if (tab === 'reviews') {
-        const reviews = await loadReviews();
+        const reviews = visibleReviewsForCurrentUser(await loadReviews());
         list.innerHTML = reviews.length ? reviews.map(renderReviewCard).join('') : '<p class="task-empty-note">لا توجد حملات تحت المراجعة حالياً.</p>';
       } else {
         const tasks = await loadTasks();
@@ -3926,6 +3938,7 @@ initCreateTaskFromTemplate();
   function renderReviewCard(review){
     const types = (review.contentTypes || []).slice(0, 6).map(esc).join('، ');
     const canReview = isAdmin();
+    const canOwnerEdit = !canReview && isReviewOwner(review) && String(review.status || '') !== 'approved';
     return `<article class="review-summary-card" data-review-id="${esc(review.firestoreId || review.id)}">
       <strong>${esc(review.campaignName || review.fileName || 'حملة بدون اسم')}</strong>
       <span>${esc(review.campaignTypeName || 'نوع غير محدد')} · ${statusLabel(review.status)}</span>
@@ -3933,7 +3946,8 @@ initCreateTaskFromTemplate();
       ${types ? `<p>${types}</p>` : ''}
       ${review.adminNotes ? `<p class="review-note">ملاحظات الأدمن: ${esc(review.adminNotes)}</p>` : ''}
       <div class="task-card-actions">
-        <button class="secondary-btn review-open-btn" type="button" data-open-review="${esc(review.firestoreId || review.id)}">${canReview ? 'مراجعة' : 'عرض الملاحظات'}</button>
+        <button class="secondary-btn review-open-btn" type="button" data-open-review="${esc(review.firestoreId || review.id)}">${canReview ? 'مراجعة' : (canOwnerEdit ? 'عرض وتعديل' : 'عرض الملاحظات')}</button>
+        ${canReview ? `<button class="danger-btn review-delete-btn" type="button" data-delete-review="${esc(review.firestoreId || review.id)}">مسح</button>` : ''}
       </div>
     </article>`;
   }
@@ -3961,9 +3975,25 @@ initCreateTaskFromTemplate();
         await renderCampaignsCalendarList(tabBtn.dataset.calendarTab);
         return;
       }
+      const deleteBtn = event.target.closest('[data-delete-review]');
+      if (deleteBtn && isAdmin()) {
+        if (!confirm('هل تريد مسح حملة المراجعة؟')) return;
+        try {
+          await deleteReviewDocument(deleteBtn.dataset.deleteReview);
+          await renderCampaignsCalendarList(pageRoot.querySelector('[data-calendar-tab].is-active')?.dataset.calendarTab || 'reviews');
+          await refreshReviewViews();
+        } catch (error) { alert('فشل مسح حملة المراجعة: ' + (error?.message || error)); }
+        return;
+      }
       const openBtn = event.target.closest('[data-open-review]');
       if (openBtn) openReviewModal(openBtn.dataset.openReview);
     });
+  }
+
+  async function deleteReviewDocument(id){
+    if (!isAdmin()) throw new Error('زر المسح للأدمن فقط.');
+    const db = ensureFirebase();
+    await db.collection(REVIEW_COLLECTION).doc(String(id)).delete();
   }
 
   function extractReviewSections(rows){
@@ -3983,7 +4013,7 @@ initCreateTaskFromTemplate();
         const value = i === logicIndex ? (row[2] || row[1] || '') : (row[2] || '');
         if (!label && !value) continue;
         if (/campaign logic/i.test(label) && !value) continue;
-        logicItems.push({ rowIndex: i, label, value });
+        logicItems.push({ rowIndex: i, label, value, labelCol: label ? 1 : 0, valueCol: 2 });
       }
     }
 
@@ -3996,7 +4026,7 @@ initCreateTaskFromTemplate();
         if (!values.length) continue;
         const candidate = values[values.length - 1];
         if (!candidate || /قواعد كتابة المحتوى|Writing Rules/i.test(candidate)) continue;
-        writingRules.push({ rowIndex: i, text: candidate });
+        writingRules.push({ rowIndex: i, text: candidate, colIndex: row.lastIndexOf(candidate) });
       }
     }
 
@@ -4037,7 +4067,8 @@ initCreateTaskFromTemplate();
           description: cols.description >= 0 ? cellText(row[cols.description]) : '',
           message: cols.message >= 0 ? cellText(row[cols.message]) : '',
           writerRequest: cols.writerRequest >= 0 ? cellText(row[cols.writerRequest]) : '',
-          cta: cols.cta >= 0 ? cellText(row[cols.cta]) : ''
+          cta: cols.cta >= 0 ? cellText(row[cols.cta]) : '',
+          cols
         });
       }
     }
@@ -4060,25 +4091,26 @@ initCreateTaskFromTemplate();
     return marks.has(String(rowIndex)) || marks.has(Number(rowIndex));
   }
 
-  function reviewTaskCell(task, marks, field, extraClass = '') {
+  function reviewTaskCell(task, marks, field, extraClass = '', editable = false) {
     const key = reviewCellKey(task.rowIndex, field);
     const isMarked = isReviewMarked(marks, task.rowIndex, field);
     const value = task?.[field] || '';
-    return `<td class="review-mark-cell ${extraClass} ${isMarked ? 'is-marked' : ''}" data-review-cell="${esc(key)}" data-review-line="${task.rowIndex}" data-review-field="${esc(field)}">${esc(value)}</td>`;
+    const col = task?.cols && Object.prototype.hasOwnProperty.call(task.cols, field) ? task.cols[field] : -1;
+    return `<td class="review-mark-cell ${editable ? 'is-editable-cell' : ''} ${extraClass} ${isMarked ? 'is-marked' : ''}" data-review-cell="${esc(key)}" data-review-line="${task.rowIndex}" data-review-field="${esc(field)}" data-review-col="${esc(col)}" ${editable && col >= 0 ? 'contenteditable="true" spellcheck="false"' : ''}>${esc(value)}</td>`;
   }
 
-  function renderReviewTaskRow(task, marks){
+  function renderReviewTaskRow(task, marks, editable = false){
     return `<tr class="review-exec-row" data-review-row="${task.rowIndex}">
-      ${reviewTaskCell(task, marks, 'campaignType')}
-      ${reviewTaskCell(task, marks, 'contentType', 'review-content-type-cell')}
-      ${reviewTaskCell(task, marks, 'taskNo')}
-      ${reviewTaskCell(task, marks, 'goal')}
-      ${reviewTaskCell(task, marks, 'tangibleGoal')}
-      ${reviewTaskCell(task, marks, 'idea')}
-      ${reviewTaskCell(task, marks, 'description')}
-      ${reviewTaskCell(task, marks, 'message')}
-      ${reviewTaskCell(task, marks, 'writerRequest')}
-      ${reviewTaskCell(task, marks, 'cta')}
+      ${reviewTaskCell(task, marks, 'campaignType', '', editable)}
+      ${reviewTaskCell(task, marks, 'contentType', 'review-content-type-cell', editable)}
+      ${reviewTaskCell(task, marks, 'taskNo', '', editable)}
+      ${reviewTaskCell(task, marks, 'goal', '', editable)}
+      ${reviewTaskCell(task, marks, 'tangibleGoal', '', editable)}
+      ${reviewTaskCell(task, marks, 'idea', '', editable)}
+      ${reviewTaskCell(task, marks, 'description', '', editable)}
+      ${reviewTaskCell(task, marks, 'message', '', editable)}
+      ${reviewTaskCell(task, marks, 'writerRequest', '', editable)}
+      ${reviewTaskCell(task, marks, 'cta', '', editable)}
     </tr>`;
   }
 
@@ -4116,7 +4148,9 @@ initCreateTaskFromTemplate();
       return Number(m.rowIndex);
     }));
     const canEdit = isAdmin();
-    modal.innerHTML = `<div class="review-modal-card review-modal-card--sheet-view">
+    const canOwnerEdit = !canEdit && isReviewOwner(review) && String(review.status || '') !== 'approved';
+    const editableHint = canOwnerEdit ? '<small class="review-edit-hint">يمكنك تعديل الخانات المكتوبة ثم حفظها لإرسالها للمراجعة مرة أخرى.</small>' : '';
+    modal.innerHTML = `<div class="review-modal-card review-modal-card--sheet-view" data-review-modal-id="${esc(review.firestoreId || review.id)}" data-review-rows="${esc(JSON.stringify(rows))}">
       <button class="modal-close" type="button" data-close-review-modal>×</button>
       <div class="review-modal-head review-modal-head--sheet-view">
         <div>
@@ -4128,15 +4162,16 @@ initCreateTaskFromTemplate();
       <div class="review-modal-layout review-modal-layout--stacked">
         <section class="review-pane review-pane--full">
           <div class="review-block review-block--sheet">
-            <div class="review-block-head"><h4>Campaign Logic</h4><small>اضغط على أي سطر لتعليمه للمراجعة</small></div>
+            <div class="review-block-head"><h4>Campaign Logic</h4><small>${canEdit ? 'اضغط على أي سطر لتعليمه للمراجعة' : 'راجع ملاحظات الأدمن وعدّل المطلوب'}</small></div>
+            ${editableHint}
             <div class="review-rich-lines review-rich-lines--sheet">
-              ${sections.logicItems.length ? sections.logicItems.map((item) => `<button type="button" class="review-line review-rich-line ${marks.has(item.rowIndex) ? 'is-marked' : ''}" data-review-line="${item.rowIndex}"><strong>${esc(item.label)}</strong><span>${esc(item.value)}</span></button>`).join('') : '<p class="task-empty-note">لا توجد بيانات campaign logic.</p>'}
+              ${sections.logicItems.length ? sections.logicItems.map((item) => `<button type="button" class="review-line review-rich-line ${canOwnerEdit ? 'is-user-editable' : ''} ${marks.has(item.rowIndex) ? 'is-marked' : ''}" data-review-line="${item.rowIndex}"><strong>${esc(item.label)}</strong><span ${canOwnerEdit ? 'contenteditable="true" spellcheck="false" data-review-edit-cell data-review-line="'+esc(item.rowIndex)+'" data-review-col="'+esc(item.valueCol)+'"' : ''}>${esc(item.value)}</span></button>`).join('') : '<p class="task-empty-note">لا توجد بيانات campaign logic.</p>'}
             </div>
           </div>
           <div class="review-block review-block--sheet">
             <div class="review-block-head"><h4>قواعد كتابة المحتوى</h4><small>القواعد المقروءة من نفس الشيت</small></div>
             <div class="review-rich-lines review-rich-lines--rules review-rich-lines--sheet">
-              ${sections.writingRules.length ? sections.writingRules.map((item) => `<button type="button" class="review-line review-rule-line ${marks.has(item.rowIndex) ? 'is-marked' : ''}" data-review-line="${item.rowIndex}"><span>${esc(item.text)}</span></button>`).join('') : '<p class="task-empty-note">لا توجد قواعد كتابة محتوى.</p>'}
+              ${sections.writingRules.length ? sections.writingRules.map((item) => `<button type="button" class="review-line review-rule-line ${canOwnerEdit ? 'is-user-editable' : ''} ${marks.has(item.rowIndex) ? 'is-marked' : ''}" data-review-line="${item.rowIndex}"><span ${canOwnerEdit ? 'contenteditable="true" spellcheck="false" data-review-edit-cell data-review-line="'+esc(item.rowIndex)+'" data-review-col="'+esc(item.colIndex)+'"' : ''}>${esc(item.text)}</span></button>`).join('') : '<p class="task-empty-note">لا توجد قواعد كتابة محتوى.</p>'}
             </div>
           </div>
           <div class="review-block review-block--sheet">
@@ -4156,7 +4191,7 @@ initCreateTaskFromTemplate();
                     <th>المطلوب من الكاتب</th>
                     <th>CTA</th>
                   </tr></thead>
-                  <tbody>${sections.tasks.map((task) => renderReviewTaskRow(task, marks)).join('')}</tbody>
+                  <tbody>${sections.tasks.map((task) => renderReviewTaskRow(task, marks, canOwnerEdit)).join('')}</tbody>
                 </table>
               </div>` : '<p class="task-empty-note">لا توجد تاسكات لعرضها.</p>'}
           </div>
@@ -4167,9 +4202,10 @@ initCreateTaskFromTemplate();
               <div class="review-info-item"><span>حالة المراجعة</span><strong>${esc(statusLabel(review.status))}</strong></div>
               <div class="review-info-item"><span>عدد أنواع المحتوى</span><strong>${esc(String((review.contentTypes || []).length || 0))}</strong></div>
             </div>
-            <label class="mzj-field"><span>ملاحظات الأدمن لليوزر</span><textarea data-review-admin-notes rows="6" placeholder="اكتب الملاحظات هنا">${esc(review.adminNotes || '')}</textarea></label>
+            <label class="mzj-field"><span>ملاحظات الأدمن لليوزر</span><textarea data-review-admin-notes rows="6" placeholder="اكتب الملاحظات هنا" ${canEdit ? '' : 'readonly'}>${esc(review.adminNotes || '')}</textarea></label>
             <div class="task-card-actions review-modal-actions">
               ${canEdit ? `<button class="secondary-btn" type="button" data-save-review-marks="${esc(review.firestoreId || review.id)}">حفظ الملاحظات</button><button class="primary-btn" type="button" data-approve-review="${esc(review.firestoreId || review.id)}">اعتماد وفتح للربط</button>` : ''}
+              ${canOwnerEdit ? `<button class="primary-btn" type="button" data-resubmit-review="${esc(review.firestoreId || review.id)}">حفظ التعديل وإرسال للمراجعة</button>` : ''}
             </div>
           </div>
         </section>
@@ -4177,6 +4213,41 @@ initCreateTaskFromTemplate();
     </div>`;
     modal.classList.add('is-open');
     modal.setAttribute('aria-hidden','false');
+  }
+
+  function rowsFromEditableReviewModal(modal){
+    let rows = [];
+    try { rows = JSON.parse(modal?.querySelector('[data-review-rows]')?.dataset.reviewRows || modal?.dataset.reviewRows || '[]'); }
+    catch (error) { rows = []; }
+    modal.querySelectorAll('[data-review-edit-cell], [data-review-cell][contenteditable="true"]').forEach((cell) => {
+      const rowIndex = Number(cell.dataset.reviewLine);
+      const colIndex = Number(cell.dataset.reviewCol);
+      if (Number.isNaN(rowIndex) || Number.isNaN(colIndex) || colIndex < 0) return;
+      if (!Array.isArray(rows[rowIndex])) rows[rowIndex] = [];
+      rows[rowIndex][colIndex] = cellText(cell.innerText || cell.textContent || '');
+    });
+    return rows;
+  }
+
+  async function resubmitReviewFromModal(id){
+    const modal = document.querySelector('.review-modal.is-open');
+    const rows = rowsFromEditableReviewModal(modal);
+    const db = ensureFirebase();
+    const parsedRows = rows.filter((row) => (row || []).some((cell) => cellText(cell)));
+    const payload = {
+      rows: parsedRows.map(rowToSafe),
+      status: 'under_review',
+      marks: [],
+      adminNotes: '',
+      resubmittedAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      contentTypes: contentTypesFromRows(parsedRows),
+      campaignName: findValue(parsedRows, ['اسم الحملة', 'اسم الحملة / الأجندة']) || undefined,
+      campaignTypeName: findValue(parsedRows, ['نوع الحملة', 'نوع الحمله']) || undefined
+    };
+    Object.keys(payload).forEach((key) => payload[key] === undefined && delete payload[key]);
+    await db.collection(REVIEW_COLLECTION).doc(String(id)).update(payload);
+    return true;
   }
 
   async function saveReviewFromModal(id, status){
@@ -4196,6 +4267,7 @@ initCreateTaskFromTemplate();
     const db = ensureFirebase();
     const payload = { marks: marked, adminNotes: notes, updatedAt: new Date().toISOString() };
     if (status) payload.status = status;
+    else payload.status = 'changes_requested';
     await db.collection(REVIEW_COLLECTION).doc(String(id)).update(payload);
     const reviews = await loadReviews();
     return reviews.find((item) => String(item.firestoreId || item.id) === String(id));
@@ -4212,6 +4284,23 @@ initCreateTaskFromTemplate();
     }
     const line = event.target.closest('[data-review-line]');
     if (line && isAdmin()) line.classList.toggle('is-marked');
+    const resubmit = event.target.closest('[data-resubmit-review]');
+    if (resubmit) {
+      try {
+        await resubmitReviewFromModal(resubmit.dataset.resubmitReview);
+        closeReviewModal();
+        await refreshReviewViews();
+        alert('تم حفظ التعديل وإرساله للمراجعة مرة أخرى.');
+      } catch (error) { alert('فشل حفظ التعديل: ' + (error?.message || error)); }
+      return;
+    }
+    const deleteBtn = event.target.closest('[data-delete-review]');
+    if (deleteBtn && isAdmin()) {
+      if (!confirm('هل تريد مسح حملة المراجعة؟')) return;
+      try { await deleteReviewDocument(deleteBtn.dataset.deleteReview); await refreshReviewViews(); }
+      catch (error) { alert('فشل مسح حملة المراجعة: ' + (error?.message || error)); }
+      return;
+    }
     const save = event.target.closest('[data-save-review-marks]');
     if (save) {
       await saveReviewFromModal(save.dataset.saveReviewMarks);
@@ -4244,6 +4333,12 @@ initCreateTaskFromTemplate();
       const root = document.getElementById(dashboardReviewRootId);
       root.innerHTML = reviews.length ? reviews.map(renderReviewCard).join('') : '<p class="task-empty-note">لا توجد حملات تحت المراجعة حالياً.</p>';
       root.addEventListener('click', (event) => {
+        const del = event.target.closest('[data-delete-review]');
+        if (del && isAdmin()) {
+          if (!confirm('هل تريد مسح حملة المراجعة؟')) return;
+          deleteReviewDocument(del.dataset.deleteReview).then(refreshReviewViews).catch((error) => alert('فشل مسح حملة المراجعة: ' + (error?.message || error)));
+          return;
+        }
         const btn = event.target.closest('[data-open-review]');
         if (btn) openReviewModal(btn.dataset.openReview);
       });

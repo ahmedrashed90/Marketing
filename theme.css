@@ -4880,3 +4880,36 @@ body.sidebar-collapsed .database-main {
 .agenda-task-link-block .content-type-link-add{
   margin-top:10px;
 }
+
+/* Review edit / resubmit workflow */
+.review-edit-hint{
+  display:block;
+  margin:8px 0 14px;
+  color:#8e766c;
+  font-weight:800;
+  line-height:1.7;
+}
+.review-line.is-user-editable{
+  cursor:text;
+}
+.review-line.is-user-editable span[contenteditable="true"],
+.review-mark-cell.is-editable-cell[contenteditable="true"]{
+  outline:0;
+}
+.review-line.is-user-editable span[contenteditable="true"]:focus,
+.review-mark-cell.is-editable-cell[contenteditable="true"]:focus{
+  background:#fff9ed;
+  box-shadow:inset 0 0 0 2px rgba(216,154,114,.75);
+  border-radius:10px;
+}
+.review-mark-cell.is-editable-cell{
+  cursor:text;
+}
+.review-summary-card .review-delete-btn{
+  margin-inline-start:8px;
+}
+.review-block--notes textarea[readonly]{
+  background:#fbf7f2;
+  color:#5d4037;
+  cursor:default;
+}

@@ -4237,3 +4237,8 @@ body.sidebar-collapsed .database-main {
 .content-type-link-title { display: flex; align-items: center; justify-content: space-between; gap: 10px; border-bottom: 1px solid rgba(76, 35, 30, 0.08); padding-bottom: 8px; }
 .content-type-link-title strong { color: var(--mzj-brown, #4b241f); }
 .content-type-link-title span { font-size: 12px; color: #8a6a5c; background: rgba(76, 35, 30, 0.08); padding: 4px 8px; border-radius: 999px; }
+.content-type-link-assignments { display: grid; gap: 10px; }
+.content-type-link-assignment { display: grid; grid-template-columns: minmax(160px, 1fr) minmax(180px, 1fr) auto; gap: 8px; align-items: end; padding: 10px; border: 1px dashed rgba(76, 35, 30, 0.16); border-radius: 14px; background: rgba(250, 244, 236, 0.45); }
+.content-type-link-add { justify-self: start; }
+.content-type-link-remove { min-height: 42px; padding: 0 14px; }
+@media (max-width: 760px) { .content-type-link-assignment { grid-template-columns: 1fr; } }

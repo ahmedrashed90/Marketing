@@ -2350,13 +2350,22 @@ function initCreateTaskFromTemplate() {
     return wrap.innerHTML;
   }
 
+  function renderContentTypeLinkAssignmentRow() {
+    return `
+      <div class="content-type-link-assignment" data-content-type-link-assignment>
+        <label class="mzj-field"><span>القسم</span><select data-content-type-department>${renderDepartmentOptions()}</select></label>
+        <label class="mzj-field"><span>اليوزر في القسم</span><select data-content-type-user><option value="">اختار القسم الأول</option></select></label>
+        <button class="danger-btn ghost-btn content-type-link-remove" type="button" data-remove-content-type-link title="مسح هذا الربط">مسح</button>
+      </div>`;
+  }
+
   function renderContentTypeLinkingPanel(context) {
     const groups = uniqueContentTypesFromImportedTasks(context?.contentExecutionTasks || []);
     if (!groups.length) return '';
     return `
       <div class="campaign-context-panel content-type-linking-panel" data-content-type-linking-panel>
         <h5>ربط أنواع المحتوى بالأقسام</h5>
-        <p class="admin-only-note">السيستم قرأ أنواع المحتوى من الشيت. اختار لكل نوع محتوى القسم واليوزر المسؤول، وبعدها اضغط تطبيق الربط. كل التاسكات من نفس النوع هتنزل في القسم واليوزر المختارين.</p>
+        <p class="admin-only-note">السيستم قرأ أنواع المحتوى من الشيت. لكل نوع محتوى تقدر تضيف أكتر من قسم وأكتر من يوزر. اضغط إضافة قسم / يوزر، وبعدها تطبيق الربط.</p>
         <div class="content-type-linking-grid">
           ${groups.map((group) => `
             <article class="content-type-link-card" data-content-type-link-row data-content-type="${escapeHTML(group.contentType)}">
@@ -2364,8 +2373,10 @@ function initCreateTaskFromTemplate() {
                 <strong>${escapeHTML(group.contentType)}</strong>
                 <span>${group.items.length} تاسك</span>
               </div>
-              <label class="mzj-field"><span>القسم</span><select data-content-type-department>${renderDepartmentOptions()}</select></label>
-              <label class="mzj-field"><span>اليوزر في القسم</span><select data-content-type-user><option value="">اختار القسم الأول</option></select></label>
+              <div class="content-type-link-assignments" data-content-type-link-list>
+                ${renderContentTypeLinkAssignmentRow()}
+              </div>
+              <button class="secondary-btn content-type-link-add" type="button" data-add-content-type-link>+ إضافة قسم / يوزر</button>
             </article>`).join('')}
         </div>
         <button class="primary-btn" type="button" data-apply-content-type-linking>تطبيق الربط على التاسكات</button>
@@ -2435,9 +2446,11 @@ function initCreateTaskFromTemplate() {
     const mapping = new Map();
     rows.forEach((row) => {
       const contentType = row.dataset.contentType || '';
-      const deptId = row.querySelector('[data-content-type-department]')?.value || '';
-      const userValue = row.querySelector('[data-content-type-user]')?.value || '';
-      if (contentType && deptId) mapping.set(contentType, { deptId, userValue });
+      const assignments = Array.from(row.querySelectorAll('[data-content-type-link-assignment]')).map((assignment) => ({
+        deptId: assignment.querySelector('[data-content-type-department]')?.value || '',
+        userValue: assignment.querySelector('[data-content-type-user]')?.value || ''
+      })).filter((item) => item.deptId);
+      if (contentType && assignments.length) mapping.set(contentType, assignments);
     });
     if (!mapping.size) {
       if (note) note.textContent = '⚠️ اختار قسم واحد على الأقل لنوع محتوى واحد.';
@@ -2447,27 +2460,28 @@ function initCreateTaskFromTemplate() {
     const perDeptCount = {};
     let created = 0;
     tasks.forEach((task) => {
-      const mapItem = mapping.get(templateCellText(task.contentType));
-      if (!mapItem) return;
-      const dept = departmentById(mapItem.deptId);
-      const deptRow = findDepartmentRowById(mapItem.deptId);
-      if (!dept || !deptRow) return;
-      const kind = deptRow.dataset.departmentKind || deptKindFromName(dept.name);
-      openAndEnableDepartmentRow(deptRow);
-      const key = String(mapItem.deptId);
-      const idx = perDeptCount[key] || 0;
-      perDeptCount[key] = idx + 1;
-      const assignmentRow = addOrGetDepartmentAssignment(deptRow, idx);
-      if (!assignmentRow) return;
-      assignmentRow.dataset.importedContentAssignment = 'true';
-      assignmentRow.dataset.importedContentType = task.contentType || '';
-      clearAssignmentRequirement(assignmentRow);
-      setAssignmentUserByValue(assignmentRow, mapItem.userValue);
-      fillAssignmentText(kind, assignmentRow, task.requiredText || buildContentExecutionTaskText(task));
-      created += 1;
+      const links = mapping.get(templateCellText(task.contentType)) || [];
+      links.forEach((mapItem) => {
+        const dept = departmentById(mapItem.deptId);
+        const deptRow = findDepartmentRowById(mapItem.deptId);
+        if (!dept || !deptRow) return;
+        const kind = deptRow.dataset.departmentKind || deptKindFromName(dept.name);
+        openAndEnableDepartmentRow(deptRow);
+        const key = String(mapItem.deptId);
+        const idx = perDeptCount[key] || 0;
+        perDeptCount[key] = idx + 1;
+        const assignmentRow = addOrGetDepartmentAssignment(deptRow, idx);
+        if (!assignmentRow) return;
+        assignmentRow.dataset.importedContentAssignment = 'true';
+        assignmentRow.dataset.importedContentType = task.contentType || '';
+        clearAssignmentRequirement(assignmentRow);
+        setAssignmentUserByValue(assignmentRow, mapItem.userValue);
+        fillAssignmentText(kind, assignmentRow, task.requiredText || buildContentExecutionTaskText(task));
+        created += 1;
+      });
     });
-    importedTemplateContext.contentTypeMapping = Array.from(mapping.entries()).map(([contentType, item]) => ({ contentType, ...item }));
-    if (note) note.textContent = `✅ تم ربط ${created} تاسك حسب نوع المحتوى. راجع المطلوب واليوزرات ثم اضغط حفظ.`;
+    importedTemplateContext.contentTypeMapping = Array.from(mapping.entries()).map(([contentType, items]) => ({ contentType, items }));
+    if (note) note.textContent = `✅ تم ربط ${created} تكليف حسب نوع المحتوى. راجع المطلوب واليوزرات ثم اضغط حفظ.`;
   }
 
   function campaignInfoValueBeforeExecution(rows, labels) {
@@ -2886,11 +2900,31 @@ function initCreateTaskFromTemplate() {
     importedCampaignLogicBox.addEventListener('change', (event) => {
       const deptSelect = event.target.closest?.('[data-content-type-department]');
       if (!deptSelect) return;
-      const row = deptSelect.closest('[data-content-type-link-row]');
-      const userSelect = row?.querySelector('[data-content-type-user]');
+      const assignment = deptSelect.closest('[data-content-type-link-assignment]');
+      const userSelect = assignment?.querySelector('[data-content-type-user]');
       if (userSelect) userSelect.innerHTML = renderImportedUserOptionsForDepartment(deptSelect.value);
     });
     importedCampaignLogicBox.addEventListener('click', (event) => {
+      const addBtn = event.target.closest?.('[data-add-content-type-link]');
+      if (addBtn) {
+        const card = addBtn.closest('[data-content-type-link-row]');
+        const list = card?.querySelector('[data-content-type-link-list]');
+        if (list) list.insertAdjacentHTML('beforeend', renderContentTypeLinkAssignmentRow());
+        return;
+      }
+      const removeBtn = event.target.closest?.('[data-remove-content-type-link]');
+      if (removeBtn) {
+        const list = removeBtn.closest('[data-content-type-link-list]');
+        const assignment = removeBtn.closest('[data-content-type-link-assignment]');
+        if (list && assignment && list.querySelectorAll('[data-content-type-link-assignment]').length > 1) assignment.remove();
+        else if (assignment) {
+          const deptSelect = assignment.querySelector('[data-content-type-department]');
+          const userSelect = assignment.querySelector('[data-content-type-user]');
+          if (deptSelect) deptSelect.value = '';
+          if (userSelect) userSelect.innerHTML = '<option value="">اختار القسم الأول</option>';
+        }
+        return;
+      }
       const btn = event.target.closest?.('[data-apply-content-type-linking]');
       if (!btn) return;
       const panel = btn.closest('[data-content-type-linking-panel]');

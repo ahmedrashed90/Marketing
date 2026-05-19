@@ -5254,7 +5254,7 @@ initCreateTaskFromTemplate();
       </div>
       <div class="department-progress-row"><div class="department-progress-box"><small>اكتمال التاسك</small><strong data-task-percent>${p}%</strong></div><div class="department-progress-box"><small>نسبة الحملة</small><strong data-campaign-percent>${Math.round(p / Math.max((task.departmentTasks||[]).length,1))}%</strong></div></div>
       <div class="mini-progress"><span data-task-bar style="width:${p}%"></span></div>
-      <div class="task-card-actions"><button class="details-btn" type="button" data-open-task-details data-dept-key="${esc(dkey)}" data-dept="${esc(deptTask.departmentName || 'قسم')}" data-task-title="${esc(taskTitle(task))}" data-required="${esc(formatDepartmentRequirement(deptTask))}" data-dept-task-json="${esc(encodeURIComponent(JSON.stringify(deptTask || {})))}" data-steps="${esc(steps)}">تفاصيل</button><button class="soft-btn receive-task-btn ${(deptTask.receivedConfirmed || deptTask.received || deptTask.receivedAt) ? 'is-done' : ''}" type="button" data-receive-task data-task-id="${esc(task.id)}" data-dept-identity="${esc(deptIdentity(deptTask))}" ${(deptTask.receivedConfirmed || deptTask.received || deptTask.receivedAt) ? 'disabled' : ''}>${(deptTask.receivedConfirmed || deptTask.received || deptTask.receivedAt) ? 'تم تأكيد الاستلام' : 'تأكيد استلام التاسك'}</button></div>
+      <div class="task-card-actions"><button class="details-btn" type="button" data-open-task-details data-dept-key="${esc(dkey)}" data-dept="${esc(deptTask.departmentName || 'قسم')}" data-task-title="${esc(taskTitle(task))}" data-required="${esc(formatDepartmentRequirement(deptTask))}" data-dept-task-json="${esc(encodeURIComponent(JSON.stringify(deptTask || {})))}" data-steps="${esc(steps)}">تفاصيل</button><button class="soft-btn receive-task-btn ${(deptTask.receivedConfirmed || deptTask.received || deptTask.receivedAt) ? 'is-done' : ''}" type="button" data-receive-task data-task-id="${esc(task.id)}" data-dept-index="${esc(deptIndex)}" data-readiness-key="${esc(key)}" data-dept-identity="${esc(deptIdentity(deptTask))}" ${(deptTask.receivedConfirmed || deptTask.received || deptTask.receivedAt) ? 'disabled' : ''}>${(deptTask.receivedConfirmed || deptTask.received || deptTask.receivedAt) ? 'تم تأكيد الاستلام' : 'تأكيد استلام التاسك'}</button></div>
     </article>`;
   }
 
@@ -5340,17 +5340,42 @@ initCreateTaskFromTemplate();
   document.addEventListener('click', async function(event){
     const receive = event.target.closest('[data-receive-task]');
     if (!receive) return;
+    if (receive.disabled) return;
+
     const tasks = readTasks();
     const task = tasks.find(t => String(t.id) === String(receive.dataset.taskId));
     if (!task) return;
+
     const current = user();
     const identity = String(receive.dataset.deptIdentity || '');
-    const dept = (task.departmentTasks || []).find((d) => String(deptIdentity(d)) === identity);
+    const readinessKey = String(receive.dataset.readinessKey || '');
+    const deptIndexRaw = receive.dataset.deptIndex;
+    const deptIndex = deptIndexRaw === undefined || deptIndexRaw === '' ? -1 : Number(deptIndexRaw);
+
+    const departmentTasks = Array.isArray(task.departmentTasks) ? task.departmentTasks : [];
+    let dept = Number.isInteger(deptIndex) && deptIndex >= 0 ? departmentTasks[deptIndex] : null;
+
+    if (!dept && readinessKey) {
+      dept = departmentTasks.find((d, index) => String(dashboardDeptReadinessKey(d, index)) === readinessKey);
+    }
+    if (!dept && identity) {
+      const candidates = departmentTasks
+        .map((d, index) => ({ d, index }))
+        .filter(({ d }) => String(deptIdentity(d)) === identity);
+      dept = candidates.find(({ d }) => !(d.receivedConfirmed || d.received || d.receivedAt))?.d || candidates[0]?.d || null;
+    }
+
     if (!dept) return;
+
     if (!assignedToCurrentUser(dept, current)) {
       alert('التاسك ده مش مسند لحسابك.');
       return;
     }
+
+    receive.disabled = true;
+    const oldText = receive.textContent;
+    receive.textContent = 'جاري تأكيد الاستلام...';
+
     dept.receivedConfirmed = true;
     dept.received = true;
     dept.receivedAt = new Date().toISOString();
@@ -5360,10 +5385,13 @@ initCreateTaskFromTemplate();
     task.receiveProgress = task.receiptProgress;
     task.receiveDoneCount = (task.departmentTasks || []).filter((d) => Boolean(d.receivedConfirmed || d.received || d.receivedAt)).length;
     task.receiveTotalCount = (task.departmentTasks || []).filter((d) => d && d.enabled !== false).length;
+
     try {
       await saveTaskToFirestore(task);
       window.renderDashboardTasks();
     } catch (error) {
+      receive.disabled = false;
+      receive.textContent = oldText || 'تأكيد استلام التاسك';
       alert('فشل تأكيد الاستلام في Firebase: ' + (error?.message || error?.code || error));
     }
   });

@@ -2083,13 +2083,39 @@ function initCreateTaskFromTemplate() {
   }
 
   function buildPublishCalendar(force = false) {
-    if (!publishScheduleRows) return;
-    const startValue = campaignStartDateInput?.value || '';
-    const endValue = campaignEndDateInput?.value || '';
-    if (!startValue || !endValue) return;
-    const startDate = new Date(startValue + 'T00:00:00');
-    const endDate = new Date(endValue + 'T00:00:00');
-    if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime()) || endDate < startDate) return;
+    if (!publishScheduleRows) {
+      if (note) note.textContent = '⚠️ مكان جدول النشر غير موجود في الصفحة.';
+      return false;
+    }
+
+    let startValue = campaignStartDateInput?.value || '';
+    let endValue = campaignEndDateInput?.value || '';
+
+    // لو المستخدم ضغط الزر قبل ما يكتب التواريخ، نخلي التقويم يشتغل بدل ما يسكت.
+    // يقدر بعدها يعدل تاريخ البداية والنهاية ويضغط إنشاء / تحديث التقويم تاني.
+    if (!startValue) {
+      startValue = document.getElementById('taskDate')?.value || todayISODate();
+      if (campaignStartDateInput) campaignStartDateInput.value = startValue;
+    }
+    if (!endValue) {
+      endValue = startValue;
+      if (campaignEndDateInput) campaignEndDateInput.value = endValue;
+    }
+
+    let startDate = new Date(startValue + 'T00:00:00');
+    let endDate = new Date(endValue + 'T00:00:00');
+
+    if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
+      if (note) note.textContent = '⚠️ تاريخ بداية أو نهاية الحملة غير صحيح.';
+      return false;
+    }
+
+    if (endDate < startDate) {
+      const fixed = startValue;
+      endValue = fixed;
+      if (campaignEndDateInput) campaignEndDateInput.value = fixed;
+      endDate = new Date(fixed + 'T00:00:00');
+    }
 
     const previous = new Map();
     publishScheduleRows.querySelectorAll('.publish-schedule-row').forEach((row) => {
@@ -2103,6 +2129,8 @@ function initCreateTaskFromTemplate() {
       const date = formatDateISO(d);
       createPublishScheduleRow({ day: arabicDayName(d), date, items: previous.get(date) || [] });
     }
+    if (note) note.textContent = `✅ تم إنشاء تقويم النشر من ${startValue} إلى ${endValue}.`;
+    return true;
   }
 
   function refreshPublishCalendarOptions() {
@@ -3821,8 +3849,19 @@ function initCreateTaskFromTemplate() {
   }
 
   if (addPublishScheduleRowBtn) {
-    addPublishScheduleRowBtn.addEventListener('click', () => buildPublishCalendar(true));
+    addPublishScheduleRowBtn.addEventListener('click', (event) => {
+      event.preventDefault();
+      buildPublishCalendar(true);
+    });
   }
+
+  // احتياطي لو الزر اتعاد رسمه أو الـ listener الأصلي مااتعلقش.
+  document.addEventListener('click', (event) => {
+    const calendarBtn = event.target.closest('#addPublishScheduleRow');
+    if (!calendarBtn) return;
+    event.preventDefault();
+    buildPublishCalendar(true);
+  });
 
   if (publishScheduleRows) {
     publishScheduleRows.addEventListener('click', (event) => {

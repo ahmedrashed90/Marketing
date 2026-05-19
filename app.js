@@ -183,17 +183,16 @@ function syncTaskProgress() {
     const campaignPercent = Math.round(campaignTotal);
     if (modalTaskPercent) modalTaskPercent.textContent = taskPercent + '%';
     if (modalCampaignPercent) modalCampaignPercent.textContent = campaignPercent + '%';
+    taskStepButtons.querySelectorAll('[data-modal-task-percent]').forEach((node) => node.textContent = taskPercent + '%');
+    taskStepButtons.querySelectorAll('[data-modal-campaign-percent]').forEach((node) => node.textContent = campaignPercent + '%');
 
     if (activeTaskCard) {
-      const activeBlock = blocks.find((block) => block.dataset.readinessKey === activeTaskCard.dataset.readinessKey) || blocks[0];
-      const activeTaskPercent = Number((activeBlock?.querySelector('[data-assignment-task-percent]')?.textContent || '0').replace(/[^0-9.]/g, '')) || 0;
-      const activeCampaignPercent = Number((activeBlock?.querySelector('[data-assignment-campaign-percent]')?.textContent || '0').replace(/[^0-9.]/g, '')) || 0;
       const taskPercentNode = activeTaskCard.querySelector('[data-task-percent]');
       const campaignPercentNode = activeTaskCard.querySelector('[data-campaign-percent]');
       const bar = activeTaskCard.querySelector('[data-task-bar]');
-      if (taskPercentNode) taskPercentNode.textContent = activeTaskPercent + '%';
-      if (campaignPercentNode) campaignPercentNode.textContent = activeCampaignPercent + '%';
-      if (bar) bar.style.width = activeTaskPercent + '%';
+      if (taskPercentNode) taskPercentNode.textContent = taskPercent + '%';
+      if (campaignPercentNode) campaignPercentNode.textContent = campaignPercent + '%';
+      if (bar) bar.style.width = taskPercent + '%';
     }
     return;
   }
@@ -205,6 +204,8 @@ function syncTaskProgress() {
 
   if (modalTaskPercent) modalTaskPercent.textContent = taskPercent + '%';
   if (modalCampaignPercent) modalCampaignPercent.textContent = campaignPercent + '%';
+  taskStepButtons.querySelectorAll('[data-modal-task-percent]').forEach((node) => node.textContent = taskPercent + '%');
+  taskStepButtons.querySelectorAll('[data-modal-campaign-percent]').forEach((node) => node.textContent = campaignPercent + '%');
 
   if (activeTaskCard) {
     const selectedIndexes = activeButtons.map((btn) => btn.dataset.stepIndex).join(',');
@@ -1025,6 +1026,20 @@ function openTaskDetails(button) {
   renderSelectedRequirement(0);
 
   taskStepButtons.innerHTML = '';
+  const modalProgressRow = document.createElement('div');
+  modalProgressRow.className = 'assignment-modal-progress-row';
+  modalProgressRow.innerHTML = `
+    <div class="department-progress-box">
+      <small>اكتمال التاسك</small>
+      <strong data-modal-task-percent>0%</strong>
+    </div>
+    <div class="department-progress-box">
+      <small>مساهمة القسم في الحملة</small>
+      <strong data-modal-campaign-percent>0%</strong>
+    </div>
+  `;
+  taskStepButtons.appendChild(modalProgressRow);
+
   if (assignments.length > 1) {
     const switcher = document.createElement('div');
     switcher.className = 'assignment-switcher';
@@ -5611,7 +5626,7 @@ initCreateTaskFromTemplate();
             const departmentShare = Math.round((100 / deptCount) * 100) / 100;
             const percent = taskDeptProgress(task, d, realIndex);
             const requirement = formatDepartmentRequirement(d);
-            return `<div class="readiness-dept-item" data-dept-task-card data-task-id="${esc(task.id)}" data-task-type="${esc(task.taskTypeLabel || task.taskType || '')}" data-campaign-code="${esc(task.campaignCode || '')}" data-readiness-key="${esc(key)}" data-legacy-readiness-key="${esc(legacyDeptReadinessKey(d))}" data-dept-identity="${esc(deptIdentity(d))}" data-dept-key="${esc(dkey)}" data-department-share="${esc(departmentShare)}" data-completed-steps="${esc(selected)}">
+            return `<div class="readiness-dept-item" data-dept-task-card data-task-id="${esc(task.id)}" data-task-type="${esc(task.taskTypeLabel || task.taskType || '')}" data-campaign-code="${esc(task.campaignCode || '')}" data-readiness-key="${esc(key)}" data-legacy-readiness-key="${esc(legacyDeptReadinessKey(d))}" data-dept-identity="${esc(deptIdentity(d))}" data-dept-key="${esc(dkey)}" data-department-share="${esc(departmentShare)}" data-group-count="${esc(groupDepts.length)}" data-completed-steps="${esc(selected)}">
               <button type="button" class="readiness-open-details" data-open-task-details data-task-id="${esc(task.id)}" data-dept-index="${esc(realIndex)}" data-readiness-key="${esc(key)}" data-dept-key="${esc(dkey)}" data-dept="${esc(d.departmentName || 'قسم')}" data-task-title="${esc(taskTitle(task))}" data-required="${esc(requirement)}" data-dept-task-json="${esc(encodeURIComponent(JSON.stringify(d || {})))}" data-steps="${esc(steps)}">
                 <strong>${esc(d.departmentName || 'قسم')}</strong>
                 <b class="dept-task-short-name">${esc(departmentTaskShortName(d))}</b>
@@ -5694,7 +5709,9 @@ initCreateTaskFromTemplate();
   function userDeptCard(task, deptTask, deptIndex = 0, groupedDeptTasks = null, groupedDeptIndexes = null){
     const groupDepts = Array.isArray(groupedDeptTasks) && groupedDeptTasks.length ? groupedDeptTasks : [deptTask];
     const groupIndexes = Array.isArray(groupedDeptIndexes) && groupedDeptIndexes.length ? groupedDeptIndexes : [deptIndex];
-    const p = Math.round(groupDepts.reduce((sum, d, i) => sum + taskDeptProgress(task, d, groupIndexes[i] ?? deptIndex), 0) / Math.max(groupDepts.length, 1));
+    const groupProgressSum = groupDepts.reduce((sum, d, i) => sum + taskDeptProgress(task, d, groupIndexes[i] ?? deptIndex), 0);
+    const p = Math.round(groupProgressSum / Math.max(groupDepts.length, 1));
+    const groupCampaignPercent = Math.round(groupProgressSum / Math.max((task.departmentTasks || []).length, 1));
     const dkey = deptKey(deptTask.departmentName);
     const steps = encodeTaskSteps(getTaskDetailsSteps(dkey));
     const key = dashboardDeptReadinessKey(deptTask, deptIndex);
@@ -5709,7 +5726,7 @@ initCreateTaskFromTemplate();
         <span class="meta-date meta-delivery"><small>${dkey === 'publish' ? 'تاريخ النشر' : 'تاريخ التسليم'}</small><strong>${esc(deptTask.deliveryDate || deptTask.publishDate || '—')}</strong></span>
         <span class="meta-status"><small>حالة الاستلام</small><strong>${(deptTask.receivedConfirmed || deptTask.received || deptTask.receivedAt) ? 'تم الاستلام' : 'لم يتم الاستلام'}</strong></span>
       </div>
-      <div class="department-progress-row"><div class="department-progress-box"><small>اكتمال التاسك</small><strong data-task-percent>${p}%</strong></div><div class="department-progress-box"><small>نسبة الحملة</small><strong data-campaign-percent>${Math.round(p / Math.max((task.departmentTasks||[]).length,1))}%</strong></div></div>
+      <div class="department-progress-row"><div class="department-progress-box"><small>اكتمال التاسك</small><strong data-task-percent>${p}%</strong></div><div class="department-progress-box"><small>نسبة الحملة</small><strong data-campaign-percent>${groupCampaignPercent}%</strong></div></div>
       <div class="mini-progress"><span data-task-bar style="width:${p}%"></span></div>
       <div class="task-card-actions"><button class="details-btn" type="button" data-open-task-details data-dept-index="${esc(deptIndex)}" data-readiness-key="${esc(key)}" data-dept-key="${esc(dkey)}" data-dept="${esc(deptTask.departmentName || 'قسم')}" data-task-title="${esc(taskTitle(task))}" data-required="${esc(formatDepartmentRequirement(deptTask))}" data-dept-task-json="${esc(encodeURIComponent(JSON.stringify(deptTask || {})))}" data-steps="${esc(steps)}">تفاصيل</button><button class="soft-btn receive-task-btn ${(deptTask.receivedConfirmed || deptTask.received || deptTask.receivedAt) ? 'is-done' : ''}" type="button" data-receive-task data-task-id="${esc(task.id)}" data-dept-index="${esc(deptIndex)}" data-readiness-key="${esc(key)}" data-dept-identity="${esc(deptIdentity(deptTask))}" ${(deptTask.receivedConfirmed || deptTask.received || deptTask.receivedAt) ? 'disabled' : ''}>${(deptTask.receivedConfirmed || deptTask.received || deptTask.receivedAt) ? 'تم تأكيد الاستلام' : 'تأكيد استلام التاسك'}</button></div>
     </article>`;

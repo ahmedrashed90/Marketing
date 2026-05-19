@@ -6515,3 +6515,30 @@ body:has(#taskDetailsModal.is-open){
     grid-template-columns:1fr;
   }
 }
+
+
+/* Move task/campaign progress into assignment white area */
+#taskDetailsModal .task-required-box + .department-progress-row{
+  display:none !important;
+}
+.assignment-modal-progress-row{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:10px;
+  width:100%;
+  margin:0 0 12px;
+}
+.assignment-modal-progress-row .department-progress-box{
+  background:#fff;
+  border:1px solid rgba(62,36,32,.10);
+  border-radius:18px;
+  min-height:62px;
+}
+.assignment-switcher{
+  margin-top:0 !important;
+}
+@media(max-width:760px){
+  .assignment-modal-progress-row{
+    grid-template-columns:1fr;
+  }
+}

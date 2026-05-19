@@ -5658,3 +5658,55 @@ body:has(#taskDetailsModal.is-open){
     padding:16px 12px 28px !important;
   }
 }
+
+
+/* Short task names in readiness and TASK المطلوب cards */
+.dept-task-short-name,
+.user-task-short-name{
+  display:block;
+  max-width:100%;
+  margin:6px auto 4px;
+  padding:6px 10px;
+  border-radius:999px;
+  background:rgba(211,161,127,.16);
+  color:var(--brown-900,#3e2420);
+  font-size:12px;
+  font-weight:900;
+  line-height:1.5;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.readiness-open-details .dept-task-short-name{
+  width:fit-content;
+  max-width:92%;
+}
+.user-task-title-only .user-task-short-name{
+  width:fit-content;
+  max-width:92%;
+  color:#8e766c;
+  background:rgba(62,36,32,.055);
+}
+.receipt-strip span{
+  display:inline-grid;
+  gap:3px;
+  align-items:center;
+}
+.receipt-strip span strong{
+  font-weight:900;
+  color:inherit;
+}
+.receipt-strip span em{
+  font-style:normal;
+  font-size:11px;
+  font-weight:900;
+  color:#8e766c;
+  max-width:180px;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.receipt-strip span small{
+  font-size:11px;
+  font-weight:900;
+}

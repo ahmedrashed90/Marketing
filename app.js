@@ -269,6 +269,54 @@ function formatDepartmentRequirement(deptTask) {
   return deptTask.requiredText || deptTask.deliveryDetails || deptTask.required || 'لا يوجد مطلوب مكتوب';
 }
 
+function departmentTaskShortName(deptTask) {
+  if (!deptTask) return 'تكليف بدون اسم';
+  const clean = (value) => String(value || '').replace(/\s+/g, ' ').trim();
+  const unique = (items) => {
+    const seen = new Set();
+    return items.map(clean).filter(Boolean).filter((item) => {
+      const key = item.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  };
+  const taskNo = clean(deptTask.taskNo || deptTask.contentTaskId || deptTask.taskCode);
+  const direct = clean(deptTask.contentType || deptTask.deliverable || deptTask.title || deptTask.taskTitle || deptTask.name);
+  if (direct && taskNo && direct !== taskNo) return `${direct} — ${taskNo}`;
+  if (direct) return direct;
+  if (taskNo) return taskNo;
+
+  if (Array.isArray(deptTask.selectedDeliverables) && deptTask.selectedDeliverables.length) {
+    const labels = unique(deptTask.selectedDeliverables.map((item) => item?.title || item?.name || item?.deliverable));
+    if (labels.length) return labels.slice(0, 2).join(' + ') + (labels.length > 2 ? ` +${labels.length - 2}` : '');
+  }
+
+  if (Array.isArray(deptTask.photoItems) && deptTask.photoItems.length) {
+    const labels = unique(deptTask.photoItems.map((item) => item?.contentType || item?.carType));
+    if (labels.length) return labels.slice(0, 2).join(' + ') + (labels.length > 2 ? ` +${labels.length - 2}` : '');
+  }
+
+  if (Array.isArray(deptTask.contentItems) && deptTask.contentItems.length) {
+    const labels = unique(deptTask.contentItems.map((item) => item?.contentType || item?.carType || item?.requiredText));
+    if (labels.length) return labels.slice(0, 2).join(' + ') + (labels.length > 2 ? ` +${labels.length - 2}` : '');
+  }
+
+  const requirement = clean(deptTask.requiredText || deptTask.deliveryDetails || deptTask.required || '');
+  const labelPatterns = [
+    /نوع المحتوى\s*:?\s*([^|—]+)/i,
+    /مطلوب\s*\d+\s*:?\s*([^|—]+)/i,
+    /المطلوب\s*:?\s*([^|—]+)/i,
+    /وصف المحتوى\s*:?\s*([^|—]+)/i
+  ];
+  for (const pattern of labelPatterns) {
+    const match = requirement.match(pattern);
+    if (match && clean(match[1])) return clean(match[1]).slice(0, 55);
+  }
+  if (requirement) return requirement.length > 45 ? requirement.slice(0, 45) + '...' : requirement;
+  return 'تكليف بدون اسم';
+}
+
 function renderTaskRequirementDetails(requiredText, deptKeyValue) {
   const clean = String(requiredText || '').trim();
   if (!clean) return '<span class="task-required-line">لا يوجد مطلوب مكتوب</span>';
@@ -5240,7 +5288,7 @@ initCreateTaskFromTemplate();
       <div class="task-template-top"><strong>${esc(taskTitle(task))}</strong><span>${meta(task)}</span></div>
       <div class="department-progress-row"><div class="department-progress-box"><small>نسبة تم الاستلام</small><strong>${receipt}%</strong></div><div class="department-progress-box"><small>الأقسام المستلمة</small><strong>${receivedCount} / ${totalCount}</strong></div></div>
       <div class="mini-progress"><span style="width:${receipt}%"></span></div>
-      <div class="receipt-strip">${(task.departmentTasks||[]).map(d=>`<span class="${(d.receivedConfirmed || d.received || d.receivedAt) ? 'is-done' : ''}">${esc(d.departmentName || 'قسم')} — ${(d.receivedConfirmed || d.received || d.receivedAt) ? 'تم الاستلام' : 'لم يتم الاستلام'}</span>`).join('')}</div>
+      <div class="receipt-strip">${(task.departmentTasks||[]).map(d=>`<span class="${(d.receivedConfirmed || d.received || d.receivedAt) ? 'is-done' : ''}"><strong>${esc(d.departmentName || 'قسم')}</strong><em>${esc(departmentTaskShortName(d))}</em><small>${(d.receivedConfirmed || d.received || d.receivedAt) ? 'تم الاستلام' : 'لم يتم الاستلام'}</small></span>`).join('')}</div>
       <div class="task-card-actions"><button class="danger-btn" type="button" data-delete-task="${esc(task.id)}" data-admin-only>مسح الحملة</button></div><div class="task-empty-note">المطلوب يختفي من هنا تلقائياً لما كل الأقسام تضغط تم الاستلام.</div>
     </article>`;
   }
@@ -5263,6 +5311,7 @@ initCreateTaskFromTemplate();
           return `<div class="readiness-dept-item" data-dept-task-card data-task-id="${esc(task.id)}" data-task-type="${esc(task.taskTypeLabel || task.taskType || '')}" data-campaign-code="${esc(task.campaignCode || '')}" data-readiness-key="${esc(key)}" data-legacy-readiness-key="${esc(legacyDeptReadinessKey(d))}" data-dept-identity="${esc(deptIdentity(d))}" data-dept-key="${esc(dkey)}" data-department-share="${esc(departmentShare)}" data-completed-steps="${esc(selected)}">
             <button type="button" class="readiness-open-details" data-open-task-details data-dept-key="${esc(dkey)}" data-dept="${esc(d.departmentName || 'قسم')}" data-task-title="${esc(taskTitle(task))}" data-required="${esc(requirement)}" data-dept-task-json="${esc(encodeURIComponent(JSON.stringify(d || {})))}" data-steps="${esc(steps)}">
               <strong>${esc(d.departmentName || 'قسم')}</strong>
+              <b class="dept-task-short-name">${esc(departmentTaskShortName(d))}</b>
               <small>${percent}%</small>
               <span>${esc(d.userDisplayName || d.userName || d.userEmail || 'بدون مسؤول')}</span>
               <em>تفاصيل واعتماد</em>
@@ -5334,7 +5383,7 @@ initCreateTaskFromTemplate();
     const selected = readinessStepsForDept(task, deptTask, deptIndex).join(',');
     const departmentShare = Math.round((100 / Math.max((task.departmentTasks||[]).length,1)) * 100) / 100;
     return `<article class="department-task-card dynamic-dashboard-card user-task-card-clean" data-dept-task-card data-task-id="${esc(task.id)}" data-task-type="${esc(task.taskTypeLabel || task.taskType || '')}" data-campaign-code="${esc(task.campaignCode || '')}" data-readiness-key="${esc(key)}" data-legacy-readiness-key="${esc(legacyDeptReadinessKey(deptTask))}" data-dept-identity="${esc(deptIdentity(deptTask))}" data-dept-key="${esc(dkey)}" data-department-share="${esc(departmentShare)}" data-completed-steps="${esc(selected)}">
-      <div class="task-template-top user-task-title-only"><strong>${esc(taskTitle(task))}</strong></div>
+      <div class="task-template-top user-task-title-only"><strong>${esc(taskTitle(task))}</strong><span class="user-task-short-name">${esc(departmentTaskShortName(deptTask))}</span></div>
       <div class="department-task-meta labeled-task-meta user-task-meta-clean">
         <span class="meta-person"><small>المسؤول</small><strong>${esc(deptTask.userDisplayName || deptTask.userName || deptTask.userEmail || 'بدون مسؤول')}</strong></span>
         <span class="meta-receive"><small>تاريخ الاستلام</small><strong>${esc(deptTask.receiveDate || (deptTask.receivedAt ? String(deptTask.receivedAt).slice(0,10) : '—'))}</strong></span>

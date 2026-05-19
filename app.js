@@ -461,6 +461,81 @@ function renderTaskRequirementDetails(requiredText, deptKeyValue) {
   return parts.map(x => `<span class="task-required-line">${safe(x)}</span>`).join('');
 }
 
+function renderReadableDepartmentRequirement(deptTask, deptKeyValue) {
+  const safe = (value) => escapeHTML(value == null ? '' : value);
+  const clean = (value) => String(value || '').replace(/\s+/g, ' ').trim();
+  const unique = (values) => {
+    const seen = new Set();
+    return (values || []).map(clean).filter(Boolean).filter((value) => {
+      const key = value.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  };
+  const splitList = (value) => clean(value).split(/،|,|\+|\n|\r/g).map(clean).filter(Boolean);
+  const details = deptTask?.requiredDetails && typeof deptTask.requiredDetails === 'object' ? deptTask.requiredDetails : {};
+  const contentItems = [];
+  if (Array.isArray(deptTask?.contentItems)) contentItems.push(...deptTask.contentItems);
+  if (Array.isArray(deptTask?.photoItems)) contentItems.push(...deptTask.photoItems);
+  if (Array.isArray(deptTask?.selectedDeliverables)) contentItems.push(...deptTask.selectedDeliverables);
+  if (details && Object.keys(details).length) contentItems.push(details);
+
+  const taskName = clean(deptTask?.taskName || deptTask?.taskTitle || deptTask?.title || deptTask?.name || details.taskName || details.taskTitle || '');
+  const contentTypes = unique([
+    deptTask?.contentType,
+    details.contentType,
+    ...(Array.isArray(details.contentTypes) ? details.contentTypes.map((x) => x?.title || x?.name || x) : []),
+    ...contentItems.map((item) => item?.contentType || item?.title || item?.name || item?.deliverable)
+  ]).filter((value) => value !== taskName);
+  const cars = unique([
+    ...(Array.isArray(deptTask?.selectedCars) ? deptTask.selectedCars : []),
+    ...(Array.isArray(details.selectedCars) ? details.selectedCars : []),
+    ...splitList(deptTask?.carType),
+    ...splitList(details.carType),
+    ...contentItems.flatMap((item) => [
+      ...(Array.isArray(item?.selectedCars) ? item.selectedCars : []),
+      ...splitList(item?.carType)
+    ])
+  ]);
+  const printSizes = unique([deptTask?.printSize, details.printSize, ...contentItems.map((item) => item?.printSize)]);
+  const extraDetails = unique([
+    details.details,
+    details.desc,
+    details.description,
+    deptTask?.deliveryDetails,
+    ...contentItems.map((item) => item?.details || item?.desc || item?.description)
+  ]).filter((value) => value && value !== taskName && !contentTypes.includes(value));
+  const rawFallback = clean(deptTask?.requiredText || deptTask?.required || '');
+
+  const chips = (items, className = '') => items.length
+    ? `<div class="readable-chip-row ${className}">${items.map((item) => `<span>${safe(item)}</span>`).join('')}</div>`
+    : `<em class="readable-empty">—</em>`;
+
+  const summaryItems = [
+    `<span><small>السيارات</small><strong>${cars.length || 0}</strong></span>`,
+    `<span><small>أنواع المحتوى</small><strong>${contentTypes.length || (deptTask?.contentType ? 1 : 0)}</strong></span>`,
+    `<span><small>القسم</small><strong>${safe(deptTask?.departmentName || '—')}</strong></span>`
+  ].join('');
+
+  return `<section class="readable-task-details">
+    <div class="readable-task-summary">${summaryItems}</div>
+    <article class="readable-task-main">
+      <div class="readable-task-main-head">
+        <small>اسم التكليف</small>
+        <strong>${safe(taskName || departmentTaskShortName(deptTask) || 'تكليف مطلوب')}</strong>
+      </div>
+      <div class="readable-detail-grid">
+        <div class="readable-detail-item"><small>نوع المحتوى</small>${chips(contentTypes.length ? contentTypes : (deptTask?.contentType ? [deptTask.contentType] : []), 'content-type-chips')}</div>
+        <div class="readable-detail-item"><small>السيارات المختارة</small>${chips(cars, 'car-chips')}</div>
+        ${printSizes.length ? `<div class="readable-detail-item"><small>المقاس</small>${chips(printSizes)}</div>` : ''}
+        ${extraDetails.length ? `<div class="readable-detail-item readable-detail-wide"><small>تفاصيل إضافية</small>${chips(extraDetails)}</div>` : ''}
+        ${(!cars.length && !contentTypes.length && rawFallback) ? `<div class="readable-detail-item readable-detail-wide"><small>المطلوب</small>${renderTaskRequirementDetails(rawFallback, deptKeyValue)}</div>` : ''}
+      </div>
+    </article>
+  </section>`;
+}
+
 function isAttachmentActionLabel(value) {
   const text = String(value || '').trim();
   return text === 'إرفاق ملف' ||
@@ -1019,7 +1094,7 @@ function openTaskDetails(button) {
   const renderSelectedRequirement = (assignmentIndex = 0) => {
     const selectedAssignment = assignments[assignmentIndex] || assignments[0] || { dept: clickedDept };
     if (taskDetailsRequired) {
-      taskDetailsRequired.innerHTML = renderTaskRequirementDetails(formatDepartmentRequirement(selectedAssignment.dept), deptKeyValue);
+      taskDetailsRequired.innerHTML = renderReadableDepartmentRequirement(selectedAssignment.dept, deptKeyValue);
     }
   };
   renderSelectedRequirement(0);
@@ -1054,8 +1129,8 @@ function openTaskDetails(button) {
       <div class="assignment-switcher-buttons">
         ${assignments.map(({ dept }, index) => {
           const shortTitle = [
-            dept.contentType || dept.deliverable || dept.taskNo || '',
-            dept.carType || ''
+            dept.taskName || dept.taskTitle || departmentTaskShortName(dept),
+            dept.contentType ? `نوع المحتوى: ${dept.contentType}` : ''
           ].filter(Boolean).join(' - ');
           return `<button type="button" class="assignment-switch-btn ${index === 0 ? 'is-active' : ''}" data-switch-assignment="${index}">
             <b>${index + 1}</b>
@@ -1089,8 +1164,8 @@ function openTaskDetails(button) {
     block.dataset.deptIdentity = mzjDetailsDeptIdentity(dept);
 
     const assignmentTitle = [
-      dept.contentType || dept.deliverable || dept.taskNo || '',
-      dept.carType || '',
+      dept.taskName || dept.taskTitle || dept.title || departmentTaskShortName(dept),
+      dept.contentType ? `نوع المحتوى: ${dept.contentType}` : '',
       dept.requiredDate ? `مطلوب: ${dept.requiredDate}` : ''
     ].filter(Boolean).join(' — ');
 
@@ -1105,7 +1180,7 @@ function openTaskDetails(button) {
           <div><small>نسبة الحملة</small><b data-assignment-campaign-percent>0%</b></div>
         </div>
       </div>
-      <div class="assignment-step-required">${renderTaskRequirementDetails(formatDepartmentRequirement(dept), deptKeyValue)}</div>
+      <div class="assignment-step-required">${renderReadableDepartmentRequirement(dept, deptKeyValue)}</div>
       <div class="assignment-actions-title">إجراءات التكليف</div>
       <div class="assignment-step-buttons" data-assignment-step-buttons></div>
     `;
@@ -1202,7 +1277,7 @@ document.addEventListener('click', (event) => {
     });
     const selectedMeta = activeTaskDetailsMeta?.relatedAssignments?.[index];
     if (selectedMeta?.deptData && taskDetailsRequired) {
-      taskDetailsRequired.innerHTML = renderTaskRequirementDetails(formatDepartmentRequirement(selectedMeta.deptData), activeTaskDetailsMeta?.deptKey || '');
+      taskDetailsRequired.innerHTML = renderReadableDepartmentRequirement(selectedMeta.deptData, activeTaskDetailsMeta?.deptKey || '');
     }
     syncTaskProgress();
     return;

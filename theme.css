@@ -6724,3 +6724,109 @@ body:has(#taskDetailsModal.is-open){
 .unified-dept-check input{width:18px;height:18px;accent-color:#111827;}
 .unified-user-select-wrap select{min-height:118px;}
 @media(max-width:760px){.unified-departments-grid{grid-template-columns:1fr}.unified-builder-head{align-items:flex-start;flex-direction:column}}
+
+/* V5 readable user task details */
+.readable-task-details{
+  display:grid;
+  gap:14px;
+}
+.readable-task-summary{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+  gap:10px;
+}
+.readable-task-summary span{
+  background:#fff;
+  border:1px solid rgba(75,36,31,.08);
+  border-radius:18px;
+  padding:12px 14px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+}
+.readable-task-summary small,
+.readable-task-main-head small,
+.readable-detail-item small{
+  color:#9a7d70;
+  font-weight:900;
+  font-size:12px;
+}
+.readable-task-summary strong{
+  color:#4b241f;
+  font-size:18px;
+  font-weight:900;
+}
+.readable-task-main{
+  background:#fff;
+  border:1px solid rgba(75,36,31,.09);
+  border-radius:24px;
+  padding:16px;
+  display:grid;
+  gap:14px;
+}
+.readable-task-main-head{
+  display:grid;
+  gap:6px;
+  border-bottom:1px solid rgba(75,36,31,.08);
+  padding-bottom:12px;
+}
+.readable-task-main-head strong{
+  color:#321713;
+  font-size:22px;
+  font-weight:950;
+  line-height:1.6;
+}
+.readable-detail-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(260px,1fr));
+  gap:12px;
+}
+.readable-detail-item{
+  background:#fffaf6;
+  border:1px solid rgba(75,36,31,.08);
+  border-radius:20px;
+  padding:14px;
+  display:grid;
+  gap:10px;
+  align-content:start;
+}
+.readable-detail-wide{
+  grid-column:1/-1;
+}
+.readable-chip-row{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+}
+.readable-chip-row span{
+  display:inline-flex;
+  align-items:center;
+  min-height:34px;
+  padding:7px 12px;
+  border-radius:999px;
+  background:#f4e7dd;
+  color:#4b241f;
+  font-size:13px;
+  font-weight:900;
+  line-height:1.45;
+}
+.readable-chip-row.car-chips span{
+  background:#fff;
+  border:1px solid rgba(75,36,31,.10);
+}
+.readable-chip-row.content-type-chips span{
+  background:#4b241f;
+  color:#fff8ef;
+}
+.readable-empty{
+  color:#b39b90;
+  font-style:normal;
+  font-weight:900;
+}
+#taskDetailsModal .assignment-step-required .readable-task-main-head strong{
+  font-size:18px;
+}
+#taskDetailsModal .assignment-step-required .readable-task-summary{
+  grid-template-columns:repeat(auto-fit,minmax(120px,1fr));
+}

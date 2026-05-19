@@ -6138,3 +6138,71 @@ body:has(#taskDetailsModal.is-open){
   opacity:0;
   pointer-events:none;
 }
+
+
+/* Dashboard requested refactor */
+.receipt-users-strip span{
+  min-width:120px;
+}
+.compact-readiness-card{
+  padding-bottom:18px;
+}
+.readiness-card-summary{
+  width:100%;
+  border:0;
+  background:transparent;
+  padding:0;
+  text-align:inherit;
+  cursor:pointer;
+  display:grid;
+  gap:12px;
+}
+.readiness-card-summary > small{
+  color:#8e766c;
+  font-weight:900;
+  text-align:center;
+}
+.compact-readiness-card .readiness-details-panel{
+  margin-top:16px;
+}
+.compact-readiness-card:not(.is-open){
+  max-height:none;
+}
+.task-campaign-info-box{
+  width:min(1500px,100%);
+  margin:0 auto 18px;
+  border:1px solid rgba(62,36,32,.10);
+  border-radius:22px;
+  background:#fffaf6;
+  padding:16px;
+  box-shadow:0 12px 26px rgba(62,36,32,.05);
+}
+.task-campaign-info-title{
+  color:var(--brown-900,#3e2420);
+  font-weight:900;
+  margin-bottom:12px;
+  font-size:18px;
+}
+.task-campaign-info-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(170px,1fr));
+  gap:10px;
+}
+.task-campaign-info-grid > div{
+  border:1px solid rgba(62,36,32,.08);
+  border-radius:16px;
+  padding:10px 12px;
+  background:#fff;
+}
+.task-campaign-info-grid small{
+  display:block;
+  color:#9a7d70;
+  font-weight:900;
+  margin-bottom:6px;
+}
+.task-campaign-info-grid strong{
+  display:block;
+  color:#3e2420;
+  font-weight:900;
+  line-height:1.6;
+}

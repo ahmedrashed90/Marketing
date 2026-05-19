@@ -977,6 +977,12 @@ function openTaskDetails(button) {
   if (taskDetailsDept) taskDetailsDept.textContent = button.dataset.dept || 'تفاصيل القسم';
   if (taskDetailsTitle) taskDetailsTitle.textContent = button.dataset.taskTitle || 'تفاصيل التاسك';
 
+  const oldInfoBox = taskDetailsModal.querySelector('[data-task-campaign-info-box]');
+  if (oldInfoBox) oldInfoBox.remove();
+  if (fullTask && taskDetailsRequired) {
+    taskDetailsRequired.insertAdjacentHTML('beforebegin', renderTaskCampaignInfoBox(fullTask));
+  }
+
   const renderSelectedRequirement = (assignmentIndex = 0) => {
     const selectedAssignment = assignments[assignmentIndex] || assignments[0] || { dept: clickedDept };
     if (taskDetailsRequired) {
@@ -5455,45 +5461,94 @@ initCreateTaskFromTemplate();
   function meta(task){
     return `${esc(task.taskTypeLabel)} — ${esc(task.campaignCode || 'بدون كود')} — ${esc(task.launchDate || task.taskDate || 'بدون تاريخ')}`;
   }
+  function deptAssigneeLabel(dept){
+    return dept.userDisplayName || dept.userName || dept.assigneeName || dept.userEmail || dept.assigneeEmail || 'بدون مسؤول';
+  }
+  function groupDepartmentsByAssignee(depts){
+    const map = new Map();
+    (depts || []).filter((d) => d && d.enabled !== false).forEach((dept) => {
+      const label = deptAssigneeLabel(dept);
+      const key = String(dept.userId || dept.userUid || dept.assigneeUid || dept.userEmail || dept.assigneeEmail || label || '').trim() || label;
+      if (!map.has(key)) map.set(key, { label, depts: [] });
+      map.get(key).depts.push(dept);
+    });
+    return Array.from(map.values());
+  }
+  function taskCampaignInfoRows(task){
+    return [
+      ['التاريخ', task.taskDate || task.date || task.launchDate || '—'],
+      ['كود الحملة', task.campaignCode || task.code || task.campaignSerial || '—'],
+      ['اسم الحملة', task.campaignName || task.name || task.title || task.templateName || '—'],
+      ['نوع الحملة', task.taskTypeLabel || task.campaignType || task.taskType || task.type || '—'],
+      ['الهدف من الحملة', task.campaignGoal || task.goal || task.objective || task.campaignObjective || '—'],
+      ['تاريخ بداية الحملة', task.campaignStartDate || task.startDate || '—'],
+      ['تاريخ نهاية الحملة', task.campaignEndDate || task.endDate || '—']
+    ];
+  }
+  function renderTaskCampaignInfoBox(task){
+    const rows = taskCampaignInfoRows(task || {});
+    return `<section class="task-campaign-info-box" data-task-campaign-info-box>
+      <div class="task-campaign-info-title">بيانات الحملة</div>
+      <div class="task-campaign-info-grid">
+        ${rows.map(([label, value]) => `<div><small>${esc(label)}</small><strong>${esc(value)}</strong></div>`).join('')}
+      </div>
+    </section>`;
+  }
   function requiredCard(task){
     const receipt = taskReceiptProgress(task);
-    const receivedCount = (task.departmentTasks || []).filter((d) => Boolean(d.receivedConfirmed || d.received || d.receivedAt)).length;
-    const totalCount = (task.departmentTasks || []).filter((d) => d && d.enabled !== false).length || 0;
+    const activeDepts = (task.departmentTasks || []).filter((d) => d && d.enabled !== false);
+    const receivedCount = activeDepts.filter((d) => Boolean(d.receivedConfirmed || d.received || d.receivedAt)).length;
+    const totalCount = activeDepts.length || 0;
+    const groupedUsers = groupDepartmentsByAssignee(activeDepts);
     return `<article class="task-template-card dynamic-dashboard-card" data-dash-task-id="${esc(task.id)}">
       <div class="task-template-top"><strong>${esc(taskTitle(task))}</strong><span>${meta(task)}</span></div>
       <div class="department-progress-row"><div class="department-progress-box"><small>نسبة تم الاستلام</small><strong>${receipt}%</strong></div><div class="department-progress-box"><small>الأقسام المستلمة</small><strong>${receivedCount} / ${totalCount}</strong></div></div>
       <div class="mini-progress"><span style="width:${receipt}%"></span></div>
-      <div class="receipt-strip">${(task.departmentTasks||[]).map(d=>`<span class="${(d.receivedConfirmed || d.received || d.receivedAt) ? 'is-done' : ''}"><strong>${esc(d.departmentName || 'قسم')}</strong><em>${esc(departmentTaskShortName(d))}</em><small>${(d.receivedConfirmed || d.received || d.receivedAt) ? 'تم الاستلام' : 'لم يتم الاستلام'}</small></span>`).join('')}</div>
-      <div class="task-card-actions"><button class="danger-btn" type="button" data-delete-task="${esc(task.id)}" data-admin-only>مسح الحملة</button></div><div class="task-empty-note">المطلوب يختفي من هنا تلقائياً لما كل الأقسام تضغط تم الاستلام.</div>
+      <div class="receipt-strip receipt-users-strip">${groupedUsers.map((group) => {
+        const done = group.depts.filter((d) => Boolean(d.receivedConfirmed || d.received || d.receivedAt)).length;
+        const total = group.depts.length;
+        const isDone = done >= total;
+        const taskNames = group.depts.map(departmentTaskShortName).filter(Boolean).slice(0, 2).join(' + ');
+        return `<span class="${isDone ? 'is-done' : ''}"><strong>${esc(group.label)}</strong><em>${esc(total > 1 ? `${total} تكليفات` : (taskNames || 'تكليف واحد'))}</em><small>${isDone ? 'تم الاستلام' : `باقي ${total - done}`}</small></span>`;
+      }).join('')}</div>
+      <div class="task-card-actions"><button class="danger-btn" type="button" data-delete-task="${esc(task.id)}" data-admin-only>مسح الحملة</button></div><div class="task-empty-note">المطلوب يختفي من هنا تلقائياً لما كل اليوزرات يضغطوا تم الاستلام.</div>
     </article>`;
   }
   function readinessCard(task){
-    const ready = taskReadiness(task);
-    const depts = (task.departmentTasks || []).filter((d) => d && d.enabled !== false);
-    const deptCount = Math.max(depts.length, 1);
-    return `<article class="readiness-card dynamic-dashboard-card" data-dash-task-id="${esc(task.id)}">
-      <div class="task-template-top"><strong>${esc(taskTitle(task))}</strong><span>${meta(task)} — جاهزية ${ready}%</span></div>
-      <div class="mini-progress"><span style="width:${ready}%"></span></div>
-      <div class="readiness-grid readiness-dynamic-grid readiness-approval-grid">
-        ${depts.map((d, deptIndex) => {
-          const dkey = deptKey(d.departmentName);
-          const steps = encodeTaskSteps(getTaskDetailsSteps(dkey));
-          const key = dashboardDeptReadinessKey(d, deptIndex);
-          const selected = readinessStepsForDept(task, d, deptIndex).join(',');
-          const departmentShare = Math.round((100 / deptCount) * 100) / 100;
-          const percent = taskDeptProgress(task, d, deptIndex);
-          const requirement = formatDepartmentRequirement(d);
-          return `<div class="readiness-dept-item" data-dept-task-card data-task-id="${esc(task.id)}" data-task-type="${esc(task.taskTypeLabel || task.taskType || '')}" data-campaign-code="${esc(task.campaignCode || '')}" data-readiness-key="${esc(key)}" data-legacy-readiness-key="${esc(legacyDeptReadinessKey(d))}" data-dept-identity="${esc(deptIdentity(d))}" data-dept-key="${esc(dkey)}" data-department-share="${esc(departmentShare)}" data-completed-steps="${esc(selected)}">
-            <button type="button" class="readiness-open-details" data-open-task-details data-dept-key="${esc(dkey)}" data-dept="${esc(d.departmentName || 'قسم')}" data-task-title="${esc(taskTitle(task))}" data-required="${esc(requirement)}" data-dept-task-json="${esc(encodeURIComponent(JSON.stringify(d || {})))}" data-steps="${esc(steps)}">
-              <strong>${esc(d.departmentName || 'قسم')}</strong>
-              <b class="dept-task-short-name">${esc(departmentTaskShortName(d))}</b>
-              <small>${percent}%</small>
-              <span>${esc(d.userDisplayName || d.userName || d.userEmail || 'بدون مسؤول')}</span>
-              <em>تفاصيل واعتماد</em>
-            </button>
-          </div>`;
-        }).join('')}
-      </div><div class="task-card-actions"><button class="danger-btn" type="button" data-delete-task="${esc(task.id)}" data-admin-only>مسح الحملة</button></div>
+    const activeDepts = (task.departmentTasks || []).filter((d) => d && d.enabled !== false);
+    const depts = activeDepts.filter((d) => deptKey(d.departmentName) !== 'publish');
+    const ready = depts.length ? Math.round(depts.reduce((sum, d, index) => sum + taskDeptProgress(task, d, index), 0) / depts.length) : taskReadiness(task);
+    const deptCount = Math.max(activeDepts.length, 1);
+    return `<article class="readiness-card dynamic-dashboard-card compact-readiness-card" data-dash-task-id="${esc(task.id)}">
+      <button class="readiness-card-summary" type="button" data-toggle-readiness-details>
+        <div class="task-template-top"><strong>${esc(taskTitle(task))}</strong><span>${meta(task)} — جاهزية ${ready}%</span></div>
+        <div class="mini-progress"><span style="width:${ready}%"></span></div>
+        <small>اضغط لعرض الأقسام والمحتوى</small>
+      </button>
+      <div class="readiness-details-panel" data-readiness-details hidden>
+        <div class="readiness-grid readiness-dynamic-grid readiness-approval-grid">
+          ${depts.map((d, deptIndex) => {
+            const realIndex = activeDepts.indexOf(d);
+            const dkey = deptKey(d.departmentName);
+            const steps = encodeTaskSteps(getTaskDetailsSteps(dkey));
+            const key = dashboardDeptReadinessKey(d, realIndex);
+            const selected = readinessStepsForDept(task, d, realIndex).join(',');
+            const departmentShare = Math.round((100 / deptCount) * 100) / 100;
+            const percent = taskDeptProgress(task, d, realIndex);
+            const requirement = formatDepartmentRequirement(d);
+            return `<div class="readiness-dept-item" data-dept-task-card data-task-id="${esc(task.id)}" data-task-type="${esc(task.taskTypeLabel || task.taskType || '')}" data-campaign-code="${esc(task.campaignCode || '')}" data-readiness-key="${esc(key)}" data-legacy-readiness-key="${esc(legacyDeptReadinessKey(d))}" data-dept-identity="${esc(deptIdentity(d))}" data-dept-key="${esc(dkey)}" data-department-share="${esc(departmentShare)}" data-completed-steps="${esc(selected)}">
+              <button type="button" class="readiness-open-details" data-open-task-details data-dept-index="${esc(realIndex)}" data-readiness-key="${esc(key)}" data-dept-key="${esc(dkey)}" data-dept="${esc(d.departmentName || 'قسم')}" data-task-title="${esc(taskTitle(task))}" data-required="${esc(requirement)}" data-dept-task-json="${esc(encodeURIComponent(JSON.stringify(d || {})))}" data-steps="${esc(steps)}">
+                <strong>${esc(d.departmentName || 'قسم')}</strong>
+                <b class="dept-task-short-name">${esc(departmentTaskShortName(d))}</b>
+                <small>${percent}%</small>
+                <span>${esc(deptAssigneeLabel(d))}</span>
+                <em>تفاصيل واعتماد</em>
+              </button>
+            </div>`;
+          }).join('')}
+        </div>
+        <div class="task-card-actions"><button class="danger-btn" type="button" data-delete-task="${esc(task.id)}" data-admin-only>مسح الحملة</button></div>
+      </div>
     </article>`;
   }
   function publishCard(task){
@@ -5550,15 +5605,17 @@ initCreateTaskFromTemplate();
     return dashboardSearchHaystack(task).includes(q);
   }
 
-  function userDeptCard(task, deptTask, deptIndex = 0){
-    const p = taskDeptProgress(task, deptTask, deptIndex);
+  function userDeptCard(task, deptTask, deptIndex = 0, groupedDeptTasks = null, groupedDeptIndexes = null){
+    const groupDepts = Array.isArray(groupedDeptTasks) && groupedDeptTasks.length ? groupedDeptTasks : [deptTask];
+    const groupIndexes = Array.isArray(groupedDeptIndexes) && groupedDeptIndexes.length ? groupedDeptIndexes : [deptIndex];
+    const p = Math.round(groupDepts.reduce((sum, d, i) => sum + taskDeptProgress(task, d, groupIndexes[i] ?? deptIndex), 0) / Math.max(groupDepts.length, 1));
     const dkey = deptKey(deptTask.departmentName);
     const steps = encodeTaskSteps(getTaskDetailsSteps(dkey));
     const key = dashboardDeptReadinessKey(deptTask, deptIndex);
     const selected = readinessStepsForDept(task, deptTask, deptIndex).join(',');
     const departmentShare = Math.round((100 / Math.max((task.departmentTasks||[]).length,1)) * 100) / 100;
     return `<article class="department-task-card dynamic-dashboard-card user-task-card-clean" data-dept-task-card data-task-id="${esc(task.id)}" data-task-type="${esc(task.taskTypeLabel || task.taskType || '')}" data-campaign-code="${esc(task.campaignCode || '')}" data-readiness-key="${esc(key)}" data-legacy-readiness-key="${esc(legacyDeptReadinessKey(deptTask))}" data-dept-identity="${esc(deptIdentity(deptTask))}" data-dept-key="${esc(dkey)}" data-department-share="${esc(departmentShare)}" data-completed-steps="${esc(selected)}">
-      <div class="task-template-top user-task-title-only"><strong>${esc(taskTitle(task))}</strong><span class="user-task-short-name">${esc(departmentTaskShortName(deptTask))}</span></div>
+      <div class="task-template-top user-task-title-only"><strong>${esc(taskTitle(task))}</strong><span class="user-task-short-name">${esc(groupDepts.length > 1 ? `${groupDepts.length} تكليفات` : departmentTaskShortName(deptTask))}</span></div>
       <div class="department-task-meta labeled-task-meta user-task-meta-clean">
         <span class="meta-person"><small>المسؤول</small><strong>${esc(deptTask.userDisplayName || deptTask.userName || deptTask.userEmail || 'بدون مسؤول')}</strong></span>
         <span class="meta-receive"><small>تاريخ الاستلام</small><strong>${esc(deptTask.receiveDate || (deptTask.receivedAt ? String(deptTask.receivedAt).slice(0,10) : '—'))}</strong></span>
@@ -5588,23 +5645,44 @@ initCreateTaskFromTemplate();
     };
     const current = user();
     tasks.forEach(task => {
-      const ready = taskReadiness(task);
+      const publishDepts = (task.departmentTasks || []).filter((dept) => deptKey(dept.departmentName) === 'publish');
       if (task.stage === 'archive') appendCard(archive, archiveCard(task));
-      else if (task.stage === 'publish') appendCard(publishing, publishCard(task));
       else {
         if (taskReceiptProgress(task) < 100) appendCard(required, requiredCard(task));
         appendCard(readiness, readinessCard(task));
+        if (publishDepts.length || task.stage === 'publish') appendCard(publishing, publishCard(task));
       }
+
+      const visibleGroups = new Map();
       (task.departmentTasks || []).forEach((dept, deptIndex) => {
         const visible = assignedToCurrentUser(dept, current);
         if (!visible) return;
-        appendCard(userLists[deptKey(dept.departmentName)], userDeptCard(task, dept, deptIndex));
+        const listKey = deptKey(dept.departmentName);
+        const userKey = String(dept.userId || dept.userUid || dept.assigneeUid || dept.userEmail || dept.assigneeEmail || dept.userName || dept.userDisplayName || '').trim() || deptIdentity(dept);
+        const groupKey = `${listKey}::${userKey}`;
+        if (!visibleGroups.has(groupKey)) visibleGroups.set(groupKey, { listKey, dept, indexes: [], depts: [] });
+        visibleGroups.get(groupKey).indexes.push(deptIndex);
+        visibleGroups.get(groupKey).depts.push(dept);
+      });
+      visibleGroups.forEach((group) => {
+        appendCard(userLists[group.listKey], userDeptCard(task, group.dept, group.indexes[0], group.depts, group.indexes));
       });
     });
     Object.entries(userLists).forEach(([key,el]) => ensureEmpty(el, 'لا توجد تاسكات حالياً.'));
   };
 
   document.addEventListener('click', function(event){
+    const toggleReadiness = event.target.closest('[data-toggle-readiness-details]');
+    if (toggleReadiness) {
+      const card = toggleReadiness.closest('.compact-readiness-card');
+      const panel = card?.querySelector('[data-readiness-details]');
+      if (panel) {
+        panel.hidden = !panel.hidden;
+        card.classList.toggle('is-open', !panel.hidden);
+      }
+      return;
+    }
+
     const pub = event.target.closest('[data-publish-step]');
     if (pub) {
       if (!userIsAdmin()) return;

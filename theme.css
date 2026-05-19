@@ -6120,3 +6120,13 @@ body:has(#taskDetailsModal.is-open){
     grid-template-columns:1fr !important;
   }
 }
+
+
+/* Required item: car/request is the main writable field */
+.universal-required-item > .mzj-field:first-child input[data-universal-car-type]{
+  min-height:54px;
+  font-weight:900;
+}
+.universal-content-type-card{
+  user-select:none;
+}

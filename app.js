@@ -1985,12 +1985,8 @@ function renderUniversalRequiredItem(kind, removable = false) {
   return `
     <article class="universal-required-item" data-universal-required-item>
       <label class="mzj-field full-width-field">
-        <span>المطلوب</span>
-        <textarea data-universal-required-text rows="3" placeholder="اكتب المطلوب من القسم"></textarea>
-      </label>
-      <label class="mzj-field full-width-field">
-        <span>السيارة المطلوبة</span>
-        <input type="text" list="stockCarsDatalist" data-universal-car-type placeholder="اختار من الاستوك أو اكتب السيارة يدويًا">
+        <span>السيارة / المطلوب</span>
+        <input type="text" list="stockCarsDatalist" data-universal-car-type placeholder="اختار من الاستوك أو اكتب السيارة / المطلوب يدويًا">
       </label>
       <div class="universal-content-type-wrap full-width-field">
         <div class="universal-content-type-head">نوع المحتوى</div>
@@ -3934,9 +3930,10 @@ function initCreateTaskFromTemplate() {
   function collectSpecialDepartmentDetails(row, kind) {
     const items = Array.from(row.querySelectorAll('[data-universal-required-item]')).map((item) => {
       const selectedType = item.querySelector('[data-universal-content-type]:checked');
+      const carOrRequired = item.querySelector('[data-universal-car-type]')?.value.trim() || '';
       return {
-        requiredText: item.querySelector('[data-universal-required-text]')?.value.trim() || '',
-        carType: item.querySelector('[data-universal-car-type]')?.value.trim() || '',
+        requiredText: carOrRequired,
+        carType: carOrRequired,
         contentType: selectedType?.value.trim() || '',
         contentTypeId: selectedType?.dataset.id || '',
         details: selectedType?.dataset.desc || '',
@@ -3947,14 +3944,14 @@ function initCreateTaskFromTemplate() {
     const requiredText = items.map((item, index) => [
       `مطلوب ${index + 1}`,
       item.requiredText ? `المطلوب: ${item.requiredText}` : '',
-      item.carType ? `السيارة: ${item.carType}` : '',
+      item.carType ? `السيارة / المطلوب: ${item.carType}` : '',
       item.contentType ? `نوع المحتوى: ${item.contentType}` : '',
       item.printSize ? `المقاس: ${item.printSize}` : ''
     ].filter(Boolean).join(' — ')).join(' | ');
 
     const deliverables = items.map((item) => ({
       title: item.contentType || item.requiredText || 'مطلوب',
-      details: [item.details, item.carType ? `السيارة: ${item.carType}` : '', item.printSize ? `المقاس: ${item.printSize}` : '', item.requiredText].filter(Boolean).join(' — '),
+      details: [item.details, item.carType ? `السيارة / المطلوب: ${item.carType}` : '', item.printSize ? `المقاس: ${item.printSize}` : '', item.requiredText].filter(Boolean).join(' — '),
       carType: item.carType,
       printSize: item.printSize,
       requiredText: item.requiredText,
@@ -4179,6 +4176,33 @@ function initCreateTaskFromTemplate() {
   });
 
   departmentsList.addEventListener('click', (event) => {
+    const contentCard = event.target.closest('.universal-content-type-card');
+    if (contentCard) {
+      const input = contentCard.querySelector('[data-universal-content-type]');
+      const item = contentCard.closest('[data-universal-required-item]');
+      if (input) {
+        const wasChecked = contentCard.classList.contains('is-checked') || input.checked;
+        event.preventDefault();
+        item?.querySelectorAll('[data-universal-content-type]').forEach((radio) => {
+          radio.checked = false;
+          radio.closest('.universal-content-type-card')?.classList.remove('is-checked');
+        });
+        if (!wasChecked) {
+          input.checked = true;
+          contentCard.classList.add('is-checked');
+        }
+        const wrap = item?.querySelector('[data-universal-print-size-wrap]');
+        const sizeInput = item?.querySelector('[data-universal-print-size]');
+        const selectedText = input.checked ? input.value : '';
+        const shouldShowSize = isOfflinePrintContent(selectedText);
+        if (wrap) wrap.hidden = !shouldShowSize;
+        if (!shouldShowSize && sizeInput) sizeInput.value = '';
+        refreshPublishCalendarOptions();
+        refreshBudgetDropdownOptions();
+      }
+      return;
+    }
+
     const addAssignment = event.target.closest('[data-add-department-assignment]');
     if (addAssignment) {
       const deptRow = addAssignment.closest('.department-task-row');
@@ -4324,7 +4348,7 @@ function initCreateTaskFromTemplate() {
   });
 
   departmentsList.addEventListener('input', (event) => {
-    if (event.target.closest('[data-design-print-size], [data-universal-print-size], [data-universal-required-text], [data-universal-car-type]')) {
+    if (event.target.closest('[data-design-print-size], [data-universal-print-size], [data-universal-car-type]')) {
       refreshPublishCalendarOptions();
       refreshBudgetDropdownOptions();
     }

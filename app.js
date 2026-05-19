@@ -1924,8 +1924,8 @@ async function loadRequiredContentTypes() {
     }
   }
   const map = new Map();
-  collected.forEach((item) => map.set(String(item.id || item.title + item.departmentKind), item));
-  window.MZJRequiredContentTypesCache = Array.from(map.values()).sort((a,b) => String(a.departmentKind + a.title).localeCompare(String(b.departmentKind + b.title), 'ar'));
+  collected.forEach((item) => map.set(String(item.id || item.title), item));
+  window.MZJRequiredContentTypesCache = Array.from(map.values()).sort((a,b) => String(a.title || '').localeCompare(String(b.title || ''), 'ar'));
   return window.MZJRequiredContentTypesCache;
 }
 

@@ -12,9 +12,26 @@
 
   function note(msg, ok = true){
     const el = document.getElementById('requiredContentNote');
-    if(!el) return;
-    el.textContent = msg || '';
-    el.style.color = ok ? '#3e2420' : '#9f332f';
+    if(el){
+      el.textContent = msg || '';
+      el.style.color = ok ? '#3e2420' : '#9f332f';
+    }
+  }
+
+  function renderLoadError(error){
+    const list = document.getElementById('requiredContentList');
+    const message = error?.message || error?.code || error || 'خطأ غير معروف';
+    if(list){
+      list.innerHTML = `<article class="empty-database-state">
+        <div class="empty-icon">!</div>
+        <div>
+          <span class="eyebrow">المحتوى المطلوب</span>
+          <h4>فشل تحميل الأنواع</h4>
+          <p>${esc(message)}</p>
+        </div>
+      </article>`;
+    }
+    note('⚠️ فشل تحميل المحتوى المطلوب: ' + message, false);
   }
 
   function db(){
@@ -96,22 +113,35 @@
   }
 
   async function load(){
+    const list = document.getElementById('requiredContentList');
     try{
       const firestore = db();
       if(unsubscribe) unsubscribe();
-      unsubscribe = firestore.collection(COLLECTION).orderBy('departmentKind').orderBy('title').onSnapshot((snap) => {
+
+      // بدون orderBy عشان الصفحة ما تحتاجش index وما تعلقش على جاري التحميل
+      unsubscribe = firestore.collection(COLLECTION).onSnapshot((snap) => {
         items = [];
         snap.forEach(doc => {
           const item = normalize(doc.data() || {}, doc.id);
           if(item) items.push(item);
         });
+        items.sort((a, b) => String(a.title || '').localeCompare(String(b.title || ''), 'ar'));
         render();
+        note('');
       }, (error) => {
         console.warn('required content live failed', error);
-        note('⚠️ فشل تحميل المحتوى المطلوب: ' + (error.message || error.code || error), false);
+        renderLoadError(error);
       });
+
+      // أمان: لو الـ onSnapshot ما رجعش بسرعة لأي سبب، نعرض حالة فاضية بدل التحميل المستمر
+      setTimeout(() => {
+        if(list && list.textContent.includes('جاري تحميل')) {
+          items = [];
+          render();
+        }
+      }, 4000);
     }catch(error){
-      note('⚠️ فشل تحميل المحتوى المطلوب: ' + (error.message || error.code || error), false);
+      renderLoadError(error);
     }
   }
 
@@ -139,12 +169,17 @@
       const firestore = db();
       if(id){
         await firestore.collection(COLLECTION).doc(id).set(payload, { merge:true });
+        items = items.map((item) => item.id === id ? normalize({ ...item, ...payload }, id) : item).filter(Boolean);
         note('✅ تم تعديل نوع المحتوى.');
       }else{
         payload.createdAt = now;
-        await firestore.collection(COLLECTION).doc('rct_' + Date.now()).set(payload, { merge:true });
+        const newId = 'rct_' + Date.now();
+        await firestore.collection(COLLECTION).doc(newId).set(payload, { merge:true });
+        const item = normalize(payload, newId);
+        if(item) items.unshift(item);
         note('✅ تم إضافة نوع المحتوى.');
       }
+      render();
       closeForm();
     }catch(error){
       note('⚠️ فشل الحفظ: ' + (error.message || error.code || error), false);

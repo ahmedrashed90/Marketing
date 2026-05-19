@@ -820,6 +820,50 @@ async function handleTaskAttachmentSelected(event) {
   }
 }
 
+
+function mzjDetailsDeptKey(deptName) {
+  const value = String(deptName || '').toLowerCase();
+  const map = {
+    shooting: ['تصوير','التصوير','photography','shooting'],
+    content: ['محتوى','المحتوى','content'],
+    design: ['تصميم','التصميم','design'],
+    montage: ['مونتاج','المونتاج','montage'],
+    publish: ['نشر','النشر','publish']
+  };
+  return Object.entries(map).find(([key, words]) => words.some((word) => value.includes(String(word).toLowerCase())))?.[0] || 'content';
+}
+
+function mzjDetailsLegacyReadinessKey(deptTask) {
+  return deptTask?.departmentId || deptTask?.departmentName || deptTask?.userName || '';
+}
+
+function mzjDetailsDeptIdentity(dept) {
+  if (typeof deptIdentity === 'function') return deptIdentity(dept);
+  return [
+    dept?.departmentId || dept?.departmentKey || dept?.departmentName || '',
+    dept?.userId || dept?.uid || dept?.assigneeUid || dept?.userEmail || dept?.userName || ''
+  ].map((value) => String(value || '').trim()).filter(Boolean).join('::');
+}
+
+function mzjDetailsReadinessKey(deptTask, deptIndex = 0) {
+  const stable = deptTask?.assignmentId || deptTask?.linkKey || deptTask?.taskNo || deptTask?.contentTaskId || deptTask?.contentType || deptTask?.requiredText || mzjDetailsDeptIdentity(deptTask) || mzjDetailsLegacyReadinessKey(deptTask) || 'dept';
+  return `${stable}::${deptIndex}`;
+}
+
+function mzjDetailsReadinessSteps(task, deptTask, deptIndex = 0) {
+  const readiness = task?.readiness || {};
+  const key = mzjDetailsReadinessKey(deptTask, deptIndex);
+  const legacyKey = mzjDetailsLegacyReadinessKey(deptTask);
+  return Array.isArray(readiness[key]) ? readiness[key] : (Array.isArray(readiness[legacyKey]) ? readiness[legacyKey] : []);
+}
+
+function mzjDetailsReadTasks() {
+  if (typeof readTasks === 'function') return readTasks();
+  if (window.MZJReadDashboardTasks) return window.MZJReadDashboardTasks();
+  if (window.MZJDashboardTaskAPI?.readTasks) return window.MZJDashboardTaskAPI.readTasks();
+  return [];
+}
+
 function openTaskDetails(button) {
   if (!taskDetailsModal || !taskStepButtons) return;
 
@@ -833,11 +877,12 @@ function openTaskDetails(button) {
 
   const taskId = activeTaskCard?.dataset.taskId || '';
   const deptKeyValue = button.dataset.deptKey || '';
-  const clickedIdentity = activeTaskCard?.dataset.deptIdentity || deptIdentity(deptDataFromButton || {});
-  const allTasks = typeof readTasks === 'function' ? readTasks() : [];
+  const clickedIdentity = activeTaskCard?.dataset.deptIdentity || mzjDetailsDeptIdentity(deptDataFromButton || {});
+  const allTasks = mzjDetailsReadTasks();
   const fullTask = allTasks.find((task) => String(task.id) === String(taskId));
   const departmentTasks = Array.isArray(fullTask?.departmentTasks) ? fullTask.departmentTasks : [];
-  const clickedIndex = departmentTasks.findIndex((dept) => String(deptIdentity(dept)) === String(clickedIdentity) && deptKey(dept.departmentName) === deptKeyValue);
+  const deptIndexFromButton = button.dataset.deptIndex === undefined || button.dataset.deptIndex === '' ? -1 : Number(button.dataset.deptIndex);
+  const clickedIndex = Number.isInteger(deptIndexFromButton) && deptIndexFromButton >= 0 ? deptIndexFromButton : departmentTasks.findIndex((dept) => String(mzjDetailsDeptIdentity(dept)) === String(clickedIdentity) && mzjDetailsDeptKey(dept.departmentName) === deptKeyValue);
   const clickedDeptIndex = clickedIndex >= 0 ? clickedIndex : 0;
   const clickedDept = clickedIndex >= 0 ? departmentTasks[clickedIndex] : (deptDataFromButton || {});
 
@@ -850,13 +895,13 @@ function openTaskDetails(button) {
   const relatedAssignments = departmentTasks
     .map((dept, index) => ({ dept, index }))
     .filter(({ dept }) => {
-      if (deptKey(dept.departmentName) !== deptKeyValue) return false;
+      if (mzjDetailsDeptKey(dept.departmentName) !== deptKeyValue) return false;
       const deptValues = [
         dept.userId, dept.userUid, dept.uid, dept.assigneeUid,
         dept.userEmail, dept.assigneeEmail, dept.email,
         dept.userName, dept.userDisplayName, dept.assigneeName, dept.responsible
       ].map((value) => String(value || '').trim().toLowerCase()).filter(Boolean);
-      if (!sameUserValues.length) return String(deptIdentity(dept)) === String(clickedIdentity);
+      if (!sameUserValues.length) return String(mzjDetailsDeptIdentity(dept)) === String(clickedIdentity);
       return deptValues.some((value) => sameUserValues.includes(value));
     });
 
@@ -873,9 +918,9 @@ function openTaskDetails(button) {
     taskType: activeTaskCard?.dataset.taskType || '',
     deptData: deptDataFromButton,
     relatedAssignments: assignments.map(({ dept, index }) => ({
-      deptIdentity: deptIdentity(dept),
-      readinessKey: dashboardDeptReadinessKey(dept, index),
-      legacyReadinessKey: legacyDeptReadinessKey(dept),
+      deptIdentity: mzjDetailsDeptIdentity(dept),
+      readinessKey: mzjDetailsReadinessKey(dept, index),
+      legacyReadinessKey: mzjDetailsLegacyReadinessKey(dept),
       deptIndex: index,
       deptData: dept
     }))
@@ -901,16 +946,16 @@ function openTaskDetails(button) {
   const totalAssignments = Math.max(assignments.length, 1);
 
   assignments.forEach(({ dept, index: deptIndex }, assignmentIndex) => {
-    const readinessKey = dashboardDeptReadinessKey(dept, deptIndex);
-    const selected = readinessStepsForDept(fullTask || {}, dept, deptIndex).map(String);
+    const readinessKey = mzjDetailsReadinessKey(dept, deptIndex);
+    const selected = mzjDetailsReadinessSteps(fullTask || {}, dept, deptIndex).map(String);
     const steps = decodeTaskSteps(button.dataset.steps || '', deptKeyValue);
     const block = document.createElement('section');
     block.className = 'assignment-step-block';
     block.dataset.assignmentStepBlock = 'true';
     block.dataset.readinessKey = readinessKey;
-    block.dataset.legacyReadinessKey = legacyDeptReadinessKey(dept);
+    block.dataset.legacyReadinessKey = mzjDetailsLegacyReadinessKey(dept);
     block.dataset.deptIndex = String(deptIndex);
-    block.dataset.deptIdentity = deptIdentity(dept);
+    block.dataset.deptIdentity = mzjDetailsDeptIdentity(dept);
 
     const assignmentTitle = [
       dept.contentType || dept.deliverable || dept.taskNo || '',
@@ -5254,7 +5299,7 @@ initCreateTaskFromTemplate();
       </div>
       <div class="department-progress-row"><div class="department-progress-box"><small>اكتمال التاسك</small><strong data-task-percent>${p}%</strong></div><div class="department-progress-box"><small>نسبة الحملة</small><strong data-campaign-percent>${Math.round(p / Math.max((task.departmentTasks||[]).length,1))}%</strong></div></div>
       <div class="mini-progress"><span data-task-bar style="width:${p}%"></span></div>
-      <div class="task-card-actions"><button class="details-btn" type="button" data-open-task-details data-dept-key="${esc(dkey)}" data-dept="${esc(deptTask.departmentName || 'قسم')}" data-task-title="${esc(taskTitle(task))}" data-required="${esc(formatDepartmentRequirement(deptTask))}" data-dept-task-json="${esc(encodeURIComponent(JSON.stringify(deptTask || {})))}" data-steps="${esc(steps)}">تفاصيل</button><button class="soft-btn receive-task-btn ${(deptTask.receivedConfirmed || deptTask.received || deptTask.receivedAt) ? 'is-done' : ''}" type="button" data-receive-task data-task-id="${esc(task.id)}" data-dept-index="${esc(deptIndex)}" data-readiness-key="${esc(key)}" data-dept-identity="${esc(deptIdentity(deptTask))}" ${(deptTask.receivedConfirmed || deptTask.received || deptTask.receivedAt) ? 'disabled' : ''}>${(deptTask.receivedConfirmed || deptTask.received || deptTask.receivedAt) ? 'تم تأكيد الاستلام' : 'تأكيد استلام التاسك'}</button></div>
+      <div class="task-card-actions"><button class="details-btn" type="button" data-open-task-details data-dept-index="${esc(deptIndex)}" data-readiness-key="${esc(key)}" data-dept-key="${esc(dkey)}" data-dept="${esc(deptTask.departmentName || 'قسم')}" data-task-title="${esc(taskTitle(task))}" data-required="${esc(formatDepartmentRequirement(deptTask))}" data-dept-task-json="${esc(encodeURIComponent(JSON.stringify(deptTask || {})))}" data-steps="${esc(steps)}">تفاصيل</button><button class="soft-btn receive-task-btn ${(deptTask.receivedConfirmed || deptTask.received || deptTask.receivedAt) ? 'is-done' : ''}" type="button" data-receive-task data-task-id="${esc(task.id)}" data-dept-index="${esc(deptIndex)}" data-readiness-key="${esc(key)}" data-dept-identity="${esc(deptIdentity(deptTask))}" ${(deptTask.receivedConfirmed || deptTask.received || deptTask.receivedAt) ? 'disabled' : ''}>${(deptTask.receivedConfirmed || deptTask.received || deptTask.receivedAt) ? 'تم تأكيد الاستلام' : 'تأكيد استلام التاسك'}</button></div>
     </article>`;
   }
 

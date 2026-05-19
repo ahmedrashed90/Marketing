@@ -1746,6 +1746,38 @@ function renderUserOptions(users, departmentId = '', allowFallback = true) {
   }).join('');
 }
 
+function renderDepartmentTargetOptions(selectedIds = []) {
+  const selectedSet = new Set((Array.isArray(selectedIds) ? selectedIds : [selectedIds]).map((id) => String(id || '')));
+  const list = (departmentsCache || []).filter(Boolean);
+  if (!list.length) return '<option value="">لا توجد أقسام محفوظة</option>';
+  return list.map((dept) => `<option value="${escapeHTML(dept.id || dept.name || '')}" data-department-name="${escapeHTML(dept.name || '')}" data-department-kind="${escapeHTML(deptKindFromName(dept.name || ''))}" ${selectedSet.has(String(dept.id || dept.name || '')) ? 'selected' : ''}>${escapeHTML(dept.name || dept.id || 'قسم')}</option>`).join('');
+}
+
+function usersForSelectedDepartmentIds(ids) {
+  const selectedIds = (ids || []).map((id) => String(id || '')).filter(Boolean);
+  if (!selectedIds.length) return usersCache || [];
+  const merged = new Map();
+  selectedIds.forEach((deptId) => {
+    const dept = (departmentsCache || []).find((item) => String(item.id || item.name || '') === String(deptId));
+    usersForDepartment(dept, usersCache).forEach((user) => {
+      const normalized = normalizeSystemUser(user);
+      const key = String(normalized?.uid || normalized?.id || normalized?.email || normalized?.name || '').trim().toLowerCase();
+      if (key) merged.set(key, normalized);
+    });
+  });
+  return Array.from(merged.values());
+}
+
+function renderUserOptionsForDepartmentIds(ids, selectedValues = []) {
+  const selectedSet = new Set((Array.isArray(selectedValues) ? selectedValues : [selectedValues]).map((value) => String(value || '')));
+  const list = usersForSelectedDepartmentIds(ids).map(normalizeSystemUser).filter(Boolean);
+  if (!list.length) return '<option value="">لا يوجد يوزرات في الأقسام المختارة</option>';
+  return list.map((user) => {
+    const value = user.email || user.name || user.id;
+    return `<option value="${escapeHTML(value)}" data-user-id="${escapeHTML(user.id || '')}" data-user-uid="${escapeHTML(user.uid || user.id || '')}" data-user-name="${escapeHTML(user.name || '')}" data-user-email="${escapeHTML(user.email || '')}" ${selectedSet.has(String(value || '')) ? 'selected' : ''}>${escapeHTML(user.label || value)}</option>`;
+  }).join('');
+}
+
 function usersForDepartment(dept, allUsers) {
   const normalizedAllUsers = (allUsers || []).map(normalizeSystemUser).filter(Boolean);
   const byKey = new Map();
@@ -2332,7 +2364,7 @@ function initCreateTaskFromTemplate() {
   }
 
   function createDepartmentAssignmentHTML(dept, index = 1) {
-    const kind = deptKindFromName(dept.name);
+    const kind = 'content';
     return `
       <article class="department-assignment-row" data-department-assignment-row data-assignment-index="${escapeHTML(index)}">
         <div class="department-assignment-head">
@@ -2345,8 +2377,12 @@ function initCreateTaskFromTemplate() {
             <input type="text" data-assignment-task-name placeholder="اكتب اسم التاسك">
           </label>
           <label class="mzj-field">
-            <span>اليوزرات / المسؤولين (اختار أكتر من يوزر)</span>
-            <select data-user-select multiple size="5">${renderUserOptions(usersForDepartment(dept, usersCache), '', false)}</select>
+            <span>الأقسام المطلوبة (اختار أكتر من قسم)</span>
+            <select data-target-department-select multiple size="5">${renderDepartmentTargetOptions()}</select>
+          </label>
+          <label class="mzj-field">
+            <span>اليوزرات / المسؤولين في الأقسام المختارة</span>
+            <select data-user-select multiple size="5">${renderUserOptionsForDepartmentIds([])}</select>
           </label>
         </div>
 
@@ -2383,29 +2419,28 @@ function initCreateTaskFromTemplate() {
 
   function createDepartmentRow(dept) {
     const row = document.createElement('article');
-    const kind = deptKindFromName(dept.name);
-    row.className = 'department-task-row department-task-row-selectable department-accordion-row';
-    row.dataset.departmentId = dept.id;
-    row.dataset.departmentKind = kind;
+    row.className = 'department-task-row department-task-row-selectable department-accordion-row is-open is-selected';
+    row.dataset.departmentId = dept.id || 'content';
+    row.dataset.departmentKind = 'content';
     row.innerHTML = `
       <div class="department-row-head">
-        <input type="checkbox" data-department-enabled hidden>
+        <input type="checkbox" data-department-enabled hidden checked>
         <button class="department-toggle-btn" type="button" data-department-toggle>
-          <strong>${escapeHTML(dept.name)}</strong>
-          <small>\u0627\u0641\u062a\u062d \u0627\u0644\u0642\u0633\u0645 \u0648\u0636\u064a\u0641 \u0623\u0643\u062b\u0631 \u0645\u0646 \u064a\u0648\u0632\u0631\u060c \u0648\u0644\u0643\u0644 \u064a\u0648\u0632\u0631 \u0645\u0637\u0644\u0648\u0628 \u0645\u062e\u062a\u0644\u0641</small>
+          <strong>قسم المحتوى</strong>
+          <small>من هنا فقط اكتب المطلوب، اختار الأقسام، واختار يوزر أو أكتر لكل تاسك.</small>
         </button>
-        <span class="department-source-label">departments</span>
+        <span class="department-source-label">content only</span>
       </div>
 
       <div class="department-task-body" data-department-body>
         <div class="department-assignments-head">
-          <strong>\u062a\u0643\u0644\u064a\u0641\u0627\u062a ${escapeHTML(dept.name)}</strong>
-          <button class="soft-btn" type="button" data-add-department-assignment>+ \u0625\u0636\u0627\u0641\u0629 \u064a\u0648\u0632\u0631 / \u0645\u0637\u0644\u0648\u0628</button>
+          <strong>تكليفات قسم المحتوى</strong>
+          <button class="soft-btn" type="button" data-add-department-assignment>+ إضافة مطلوب / يوزرات</button>
         </div>
         <div class="department-assignments-list" data-department-assignments-list>
           ${createDepartmentAssignmentHTML(dept, 1)}
         </div>
-        <p class="admin-only-note department-receive-note">\u062a\u0623\u0643\u064a\u062f \u0627\u0633\u062a\u0644\u0627\u0645 \u0627\u0644\u062a\u0627\u0633\u0643 \u0648\u062a\u0627\u0631\u064a\u062e \u0627\u0644\u0627\u0633\u062a\u0644\u0627\u0645 \u0648\u0631\u0641\u0639 \u0627\u0644\u0645\u0644\u0641 \u064a\u062a\u0645 \u0645\u0646 \u0643\u0627\u0631\u062a \u0627\u0644\u064a\u0648\u0632\u0631 \u0641\u064a \u0627\u0644\u062f\u0627\u0634 \u0628\u0648\u0631\u062f.</p>
+        <p class="admin-only-note department-receive-note">تم إلغاء بلوكات الأقسام المنفصلة. اختار الأقسام واليوزرات من داخل قسم المحتوى فقط.</p>
       </div>
     `;
     departmentsList.appendChild(row);
@@ -2413,7 +2448,8 @@ function initCreateTaskFromTemplate() {
 
   function renderAllDepartments() {
     departmentsList.innerHTML = '';
-    departmentsCache.forEach((dept) => createDepartmentRow(dept));
+    const contentDept = (departmentsCache || []).find((dept) => deptKindFromName(dept.name || '') === 'content') || { id: 'content', name: 'قسم المحتوى' };
+    createDepartmentRow(contentDept);
   }
 
   function renderBudgetFunnelOptions(selected = '') {
@@ -4100,60 +4136,70 @@ function initCreateTaskFromTemplate() {
     Array.from(departmentsList.querySelectorAll('.department-task-row')).forEach((deptRow) => {
       const enabled = Boolean(deptRow.querySelector('[data-department-enabled]')?.checked);
       if (!enabled) return;
-      const departmentId = deptRow.dataset.departmentId || '';
-      const department = departmentsCache.find((dept) => String(dept.id) === String(departmentId));
-      const kind = deptRow.dataset.departmentKind || deptKindFromName(department?.name || '');
       Array.from(deptRow.querySelectorAll('[data-department-assignment-row]')).forEach((assignmentRow, assignmentIndex) => {
-        const special = collectSpecialDepartmentDetails(assignmentRow, kind);
+        const baseKind = 'content';
+        const special = collectSpecialDepartmentDetails(assignmentRow, baseKind);
         const requiredText = special.requiredText || '';
         const taskName = assignmentRow.querySelector('[data-assignment-task-name]')?.value.trim() || '';
+        const targetSelect = assignmentRow.querySelector('[data-target-department-select]');
+        const selectedDepartments = Array.from(targetSelect?.selectedOptions || []).filter((option) => option.value).map((option) => {
+          const dept = (departmentsCache || []).find((item) => String(item.id || item.name || '') === String(option.value));
+          return {
+            id: dept?.id || option.value,
+            name: dept?.name || option.dataset.departmentName || option.textContent || option.value,
+            kind: deptKindFromName(dept?.name || option.dataset.departmentKind || option.textContent || '')
+          };
+        });
+        const targetDepartments = selectedDepartments.length ? selectedDepartments : [{ id: 'content', name: 'قسم المحتوى', kind: 'content' }];
         const userSelect = assignmentRow.querySelector('[data-user-select]');
         const selectedOptions = Array.from(userSelect?.selectedOptions || []).filter((option) => option.value);
         const optionsToSave = selectedOptions.length ? selectedOptions : [null];
         const assignmentNo = assignmentIndex + 1;
-        optionsToSave.forEach((selectedOption) => {
-          const selectedUser = selectedOption?.value || '';
-          const optionText = selectedOption?.textContent || '';
-          const selectedName = selectedOption?.dataset.userName || (selectedUser ? optionText : '');
-          const selectedEmail = selectedOption?.dataset.userEmail || selectedUser;
-          const selectedId = selectedOption?.dataset.userId || selectedOption?.dataset.userUid || selectedEmail || selectedName;
-          const item = {
-            enabled,
-            departmentId,
-            departmentKind: kind,
-            departmentName: department?.name || '',
-            assignmentIndex: assignmentNo,
-            assignmentLabel: (department?.name || '') + ' - ' + 'تكليف ' + assignmentNo + (selectedName ? ' - ' + selectedName : ''),
-            taskName,
-            requiredTaskName: taskName,
-            userId: selectedId,
-            userUid: selectedOption?.dataset.userUid || selectedId,
-            userName: selectedName,
-            userDisplayName: selectedName,
-            userEmail: selectedEmail,
-            assigneeUid: selectedOption?.dataset.userUid || selectedId,
-            assigneeEmail: selectedEmail,
-            assigneeName: selectedName,
-            receiveDate: '',
-            requiredDate: '',
-            deliveryDate: '',
-            inspectionDate: '',
-            receivedConfirmed: false,
-            received: false,
-            receivedAt: '',
-            receivedBy: '',
-            attachmentLabel: attachmentLabelForKind(kind),
-            requiredText: [taskName ? 'اسم التاسك: ' + taskName : '', requiredText].filter(Boolean).join(' | '),
-            deliveryDetails: requiredText,
-            requiredDetails: special,
-            photoItems: kind === 'photography' ? (special.items || []) : [],
-            contentItems: special.items || [],
-            selectedDeliverables: special.deliverables || [],
-            contentType: special.contentType || '',
-            carType: special.carType || '',
-            printSize: special.printSize || ''
-          };
-          if (item.departmentId || item.userName || item.requiredText || item.taskName) tasks.push(item);
+        targetDepartments.forEach((targetDept) => {
+          optionsToSave.forEach((selectedOption) => {
+            const selectedUser = selectedOption?.value || '';
+            const optionText = selectedOption?.textContent || '';
+            const selectedName = selectedOption?.dataset.userName || (selectedUser ? optionText : '');
+            const selectedEmail = selectedOption?.dataset.userEmail || selectedUser;
+            const selectedId = selectedOption?.dataset.userId || selectedOption?.dataset.userUid || selectedEmail || selectedName;
+            const item = {
+              enabled,
+              departmentId: targetDept.id,
+              departmentKind: targetDept.kind,
+              departmentName: targetDept.name,
+              assignmentIndex: assignmentNo,
+              assignmentLabel: (targetDept.name || '') + ' - ' + 'تكليف ' + assignmentNo + (selectedName ? ' - ' + selectedName : ''),
+              taskName,
+              requiredTaskName: taskName,
+              userId: selectedId,
+              userUid: selectedOption?.dataset.userUid || selectedId,
+              userName: selectedName,
+              userDisplayName: selectedName,
+              userEmail: selectedEmail,
+              assigneeUid: selectedOption?.dataset.userUid || selectedId,
+              assigneeEmail: selectedEmail,
+              assigneeName: selectedName,
+              receiveDate: '',
+              requiredDate: '',
+              deliveryDate: '',
+              inspectionDate: '',
+              receivedConfirmed: false,
+              received: false,
+              receivedAt: '',
+              receivedBy: '',
+              attachmentLabel: attachmentLabelForKind(targetDept.kind),
+              requiredText: [taskName ? 'اسم التاسك: ' + taskName : '', requiredText].filter(Boolean).join(' | '),
+              deliveryDetails: requiredText,
+              requiredDetails: { ...special, assignedFromContentBlock: true, targetDepartmentId: targetDept.id, targetDepartmentName: targetDept.name },
+              photoItems: targetDept.kind === 'photography' ? (special.items || []) : [],
+              contentItems: special.items || [],
+              selectedDeliverables: special.deliverables || [],
+              contentType: special.contentType || '',
+              carType: special.carType || '',
+              printSize: special.printSize || ''
+            };
+            if (item.departmentId || item.userName || item.requiredText || item.taskName) tasks.push(item);
+          });
         });
       });
     });
@@ -4462,6 +4508,16 @@ function initCreateTaskFromTemplate() {
   });
 
   departmentsList.addEventListener('change', (event) => {
+    const targetDepartmentSelect = event.target.closest('[data-target-department-select]');
+    if (targetDepartmentSelect) {
+      const assignmentRow = targetDepartmentSelect.closest('[data-department-assignment-row]');
+      const userSelect = assignmentRow?.querySelector('[data-user-select]');
+      const selectedDeptIds = Array.from(targetDepartmentSelect.selectedOptions || []).map((option) => option.value).filter(Boolean);
+      const selectedUsers = Array.from(userSelect?.selectedOptions || []).map((option) => option.value).filter(Boolean);
+      if (userSelect) userSelect.innerHTML = renderUserOptionsForDepartmentIds(selectedDeptIds, selectedUsers);
+      return;
+    }
+
     const universalSelect = event.target.closest('[data-universal-content-type]');
     if (universalSelect) {
       const item = universalSelect.closest('[data-universal-required-item]');

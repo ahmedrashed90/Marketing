@@ -5159,3 +5159,88 @@ body.sidebar-collapsed .database-main {
     grid-template-columns:1fr;
   }
 }
+
+
+/* Multiple assignments inside one user task details modal */
+.assignment-required-list{
+  display:grid;
+  gap:12px;
+}
+.assignment-required-item{
+  border:1px solid rgba(75,36,31,.10);
+  border-radius:18px;
+  background:#fff;
+  padding:14px;
+}
+.assignment-required-item > strong{
+  display:block;
+  color:var(--brown,#4b241f);
+  margin-bottom:8px;
+  font-weight:900;
+}
+.assignment-step-block{
+  border:1px solid rgba(75,36,31,.12);
+  border-radius:22px;
+  background:#fffaf6;
+  padding:16px;
+  display:grid;
+  gap:14px;
+  margin-bottom:16px;
+}
+.assignment-step-head{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:14px;
+  border-bottom:1px solid rgba(75,36,31,.08);
+  padding-bottom:12px;
+}
+.assignment-step-head span{
+  display:block;
+  color:#9a7d70;
+  font-weight:900;
+  font-size:12px;
+  margin-bottom:4px;
+}
+.assignment-step-head strong{
+  color:var(--brown,#4b241f);
+  font-size:17px;
+  line-height:1.8;
+}
+.assignment-step-progress{
+  min-width:160px;
+  display:grid;
+  grid-template-columns:1fr auto;
+  gap:4px 10px;
+  background:#fff;
+  border:1px solid rgba(75,36,31,.08);
+  border-radius:16px;
+  padding:10px 12px;
+}
+.assignment-step-progress small{
+  color:#9a7d70;
+  font-weight:800;
+}
+.assignment-step-progress b{
+  color:var(--brown,#4b241f);
+  font-weight:900;
+}
+.assignment-step-required{
+  border:1px dashed rgba(75,36,31,.12);
+  border-radius:16px;
+  padding:12px;
+  background:#fff;
+}
+.assignment-step-buttons{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(140px,1fr));
+  gap:12px;
+}
+@media(max-width:760px){
+  .assignment-step-head{
+    flex-direction:column;
+  }
+  .assignment-step-progress{
+    width:100%;
+  }
+}

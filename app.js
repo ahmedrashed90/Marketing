@@ -128,6 +128,46 @@ function isAdminUser() {
 function syncTaskProgress() {
   if (!taskStepButtons) return;
 
+  const blocks = Array.from(taskStepButtons.querySelectorAll('[data-assignment-step-block]'));
+  if (blocks.length) {
+    let taskTotal = 0;
+    let campaignTotal = 0;
+
+    blocks.forEach((block) => {
+      const buttons = Array.from(block.querySelectorAll('.task-step-btn'));
+      const activeButtons = buttons.filter((btn) => btn.classList.contains('is-done'));
+      const taskPercent = Math.min(100, Math.round(activeButtons.reduce((sum, btn) => sum + Number(btn.dataset.stepValue || 0), 0)));
+      const campaignPercent = Math.round(activeButtons.reduce((sum, btn) => sum + Number(btn.dataset.campaignValue || 0), 0));
+      const percentNode = block.querySelector('[data-assignment-task-percent]');
+      const campaignNode = block.querySelector('[data-assignment-campaign-percent]');
+      if (percentNode) percentNode.textContent = taskPercent + '%';
+      if (campaignNode) campaignNode.textContent = campaignPercent + '%';
+      taskTotal += taskPercent;
+      campaignTotal += campaignPercent;
+      if (activeTaskCard && block.dataset.readinessKey === activeTaskCard.dataset.readinessKey) {
+        activeTaskCard.dataset.completedSteps = activeButtons.map((btn) => btn.dataset.stepIndex).join(',');
+      }
+    });
+
+    const taskPercent = Math.round(taskTotal / Math.max(blocks.length, 1));
+    const campaignPercent = Math.round(campaignTotal);
+    if (modalTaskPercent) modalTaskPercent.textContent = taskPercent + '%';
+    if (modalCampaignPercent) modalCampaignPercent.textContent = campaignPercent + '%';
+
+    if (activeTaskCard) {
+      const activeBlock = blocks.find((block) => block.dataset.readinessKey === activeTaskCard.dataset.readinessKey) || blocks[0];
+      const activeTaskPercent = Number((activeBlock?.querySelector('[data-assignment-task-percent]')?.textContent || '0').replace(/[^0-9.]/g, '')) || 0;
+      const activeCampaignPercent = Number((activeBlock?.querySelector('[data-assignment-campaign-percent]')?.textContent || '0').replace(/[^0-9.]/g, '')) || 0;
+      const taskPercentNode = activeTaskCard.querySelector('[data-task-percent]');
+      const campaignPercentNode = activeTaskCard.querySelector('[data-campaign-percent]');
+      const bar = activeTaskCard.querySelector('[data-task-bar]');
+      if (taskPercentNode) taskPercentNode.textContent = activeTaskPercent + '%';
+      if (campaignPercentNode) campaignPercentNode.textContent = activeCampaignPercent + '%';
+      if (bar) bar.style.width = activeTaskPercent + '%';
+    }
+    return;
+  }
+
   const allButtons = Array.from(taskStepButtons.querySelectorAll('.task-step-btn'));
   const activeButtons = allButtons.filter((btn) => btn.classList.contains('is-done'));
   const taskPercent = Math.min(100, Math.round(activeButtons.reduce((sum, btn) => sum + Number(btn.dataset.stepValue || 0), 0)));
@@ -784,58 +824,144 @@ function openTaskDetails(button) {
   if (!taskDetailsModal || !taskStepButtons) return;
 
   activeTaskCard = button.closest('[data-dept-task-card]') || button.closest('.dept-card-template');
-  const selected = (activeTaskCard?.dataset.completedSteps || '').split(',').filter(Boolean);
   let deptDataFromButton = null;
   try {
     deptDataFromButton = button.dataset.deptTaskJson ? JSON.parse(decodeURIComponent(button.dataset.deptTaskJson)) : null;
   } catch (error) {
     deptDataFromButton = null;
   }
+
+  const taskId = activeTaskCard?.dataset.taskId || '';
+  const deptKeyValue = button.dataset.deptKey || '';
+  const clickedIdentity = activeTaskCard?.dataset.deptIdentity || deptIdentity(deptDataFromButton || {});
+  const allTasks = typeof readTasks === 'function' ? readTasks() : [];
+  const fullTask = allTasks.find((task) => String(task.id) === String(taskId));
+  const departmentTasks = Array.isArray(fullTask?.departmentTasks) ? fullTask.departmentTasks : [];
+  const clickedIndex = departmentTasks.findIndex((dept) => String(deptIdentity(dept)) === String(clickedIdentity) && deptKey(dept.departmentName) === deptKeyValue);
+  const clickedDeptIndex = clickedIndex >= 0 ? clickedIndex : 0;
+  const clickedDept = clickedIndex >= 0 ? departmentTasks[clickedIndex] : (deptDataFromButton || {});
+
+  const sameUserValues = [
+    clickedDept.userId, clickedDept.userUid, clickedDept.uid, clickedDept.assigneeUid,
+    clickedDept.userEmail, clickedDept.assigneeEmail, clickedDept.email,
+    clickedDept.userName, clickedDept.userDisplayName, clickedDept.assigneeName, clickedDept.responsible
+  ].map((value) => String(value || '').trim().toLowerCase()).filter(Boolean);
+
+  const relatedAssignments = departmentTasks
+    .map((dept, index) => ({ dept, index }))
+    .filter(({ dept }) => {
+      if (deptKey(dept.departmentName) !== deptKeyValue) return false;
+      const deptValues = [
+        dept.userId, dept.userUid, dept.uid, dept.assigneeUid,
+        dept.userEmail, dept.assigneeEmail, dept.email,
+        dept.userName, dept.userDisplayName, dept.assigneeName, dept.responsible
+      ].map((value) => String(value || '').trim().toLowerCase()).filter(Boolean);
+      if (!sameUserValues.length) return String(deptIdentity(dept)) === String(clickedIdentity);
+      return deptValues.some((value) => sameUserValues.includes(value));
+    });
+
+  const assignments = relatedAssignments.length ? relatedAssignments : [{ dept: clickedDept, index: clickedDeptIndex }];
+
   activeTaskDetailsMeta = {
-    taskId: activeTaskCard?.dataset.taskId || '',
-    deptIdentity: activeTaskCard?.dataset.deptIdentity || '',
+    taskId,
+    deptIdentity: clickedIdentity,
     legacyReadinessKey: activeTaskCard?.dataset.legacyReadinessKey || '',
-    deptKey: button.dataset.deptKey || '',
+    deptKey: deptKeyValue,
     departmentName: button.dataset.dept || '',
     campaignName: button.dataset.taskTitle || '',
     campaignCode: activeTaskCard?.dataset.campaignCode || '',
     taskType: activeTaskCard?.dataset.taskType || '',
-    deptData: deptDataFromButton
+    deptData: deptDataFromButton,
+    relatedAssignments: assignments.map(({ dept, index }) => ({
+      deptIdentity: deptIdentity(dept),
+      readinessKey: dashboardDeptReadinessKey(dept, index),
+      legacyReadinessKey: legacyDeptReadinessKey(dept),
+      deptIndex: index,
+      deptData: dept
+    }))
   };
 
   if (taskDetailsDept) taskDetailsDept.textContent = button.dataset.dept || 'تفاصيل القسم';
   if (taskDetailsTitle) taskDetailsTitle.textContent = button.dataset.taskTitle || 'تفاصيل التاسك';
+
   if (taskDetailsRequired) {
-    taskDetailsRequired.innerHTML = renderTaskRequirementDetails(button.dataset.required || '', button.dataset.deptKey || '');
+    if (assignments.length > 1) {
+      taskDetailsRequired.innerHTML = `<div class="assignment-required-list">${assignments.map(({ dept }, idx) => `
+        <article class="assignment-required-item">
+          <strong>تكليف ${idx + 1}</strong>
+          <div>${renderTaskRequirementDetails(formatDepartmentRequirement(dept), deptKeyValue)}</div>
+        </article>`).join('')}</div>`;
+    } else {
+      taskDetailsRequired.innerHTML = renderTaskRequirementDetails(button.dataset.required || formatDepartmentRequirement(clickedDept), deptKeyValue);
+    }
   }
 
   taskStepButtons.innerHTML = '';
-  const deptKeyValue = button.dataset.deptKey || activeTaskDetailsMeta?.deptKey || '';
-  const steps = decodeTaskSteps(button.dataset.steps || '', deptKeyValue);
   const deptCampaignShare = activeTaskCard ? Number(activeTaskCard.dataset.departmentShare || 0) : 0;
+  const totalAssignments = Math.max(assignments.length, 1);
 
-  steps.forEach((step, index) => {
-    const isApprovalStep = Boolean(step.adminOnly) || String(step.label || '').includes('اعتماد');
-    const stepValue = Number(step.value || 0);
-    const campaignValue = Math.round((deptCampaignShare * stepValue / 100) * 100) / 100;
-    const stepButton = document.createElement('button');
-    stepButton.type = 'button';
-    stepButton.className = 'task-step-btn';
-    stepButton.dataset.stepIndex = String(index);
-    stepButton.dataset.stepValue = String(stepValue);
-    stepButton.dataset.campaignValue = String(campaignValue);
+  assignments.forEach(({ dept, index: deptIndex }, assignmentIndex) => {
+    const readinessKey = dashboardDeptReadinessKey(dept, deptIndex);
+    const selected = readinessStepsForDept(fullTask || {}, dept, deptIndex).map(String);
+    const steps = decodeTaskSteps(button.dataset.steps || '', deptKeyValue);
+    const block = document.createElement('section');
+    block.className = 'assignment-step-block';
+    block.dataset.assignmentStepBlock = 'true';
+    block.dataset.readinessKey = readinessKey;
+    block.dataset.legacyReadinessKey = legacyDeptReadinessKey(dept);
+    block.dataset.deptIndex = String(deptIndex);
+    block.dataset.deptIdentity = deptIdentity(dept);
 
-    if (isApprovalStep) {
-      stepButton.classList.add('is-approval-step');
-      if (!isAdminUser()) {
-        stepButton.disabled = true;
-        stepButton.title = 'أدمن فقط';
+    const assignmentTitle = [
+      dept.contentType || dept.deliverable || dept.taskNo || '',
+      dept.carType || '',
+      dept.requiredDate ? `مطلوب: ${dept.requiredDate}` : ''
+    ].filter(Boolean).join(' — ');
+
+    block.innerHTML = `
+      <div class="assignment-step-head">
+        <div>
+          <span>تكليف ${assignmentIndex + 1}</span>
+          <strong>${escapeHTML(assignmentTitle || formatDepartmentRequirement(dept).slice(0, 90) || 'تكليف مطلوب')}</strong>
+        </div>
+        <div class="assignment-step-progress">
+          <small>اكتمال التكليف</small>
+          <b data-assignment-task-percent>0%</b>
+          <small>نسبة الحملة</small>
+          <b data-assignment-campaign-percent>0%</b>
+        </div>
+      </div>
+      <div class="assignment-step-required">${renderTaskRequirementDetails(formatDepartmentRequirement(dept), deptKeyValue)}</div>
+      <div class="assignment-step-buttons" data-assignment-step-buttons></div>
+    `;
+
+    const buttonsWrap = block.querySelector('[data-assignment-step-buttons]');
+    steps.forEach((step, stepIndex) => {
+      const isApprovalStep = Boolean(step.adminOnly) || String(step.label || '').includes('اعتماد');
+      const stepValue = Number(step.value || 0);
+      const campaignValue = Math.round(((deptCampaignShare / totalAssignments) * stepValue / 100) * 100) / 100;
+      const stepButton = document.createElement('button');
+      stepButton.type = 'button';
+      stepButton.className = 'task-step-btn';
+      stepButton.dataset.stepIndex = String(stepIndex);
+      stepButton.dataset.stepValue = String(stepValue);
+      stepButton.dataset.campaignValue = String(campaignValue);
+      stepButton.dataset.readinessKey = readinessKey;
+
+      if (isApprovalStep) {
+        stepButton.classList.add('is-approval-step');
+        if (!isAdminUser()) {
+          stepButton.disabled = true;
+          stepButton.title = 'أدمن فقط';
+        }
       }
-    }
 
-    if (selected.includes(String(index))) stepButton.classList.add('is-done');
-    stepButton.innerHTML = `<span>${escapeHTML(step.label || 'خطوة')}</span><small>${stepValue}% من التاسك<br>${campaignValue}% من الحملة${isApprovalStep ? '<br>أدمن فقط' : ''}</small>`;
-    taskStepButtons.appendChild(stepButton);
+      if (selected.includes(String(stepIndex))) stepButton.classList.add('is-done');
+      stepButton.innerHTML = `<span>${escapeHTML(step.label || 'خطوة')}</span><small>${stepValue}% من التكليف<br>${campaignValue}% من الحملة${isApprovalStep ? '<br>أدمن فقط' : ''}</small>`;
+      buttonsWrap.appendChild(stepButton);
+    });
+
+    taskStepButtons.appendChild(block);
   });
 
   let attachBox = taskDetailsModal.querySelector('[data-task-attachment-box]');
@@ -848,6 +974,7 @@ function openTaskDetails(button) {
   if (attachBox) {
     attachBox.innerHTML = `<button class="soft-btn upload-task-file-btn" type="button" data-upload-task-attachment>${attachmentLabelForDeptKey(button.dataset.deptKey || '')}</button>${renderTaskAttachmentList(activeTaskDetailsMeta)}`;
   }
+
   taskDetailsModal.classList.add('is-open');
   taskDetailsModal.setAttribute('aria-hidden', 'false');
   syncTaskProgress();
@@ -5187,11 +5314,24 @@ initCreateTaskFromTemplate();
       const tasks = readTasks();
       const task = tasks.find(t => t.id === activeTaskCard.dataset.taskId);
       if (!task) return;
-      const key = activeTaskCard.dataset.readinessKey || '';
-      const legacyKey = activeTaskDetailsMeta?.legacyReadinessKey || '';
       task.readiness = task.readiness || {};
-      if (legacyKey && legacyKey !== key) delete task.readiness[legacyKey];
-      task.readiness[key] = (activeTaskCard.dataset.completedSteps || '').split(',').filter(Boolean).map(Number);
+
+      const blocks = Array.from(taskStepButtons?.querySelectorAll('[data-assignment-step-block]') || []);
+      if (blocks.length) {
+        blocks.forEach((block) => {
+          const key = block.dataset.readinessKey || '';
+          const legacyKey = block.dataset.legacyReadinessKey || '';
+          const selected = Array.from(block.querySelectorAll('.task-step-btn.is-done')).map((btn) => Number(btn.dataset.stepIndex)).filter((value) => !Number.isNaN(value));
+          if (legacyKey && legacyKey !== key) delete task.readiness[legacyKey];
+          if (key) task.readiness[key] = selected;
+        });
+      } else {
+        const key = activeTaskCard.dataset.readinessKey || '';
+        const legacyKey = activeTaskDetailsMeta?.legacyReadinessKey || '';
+        if (legacyKey && legacyKey !== key) delete task.readiness[legacyKey];
+        task.readiness[key] = (activeTaskCard.dataset.completedSteps || '').split(',').filter(Boolean).map(Number);
+      }
+
       autoStage(task);
       saveTaskToFirestore(task).then(() => window.renderDashboardTasks()).catch((error) => alert('فشل تحديث تفاصيل التاسك في Firebase: ' + (error?.message || error?.code || error)));
     }, 0);

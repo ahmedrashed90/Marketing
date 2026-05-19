@@ -1587,11 +1587,11 @@ function escapeHTML(value) {
 }
 
 const MZJ_DEPARTMENTS_FALLBACK = [
-  { id: 'photography', name: 'قسم التصوير', users: ['ناجي'] },
-  { id: 'content', name: 'قسم المحتوى', users: ['بلال'] },
-  { id: 'design', name: 'قسم التصميم', users: ['عبدالله'] },
-  { id: 'montage', name: 'قسم المونتاج', users: ['محمود'] },
-  { id: 'publishing', name: 'قسم النشر', users: ['حسام'] }
+  { id: 'photography', name: 'قسم التصوير', users: [] },
+  { id: 'content', name: 'قسم المحتوى', users: [] },
+  { id: 'design', name: 'قسم التصميم', users: [] },
+  { id: 'montage', name: 'قسم المونتاج', users: [] },
+  { id: 'publishing', name: 'قسم النشر', users: [] }
 ];
 
 function normalizeContentTaskDepartment(item, index) {
@@ -1704,7 +1704,8 @@ function normalizeSystemUser(user) {
 
 async function loadUsersFromSystemPath() {
   const collected = [];
-  const fallback = (window.MZJAuth?.users || []).map(normalizeSystemUser).filter(Boolean);
+  // لا نستخدم TEST_USERS الموجودة في auth.js داخل اختيار اليوزرات؛
+  // مصدر اليوزرات هنا لازم يكون اليوزرات الحقيقية من صفحة الإدارة / localStorage / Firebase فقط.
   if (window.MZJAuth?.loadLocalManagedUsers) collected.push(...window.MZJAuth.loadLocalManagedUsers().map(normalizeSystemUser).filter(Boolean));
 
   ['mzj_admin_users_cache_v1','users','user'].forEach((key) => {
@@ -1724,7 +1725,7 @@ async function loadUsersFromSystemPath() {
     }
   }
 
-  const sourceUsers = collected.length ? collected : fallback;
+  const sourceUsers = collected;
   const map = new Map();
   sourceUsers.filter(Boolean).forEach((user) => {
     const key = String(user.email || user.name || user.id).toLowerCase();

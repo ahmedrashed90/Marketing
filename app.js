@@ -2068,10 +2068,11 @@ function renderUniversalContentChoiceCards(kind) {
 
 function renderStockCarCheckboxCards(selected = []) {
   const selectedSet = new Set((Array.isArray(selected) ? selected : String(selected || '').split('،')).map((item) => String(item || '').trim()).filter(Boolean));
-  if (!stockCarsCache.length) {
+  const cars = Array.isArray(window.MZJCreateTaskStockCarsCache) ? window.MZJCreateTaskStockCarsCache : [];
+  if (!cars.length) {
     return '<div class="required-content-empty">لا توجد سيارات محملة من الاستوك. تقدر تكتب المطلوب يدويًا في خانة المحتوى المطلوب.</div>';
   }
-  return stockCarsCache.map((car) => {
+  return cars.map((car) => {
     const value = car.display || car.name || car.carName || '';
     if (!value) return '';
     return `<label class="universal-content-type-card stock-car-choice-card">
@@ -2585,7 +2586,7 @@ function initCreateTaskFromTemplate() {
           const selectedType = item.querySelector('[data-universal-content-type]:checked');
           const title = templateCellText(selectedType?.value || '');
           const desc = templateCellText(selectedType?.dataset.desc || '');
-          const car = templateCellText(item.querySelector('[data-universal-car-type]')?.value || '');
+          const car = Array.from(item.querySelectorAll('[data-universal-car-choice]:checked')).map((input) => templateCellText(input.value)).filter(Boolean).join('، ') || templateCellText(item.querySelector('[data-universal-car-type]')?.value || '');
           const size = templateCellText(item.querySelector('[data-universal-print-size]')?.value || '');
           const note = templateCellText(item.querySelector('[data-universal-required-text]')?.value || '');
           const label = [title, car ? `السيارة: ${car}` : '', size ? `المقاس: ${size}` : '', desc || note].filter(Boolean).join(' — ');
@@ -3343,8 +3344,9 @@ function initCreateTaskFromTemplate() {
     if (stockCarsLoaded && !force) return stockCarsCache;
     stockCarsLoaded = true;
     stockCarsCache = [];
+    window.MZJCreateTaskStockCarsCache = stockCarsCache;
     try {
-      if (!window.firebase || !firebase.firestore || !window.MZJ_STOCK_FIREBASE_CONFIG) return stockCarsCache;
+      if (!window.firebase || !firebase.firestore || !window.MZJ_STOCK_FIREBASE_CONFIG) { window.MZJCreateTaskStockCarsCache = stockCarsCache; return stockCarsCache; }
       const appName = 'mzjStockReadonlyApp';
       let stockApp = null;
       try { stockApp = firebase.app(appName); } catch (_error) { stockApp = firebase.initializeApp(window.MZJ_STOCK_FIREBASE_CONFIG, appName); }
@@ -3356,10 +3358,13 @@ function initCreateTaskFromTemplate() {
         if (!shouldHideStockCar(car)) items.push(car);
       });
       stockCarsCache = buildStockSpecsForDropdown(items);
+      window.MZJCreateTaskStockCarsCache = stockCarsCache;
     } catch (error) {
       console.warn('Stock cars dropdown load failed:', error);
       stockCarsCache = [];
+      window.MZJCreateTaskStockCarsCache = stockCarsCache;
     }
+    window.MZJCreateTaskStockCarsCache = stockCarsCache;
     return stockCarsCache;
   }
 
@@ -4169,7 +4174,13 @@ function initCreateTaskFromTemplate() {
     }
   }
 
-  function openCreateTaskModal() {
+  function openCreateTaskModal(event) {
+    if (event?.preventDefault) event.preventDefault();
+    const showModal = () => {
+      modal.classList.add('is-open');
+      modal.setAttribute('aria-hidden', 'false');
+    };
+    showModal();
     ensureDepartments().then(async () => {
       fillTemplateOptions();
       applyDateLabels();
@@ -4179,8 +4190,15 @@ function initCreateTaskFromTemplate() {
       refreshStockCarsDatalist();
       refreshStockCarCheckboxGrids();
       refreshBudgetDropdownOptions();
-      modal.classList.add('is-open');
-      modal.setAttribute('aria-hidden', 'false');
+      showModal();
+    }).catch((error) => {
+      console.error('create task modal open failed:', error);
+      fillTemplateOptions();
+      applyDateLabels();
+      ensureGeneratedCode();
+      setAutomaticTaskDate();
+      if (note) note.textContent = '⚠️ فتحنا نافذة إنشاء تاسك، لكن في بيانات لم يتم تحميلها: ' + (error?.message || error?.code || error);
+      showModal();
     });
   }
 
@@ -4481,7 +4499,7 @@ function initCreateTaskFromTemplate() {
   });
 
   departmentsList.addEventListener('input', (event) => {
-    if (event.target.closest('[data-design-print-size], [data-universal-print-size], [data-universal-car-type], [data-universal-required-text]')) {
+    if (event.target.closest('[data-design-print-size], [data-universal-print-size], [data-universal-car-type], [data-universal-car-choice], [data-universal-required-text]')) {
       refreshPublishCalendarOptions();
       refreshBudgetDropdownOptions();
     }

@@ -943,7 +943,13 @@ function openTaskDetails(button) {
     switcher.className = 'assignment-switcher';
     switcher.setAttribute('data-assignment-switcher', 'true');
     switcher.innerHTML = `
-      <strong>اختار التكليف</strong>
+      <div class="assignment-switcher-head">
+        <div>
+          <span>التكليفات المطلوبة</span>
+          <strong>اختار التكليف اللي هتشتغل عليه</strong>
+        </div>
+        <b>${assignments.length} تكليف</b>
+      </div>
       <div class="assignment-switcher-buttons">
         ${assignments.map(({ dept }, index) => {
           const shortTitle = [
@@ -951,8 +957,9 @@ function openTaskDetails(button) {
             dept.carType || ''
           ].filter(Boolean).join(' - ');
           return `<button type="button" class="assignment-switch-btn ${index === 0 ? 'is-active' : ''}" data-switch-assignment="${index}">
+            <b>${index + 1}</b>
             <span>تكليف ${index + 1}</span>
-            ${shortTitle ? `<small>${escapeHTML(shortTitle)}</small>` : ''}
+            ${shortTitle ? `<small>${escapeHTML(shortTitle)}</small>` : '<small>مطلوب مستقل</small>'}
           </button>`;
         }).join('')}
       </div>
@@ -984,18 +991,17 @@ function openTaskDetails(button) {
 
     block.innerHTML = `
       <div class="assignment-step-head">
-        <div>
+        <div class="assignment-step-title">
           <span>تكليف ${assignmentIndex + 1}</span>
-          <strong>${escapeHTML(assignmentTitle || formatDepartmentRequirement(dept).slice(0, 90) || 'تكليف مطلوب')}</strong>
+          <strong>${escapeHTML(assignmentTitle || 'تكليف مطلوب')}</strong>
         </div>
         <div class="assignment-step-progress">
-          <small>اكتمال التكليف</small>
-          <b data-assignment-task-percent>0%</b>
-          <small>نسبة الحملة</small>
-          <b data-assignment-campaign-percent>0%</b>
+          <div><small>اكتمال التكليف</small><b data-assignment-task-percent>0%</b></div>
+          <div><small>نسبة الحملة</small><b data-assignment-campaign-percent>0%</b></div>
         </div>
       </div>
       <div class="assignment-step-required">${renderTaskRequirementDetails(formatDepartmentRequirement(dept), deptKeyValue)}</div>
+      <div class="assignment-actions-title">إجراءات التكليف</div>
       <div class="assignment-step-buttons" data-assignment-step-buttons></div>
     `;
 

@@ -4913,3 +4913,13 @@ body.sidebar-collapsed .database-main {
   color:#5d4037;
   cursor:default;
 }
+
+
+.content-items-list{display:grid;gap:14px}
+.content-item-row{display:grid;gap:12px;border:1px dashed rgba(75,36,31,.14);border-radius:18px;padding:14px;background:rgba(255,250,244,.72)}
+.publish-schedule-rows{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px}
+.publish-calendar-day{border:1px solid rgba(75,36,31,.12);border-radius:18px;padding:14px;background:#fff;display:grid;gap:12px}
+.publish-calendar-day-head{display:flex;align-items:center;justify-content:space-between;gap:10px;border-bottom:1px solid rgba(75,36,31,.08);padding-bottom:10px}
+.publish-calendar-day-head strong{color:var(--brown,#4b241f);font-weight:900}
+.publish-calendar-day-head span{color:#8e766c;font-weight:800}
+.publish-calendar-day select[multiple]{min-height:118px;line-height:1.7}

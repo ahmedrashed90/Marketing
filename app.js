@@ -1604,16 +1604,20 @@ function buildSpecialDepartmentFields(kind) {
       <div class="dept-special-fields" data-special-kind="content">
         <div class="dept-special-head">
           <strong>المطلوب</strong>
-          <span class="department-hint-inline">اختار السيارة من حصر الاستوك واكتب المطلوب من المحتوى</span>
+          <button class="soft-btn" type="button" data-add-content-item>+ إضافة مطلوب جديد</button>
         </div>
-        <label class="mzj-field full-width-field">
-          <span>السيارة المطلوبة من حصر الماركات والمواصفات والألوان</span>
-          <input type="text" list="stockCarsDatalist" data-content-car-type placeholder="ابحث بالماركة / المواصفة / اللون">
-        </label>
-        <label class="mzj-field full-width-field">
-          <span>المطلوب من قسم المحتوى</span>
-          <textarea data-required-text rows="3" placeholder="اكتب المطلوب من قسم المحتوى"></textarea>
-        </label>
+        <div class="content-items-list" data-content-items-list>
+          <article class="content-item-row" data-content-item>
+            <label class="mzj-field full-width-field">
+              <span>السيارة المطلوبة من حصر الماركات والمواصفات والألوان</span>
+              <input type="text" list="stockCarsDatalist" data-content-car-type placeholder="ابحث بالماركة / المواصفة / اللون">
+            </label>
+            <label class="mzj-field full-width-field">
+              <span>المطلوب من قسم المحتوى</span>
+              <textarea data-content-required-text rows="3" placeholder="اكتب المطلوب من قسم المحتوى"></textarea>
+            </label>
+          </article>
+        </div>
       </div>`;
   }
   if (kind === 'design') {
@@ -2030,33 +2034,103 @@ function initCreateTaskFromTemplate() {
     budgetGrandTotalValue.textContent = grandTotal.toLocaleString('ar-EG');
   }
 
+  function formatDateISO(date) {
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  }
+
+  function arabicDayName(date) {
+    return ['الأحد','الاثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت'][date.getDay()];
+  }
+
+  function getPublishChoiceLabels() {
+    const labels = [];
+    departmentsList?.querySelectorAll('[data-department-assignment-row]').forEach((row) => {
+      row.querySelectorAll('[data-design-deliverable]:checked, [data-montage-deliverable]:checked').forEach((input) => {
+        const title = templateCellText(input.dataset.title || input.value || '');
+        const desc = templateCellText(input.dataset.desc || '');
+        const size = input.dataset.title === 'مطبوعات أونلاين' ? templateCellText(row.querySelector('[data-design-print-size]')?.value || '') : '';
+        const label = [title, size ? `المقاس: ${size}` : desc].filter(Boolean).join(' — ');
+        if (label && !labels.includes(label)) labels.push(label);
+      });
+    });
+    return labels;
+  }
+
+  function renderPublishChoicesOptions(selected = []) {
+    const values = getPublishChoiceLabels();
+    if (!values.length) return '<option value="">اختار من التصميم والمونتاج بعد تحديد المطلوب</option>';
+    return values.map((value) => `<option value="${escapeHTML(value)}" ${selected.includes(value) ? 'selected' : ''}>${escapeHTML(value)}</option>`).join('');
+  }
+
   function createPublishScheduleRow(data = {}) {
     if (!publishScheduleRows) return;
     const row = document.createElement('article');
-    row.className = 'publish-schedule-row';
+    row.className = 'publish-schedule-row publish-calendar-day';
+    const selected = Array.isArray(data.items) ? data.items : (data.content ? String(data.content).split(' + ').map(x => x.trim()).filter(Boolean) : []);
     row.innerHTML = `
-      <label class="mzj-field"><span>اليوم</span>
-        <select data-schedule-day>
-          <option value="">اختار اليوم</option>
-          ${['السبت','الأحد','الاثنين','الثلاثاء','الأربعاء','الخميس','الجمعة'].map(day => `<option value="${day}" ${data.day === day ? 'selected' : ''}>${day}</option>`).join('')}
-        </select>
+      <div class="publish-calendar-day-head">
+        <strong>${escapeHTML(data.day || '')}</strong>
+        <span>${escapeHTML(data.date || '')}</span>
+      </div>
+      <input type="hidden" data-schedule-day value="${escapeHTML(data.day || '')}">
+      <input type="hidden" data-schedule-date value="${escapeHTML(data.date || '')}">
+      <label class="mzj-field full-width-field">
+        <span>اختار ما سيتم نشره في اليوم ده</span>
+        <select data-schedule-content multiple size="4">${renderPublishChoicesOptions(selected)}</select>
       </label>
-      <label class="mzj-field"><span>التاريخ</span><input type="date" data-schedule-date value="${escapeHTML(data.date || '')}"></label>
-      <label class="mzj-field schedule-content-field"><span>ماذا سيتم نشره؟</span><input type="text" data-schedule-content placeholder="اكتب المحتوى أو النشاط" value="${escapeHTML(data.content || '')}"></label>
-      <button class="soft-danger-btn schedule-remove-btn" type="button" data-remove-schedule-row>مسح</button>
     `;
     publishScheduleRows.appendChild(row);
   }
 
-  function collectPublishScheduleDetails() {
-    if (!publishScheduleRows) return [];
-    return Array.from(publishScheduleRows.querySelectorAll('.publish-schedule-row')).map((row) => ({
-      day: row.querySelector('[data-schedule-day]')?.value || '',
-      date: row.querySelector('[data-schedule-date]')?.value || '',
-      content: row.querySelector('[data-schedule-content]')?.value.trim() || ''
-    })).filter((item) => item.day || item.date || item.content);
+  function buildPublishCalendar(force = false) {
+    if (!publishScheduleRows) return;
+    const startValue = campaignStartDateInput?.value || '';
+    const endValue = campaignEndDateInput?.value || '';
+    if (!startValue || !endValue) return;
+    const startDate = new Date(startValue + 'T00:00:00');
+    const endDate = new Date(endValue + 'T00:00:00');
+    if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime()) || endDate < startDate) return;
+
+    const previous = new Map();
+    publishScheduleRows.querySelectorAll('.publish-schedule-row').forEach((row) => {
+      const date = row.querySelector('[data-schedule-date]')?.value || '';
+      const selected = Array.from(row.querySelectorAll('[data-schedule-content] option:checked')).map((opt) => opt.value).filter(Boolean);
+      if (date) previous.set(date, selected);
+    });
+
+    publishScheduleRows.innerHTML = '';
+    for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+      const date = formatDateISO(d);
+      createPublishScheduleRow({ day: arabicDayName(d), date, items: previous.get(date) || [] });
+    }
   }
 
+  function refreshPublishCalendarOptions() {
+    if (!publishScheduleRows) return;
+    if (!publishScheduleRows.querySelector('.publish-schedule-row')) {
+      buildPublishCalendar(false);
+      return;
+    }
+    publishScheduleRows.querySelectorAll('.publish-schedule-row').forEach((row) => {
+      const select = row.querySelector('[data-schedule-content]');
+      if (!select) return;
+      const selected = Array.from(select.selectedOptions || []).map((opt) => opt.value).filter(Boolean);
+      select.innerHTML = renderPublishChoicesOptions(selected);
+    });
+  }
+
+  function collectPublishScheduleDetails() {
+    if (!publishScheduleRows) return [];
+    return Array.from(publishScheduleRows.querySelectorAll('.publish-schedule-row')).map((row) => {
+      const items = Array.from(row.querySelectorAll('[data-schedule-content] option:checked')).map((opt) => opt.value).filter(Boolean);
+      return {
+        day: row.querySelector('[data-schedule-day]')?.value || '',
+        date: row.querySelector('[data-schedule-date]')?.value || '',
+        items,
+        content: items.join(' + ')
+      };
+    }).filter((item) => item.day || item.date || item.content);
+  }
 
   function templateCellText(value) {
     if (value == null) return '';
@@ -2305,7 +2379,7 @@ function initCreateTaskFromTemplate() {
       input.checked = false;
       input.closest('.multi-choice-card')?.classList.remove('is-checked');
     });
-    assignmentRow.querySelectorAll('[data-required-text]').forEach((textarea) => { textarea.value = ''; });
+    assignmentRow.querySelectorAll('[data-required-text], [data-content-required-text]').forEach((textarea) => { textarea.value = ''; });
     assignmentRow.querySelectorAll('[data-content-car-type], [data-design-print-size]').forEach((input) => { input.value = ''; });
     assignmentRow.querySelectorAll('[data-design-print-size-wrap]').forEach((wrap) => { wrap.hidden = true; });
     const photoList = assignmentRow.querySelector('[data-photo-items-list]');
@@ -2615,9 +2689,7 @@ function initCreateTaskFromTemplate() {
         item.statement,
         item.model,
         exterior ? `ألوان خارجية: ${exterior}` : '',
-        interior ? `ألوان داخلية: ${interior}` : '',
-        `العدد: ${item.count}`,
-        statuses
+        interior ? `ألوان داخلية: ${interior}` : ''
       ].filter(Boolean).join(' | ');
       return { ...item, display };
     }).filter((item) => item.display).sort((a, b) => {
@@ -3347,13 +3419,21 @@ function initCreateTaskFromTemplate() {
       };
     }
     if (kind === 'content') {
-      const carType = row.querySelector('[data-content-car-type]')?.value.trim() || '';
-      const notes = row.querySelector('[data-required-text]')?.value.trim() || '';
+      const items = Array.from(row.querySelectorAll('[data-content-item]')).map((item) => ({
+        carType: item.querySelector('[data-content-car-type]')?.value.trim() || '',
+        requiredText: item.querySelector('[data-content-required-text]')?.value.trim() || ''
+      })).filter((item) => item.carType || item.requiredText);
+      const requiredText = items.map((item, index) => [
+        `مطلوب ${index + 1}`,
+        item.carType ? `السيارة المطلوبة: ${item.carType}` : '',
+        item.requiredText ? `المطلوب: ${item.requiredText}` : ''
+      ].filter(Boolean).join(' — ')).join(' | ');
       return {
         kind,
-        carType,
-        notes,
-        requiredText: [carType ? `السيارة المطلوبة: ${carType}` : '', notes].filter(Boolean).join(' — ')
+        items,
+        carType: items.map((item) => item.carType).filter(Boolean).join('، '),
+        notes: items.map((item) => item.requiredText).filter(Boolean).join(' | '),
+        requiredText
       };
     }
     if (kind === 'design') {
@@ -3435,7 +3515,8 @@ function initCreateTaskFromTemplate() {
           attachmentLabel: attachmentLabelForKind(kind),
           requiredText,
           requiredDetails: special,
-          photoItems: special.items || [],
+          photoItems: kind === 'photography' ? (special.items || []) : [],
+          contentItems: kind === 'content' ? (special.items || []) : [],
           selectedDeliverables: special.deliverables || [],
           carType: special.carType || '',
           printSize: special.printSize || ''
@@ -3509,6 +3590,11 @@ function initCreateTaskFromTemplate() {
     applyDateLabels();
     ensureGeneratedCode(true);
     setAutomaticTaskDate(true);
+  });
+
+  [campaignStartDateInput, campaignEndDateInput].forEach((input) => {
+    if (!input) return;
+    input.addEventListener('change', () => buildPublishCalendar(true));
   });
 
   [agendaMonthSelect, agendaYearSelect].forEach((select) => {
@@ -3627,6 +3713,34 @@ function initCreateTaskFromTemplate() {
       }
       return;
     }
+    const addContent = event.target.closest('[data-add-content-item]');
+    if (addContent) {
+      const list = addContent.closest('.dept-special-fields')?.querySelector('[data-content-items-list]');
+      if (list) {
+        const item = document.createElement('article');
+        item.className = 'content-item-row';
+        item.dataset.contentItem = 'true';
+        item.innerHTML = `
+          <label class="mzj-field full-width-field">
+            <span>السيارة المطلوبة من حصر الماركات والمواصفات والألوان</span>
+            <input type="text" list="stockCarsDatalist" data-content-car-type placeholder="ابحث بالماركة / المواصفة / اللون">
+          </label>
+          <label class="mzj-field full-width-field">
+            <span>المطلوب من قسم المحتوى</span>
+            <textarea data-content-required-text rows="3" placeholder="اكتب المطلوب من قسم المحتوى"></textarea>
+          </label>
+          <button class="soft-danger-btn" type="button" data-remove-content-item>مسح</button>
+        `;
+        list.appendChild(item);
+      }
+      return;
+    }
+    const removeContent = event.target.closest('[data-remove-content-item]');
+    if (removeContent) {
+      removeContent.closest('[data-content-item]')?.remove();
+      return;
+    }
+
     const removePhoto = event.target.closest('[data-remove-photo-item]');
     if (removePhoto) {
       removePhoto.closest('[data-photo-item]')?.remove();
@@ -3660,7 +3774,12 @@ function initCreateTaskFromTemplate() {
           if (input) input.value = '';
         }
       }
+      refreshPublishCalendarOptions();
     }
+  });
+
+  departmentsList.addEventListener('input', (event) => {
+    if (event.target.closest('[data-design-print-size]')) refreshPublishCalendarOptions();
   });
 
   if (budgetItemsList) {
@@ -3702,7 +3821,7 @@ function initCreateTaskFromTemplate() {
   }
 
   if (addPublishScheduleRowBtn) {
-    addPublishScheduleRowBtn.addEventListener('click', () => createPublishScheduleRow());
+    addPublishScheduleRowBtn.addEventListener('click', () => buildPublishCalendar(true));
   }
 
   if (publishScheduleRows) {

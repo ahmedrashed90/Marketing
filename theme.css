@@ -6623,3 +6623,10 @@ body:has(#taskDetailsModal.is-open){
 .assignment-switch-btn.is-active .assignment-card-total-percent strong{
   color:#fff;
 }
+
+
+/* Archive button requirements */
+.db-archive-btn.is-disabled{
+  opacity:.55;
+  filter:grayscale(.2);
+}

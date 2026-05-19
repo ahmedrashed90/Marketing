@@ -176,10 +176,26 @@
   function campaignPublishDate(record){
     const publishTasks = (record.departmentTasks || []).filter((task) => deptKey(task) === 'publish');
     for(const task of publishTasks){
-      const date = task.publishDate || task.deliveryDate || task.deliveredAt || task.doneAt || task.completedAt;
+      // الأرشفة تعتمد على تاريخ النشر نفسه داخل قسم النشر، مش تاريخ الاستلام ولا التسليم
+      const date = task.publishDate || task.publishStartDate || task.publishingDate || task.postDate || task.datePublished;
       if(date) return normalizeDate(date);
     }
-    return normalizeDate(record.publishStartDate || record.publishDate || record.deliveryDate || '');
+    return normalizeDate(record.publishDate || record.publishStartDate || record.publishingDate || '');
+  }
+
+  function hasCampaignLinks(record){
+    const results = record.resultsDetails || record.results || record.campaignResults || {};
+    const links = Array.isArray(results.links) ? results.links : (Array.isArray(record.campaignLinks) ? record.campaignLinks : []);
+    return links.some((link) => String(link.platform || link.name || '').trim() && String(link.url || link.link || '').trim());
+  }
+
+  function archiveRequirementStatus(record){
+    const hasFile = hasResultsFile(record);
+    const hasLinks = hasCampaignLinks(record);
+    const missing = [];
+    if(!hasFile) missing.push('ملف نتائج الحملة');
+    if(!hasLinks) missing.push('روابط الحملة');
+    return { canArchive: hasFile && hasLinks, hasFile, hasLinks, missing };
   }
 
   function hasResultsFile(record){
@@ -910,7 +926,7 @@
       return `<tr data-record-id="${esc(r.id)}">
         <td>${idx+1}</td><td>${esc(formatDate(r.taskDate || r.createdAt || r.launchDate))}</td><td>${esc(r.code || '--')}</td><td>${esc(r.name)}</td><td>${esc(recordTypeValue(r) || '--')}</td><td>${esc(r.goal || '--')}</td><td>${esc(formatDate(r.startDate || r.launchDate))}</td><td>${esc(formatDate(r.endDate))}</td>
         <td>${renderDeptSummary(r,'photography')}</td><td>${renderDeptSummary(r,'content')}</td><td>${renderDeptSummary(r,'design')}</td><td>${renderDeptSummary(r,'video')}</td><td>${renderDeptSummary(r,'publish')}</td>
-        <td>${renderSectionButton(r,'all','عرض البيانات')}</td><td>${isAdmin() ? `<div class="db-action-stack"><button class="soft-btn db-edit-btn" type="button" data-edit-record="${esc(r.id)}" onclick="window.openDatabaseEditCampaign && window.openDatabaseEditCampaign(this.dataset.editRecord)">تعديل</button><button class="soft-btn db-archive-btn" type="button" data-archive-record="${esc(r.id)}">أرشيف</button><button class="danger-btn db-delete-btn" type="button" data-delete-record="${esc(r.id)}">مسح</button></div>` : '--'}</td>
+        <td>${renderSectionButton(r,'all','عرض البيانات')}</td><td>${isAdmin() ? `<div class="db-action-stack"><button class="soft-btn db-edit-btn" type="button" data-edit-record="${esc(r.id)}" onclick="window.openDatabaseEditCampaign && window.openDatabaseEditCampaign(this.dataset.editRecord)">تعديل</button>${(() => { const st = archiveRequirementStatus(r); return `<button class="soft-btn db-archive-btn ${st.canArchive ? '' : 'is-disabled'}" type="button" data-archive-record="${esc(r.id)}" title="${st.canArchive ? 'نقل إلى الأرشيف' : 'ناقص: ' + esc(st.missing.join(' + '))}">أرشيف</button>`; })()}<button class="danger-btn db-delete-btn" type="button" data-delete-record="${esc(r.id)}">مسح</button></div>` : '--'}</td>
       </tr>`;
     }).join('')}</tbody></table></div><div class="campaign-db-sticky-scroll" aria-hidden="true"><div></div></div></div>`;
     setupDatabaseStickyScroll(holder);
@@ -947,13 +963,9 @@
       const recordId = archiveBtn.dataset.archiveRecord || '';
       const record = loadRecords().find(r => String(r.id) === String(recordId));
       if(!record){ alert('لم يتم العثور على الحملة.'); return; }
-      if(!hasResultsFile(record)){
-        alert('لا يمكن أرشفة الحملة قبل رفع ملف نتائج الحملة.');
-        return;
-      }
-      const publishDate = campaignPublishDate(record);
-      if(!publishDate){
-        alert('لا يمكن أرشفة الحملة قبل تحديد تاريخ النشر في قسم النشر.');
+      const archiveStatus = archiveRequirementStatus(record);
+      if(!archiveStatus.canArchive){
+        alert('لا يمكن أرشفة الحملة. الناقص: ' + archiveStatus.missing.join(' + '));
         return;
       }
       if(!confirm('تأكيد نقل الحملة إلى قسم الأرشيف؟')) return;
@@ -962,8 +974,7 @@
           stage: 'archive',
           archived: true,
           archivedAt: new Date().toISOString(),
-          archiveDate: todayISO(),
-          publishDate
+          archiveDate: todayISO()
         });
         alert('تم نقل الحملة إلى الأرشيف.');
       }catch(err){

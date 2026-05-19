@@ -121,6 +121,36 @@ function getCurrentUserRole() {
   return authUser?.role || document.body.dataset.userRole || localStorage.getItem('mzj_user_role') || 'user';
 }
 
+function taskCampaignInfoValue(task, keys, fallback = '—') {
+  for (const key of keys) {
+    const value = task?.[key];
+    if (value !== undefined && value !== null && String(value).trim()) return String(value).trim();
+  }
+  return fallback;
+}
+
+function renderTaskCampaignInfoBox(task) {
+  const rows = [
+    ['التاريخ', taskCampaignInfoValue(task, ['taskDate','date','launchDate'])],
+    ['كود الحملة', taskCampaignInfoValue(task, ['campaignCode','code','campaignSerial'])],
+    ['اسم الحملة', taskCampaignInfoValue(task, ['campaignName','name','title','templateName'])],
+    ['نوع الحملة', taskCampaignInfoValue(task, ['taskTypeLabel','campaignType','taskType','type'])],
+    ['الهدف من الحملة', taskCampaignInfoValue(task, ['campaignGoal','goal','objective','campaignObjective'])],
+    ['تاريخ بداية الحملة', taskCampaignInfoValue(task, ['campaignStartDate','startDate'])],
+    ['تاريخ نهاية الحملة', taskCampaignInfoValue(task, ['campaignEndDate','endDate'])]
+  ];
+  const escFn = typeof escapeHTML === 'function'
+    ? escapeHTML
+    : (value) => String(value || '').replace(/[&<>"]/g, (char) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[char]));
+  return `<section class="task-campaign-info-box" data-task-campaign-info-box>
+    <div class="task-campaign-info-title">بيانات الحملة</div>
+    <div class="task-campaign-info-grid">
+      ${rows.map(([label, value]) => `<div><small>${escFn(label)}</small><strong>${escFn(value)}</strong></div>`).join('')}
+    </div>
+  </section>`;
+}
+
+
 function isAdminUser() {
   return ['admin','marketing_manager'].includes(getCurrentUserRole());
 }
@@ -927,8 +957,11 @@ function openTaskDetails(button) {
   const deptKeyValue = button.dataset.deptKey || '';
   const clickedIdentity = activeTaskCard?.dataset.deptIdentity || mzjDetailsDeptIdentity(deptDataFromButton || {});
   const allTasks = mzjDetailsReadTasks();
-  const fullTask = allTasks.find((task) => String(task.id) === String(taskId));
-  const departmentTasks = Array.isArray(fullTask?.departmentTasks) ? fullTask.departmentTasks : [];
+  let fullTask = allTasks.find((task) => String(task.id) === String(taskId));
+  if (!fullTask && taskId) {
+    fullTask = allTasks.find((task) => String(task.firestoreId || task.docId || task.campaignCode || task.code) === String(taskId));
+  }
+  const departmentTasks = Array.isArray(fullTask?.departmentTasks) ? fullTask.departmentTasks : (deptDataFromButton ? [deptDataFromButton] : []);
   const deptIndexFromButton = button.dataset.deptIndex === undefined || button.dataset.deptIndex === '' ? -1 : Number(button.dataset.deptIndex);
   const clickedIndex = Number.isInteger(deptIndexFromButton) && deptIndexFromButton >= 0 ? deptIndexFromButton : departmentTasks.findIndex((dept) => String(mzjDetailsDeptIdentity(dept)) === String(clickedIdentity) && mzjDetailsDeptKey(dept.departmentName) === deptKeyValue);
   const clickedDeptIndex = clickedIndex >= 0 ? clickedIndex : 0;
@@ -1110,7 +1143,25 @@ function closeTaskDetails() {
   taskDetailsModal.setAttribute('aria-hidden', 'true');
 }
 
+
+// Strong capture handler: تفاصيل واعتماد must open before any dashboard/card toggle handler
+document.addEventListener('click', function(event) {
+  const btn = event.target.closest?.('[data-open-task-details]');
+  if (!btn) return;
+  event.preventDefault();
+  event.stopPropagation();
+  event.stopImmediatePropagation();
+  try {
+    openTaskDetails(btn);
+  } catch (error) {
+    console.error('openTaskDetails failed:', error);
+    alert('فشل فتح تفاصيل التاسك: ' + (error?.message || error));
+  }
+}, true);
+
+
 document.addEventListener('click', (event) => {
+  if (event.defaultPrevented) return;
   const taskDetailsButton = event.target.closest('[data-open-task-details]');
   if (taskDetailsButton) {
     event.preventDefault();
@@ -5557,7 +5608,7 @@ initCreateTaskFromTemplate();
             const percent = taskDeptProgress(task, d, realIndex);
             const requirement = formatDepartmentRequirement(d);
             return `<div class="readiness-dept-item" data-dept-task-card data-task-id="${esc(task.id)}" data-task-type="${esc(task.taskTypeLabel || task.taskType || '')}" data-campaign-code="${esc(task.campaignCode || '')}" data-readiness-key="${esc(key)}" data-legacy-readiness-key="${esc(legacyDeptReadinessKey(d))}" data-dept-identity="${esc(deptIdentity(d))}" data-dept-key="${esc(dkey)}" data-department-share="${esc(departmentShare)}" data-completed-steps="${esc(selected)}">
-              <button type="button" class="readiness-open-details" data-open-task-details data-dept-index="${esc(realIndex)}" data-readiness-key="${esc(key)}" data-dept-key="${esc(dkey)}" data-dept="${esc(d.departmentName || 'قسم')}" data-task-title="${esc(taskTitle(task))}" data-required="${esc(requirement)}" data-dept-task-json="${esc(encodeURIComponent(JSON.stringify(d || {})))}" data-steps="${esc(steps)}">
+              <button type="button" class="readiness-open-details" data-open-task-details data-task-id="${esc(task.id)}" data-dept-index="${esc(realIndex)}" data-readiness-key="${esc(key)}" data-dept-key="${esc(dkey)}" data-dept="${esc(d.departmentName || 'قسم')}" data-task-title="${esc(taskTitle(task))}" data-required="${esc(requirement)}" data-dept-task-json="${esc(encodeURIComponent(JSON.stringify(d || {})))}" data-steps="${esc(steps)}">
                 <strong>${esc(d.departmentName || 'قسم')}</strong>
                 <b class="dept-task-short-name">${esc(departmentTaskShortName(d))}</b>
                 <small>${percent}%</small>
@@ -5579,25 +5630,23 @@ initCreateTaskFromTemplate();
     const publishDept = publishDepts[0] || {};
     const receiveDate = publishDept.receiveDate || task.publishReadyDate || (publishDept.receivedAt ? String(publishDept.receivedAt).slice(0,10) : '--');
     const deliveryDate = publishDept.deliveryDate || publishDept.publishDate || task.publishStartDate || '--';
-    const publishInfo = publishDept.departmentName ? `<div class="publish-info-box">
-      <strong>تاريخ الاستلام / ${esc(receiveDate)} — تاريخ التسليم / ${esc(deliveryDate)}</strong>
-      <small>المسؤول / ${esc(deptAssigneeLabel(publishDept))} — التاريخ المطلوب / ${esc(publishDept.requiredDate || '--')}</small>
-    </div>` : '';
-    return `<article class="readiness-card dynamic-dashboard-card compact-readiness-card compact-publish-card" data-dash-task-id="${esc(task.id)}">
+    return `<article class="readiness-card dynamic-dashboard-card compact-readiness-card compact-publish-card publish-super-compact" data-dash-task-id="${esc(task.id)}">
       <button class="readiness-card-summary" type="button" data-toggle-publish-details>
         <div class="task-template-top"><strong>${esc(taskTitle(task))}</strong><span>${meta(task)} — جاهزية النشر ${percent}%</span></div>
         <div class="mini-progress"><span style="width:${percent}%"></span></div>
         <small>اضغط لعرض تجهيزات النشر</small>
       </button>
       <div class="publish-details-panel" data-publish-details hidden>
-        ${publishInfo}
-        <div class="task-card-actions publish-start-row">
+        <div class="publish-compact-meta">
+          <span>استلام: ${esc(receiveDate)}</span>
+          <span>تسليم: ${esc(deliveryDate)}</span>
+          <span>المسؤول: ${esc(publishDept.departmentName ? deptAssigneeLabel(publishDept) : '--')}</span>
+        </div>
+        <div class="publish-compact-actions">
           <button class="primary-btn ${deliveryDate !== '--' ? 'is-done' : ''}" type="button" data-start-publish data-task-id="${esc(task.id)}" ${!userIsAdmin()?'disabled':''}>${deliveryDate !== '--' ? 'تم بدء النشر' : 'بدء النشر'}</button>
+          ${PUBLISH_STEPS.map((step,i)=>`<button type="button" class="task-step-btn publish-mini-step ${done.includes(i) ? 'is-done' : ''}" data-publish-step data-task-id="${esc(task.id)}" data-step-index="${i}" ${!userIsAdmin()?'disabled':''}>${esc(step.label)} <small>${esc(step.value)}%</small></button>`).join('')}
+          <button class="danger-btn publish-mini-delete" type="button" data-delete-task="${esc(task.id)}" data-admin-only>مسح</button>
         </div>
-        <div class="publish-actions-grid">
-          ${PUBLISH_STEPS.map((step,i)=>`<button type="button" class="task-step-btn ${done.includes(i) ? 'is-done' : ''}" data-publish-step data-task-id="${esc(task.id)}" data-step-index="${i}" ${!userIsAdmin()?'disabled':''}><span>${esc(step.label)}</span><small>${esc(step.value)}%</small></button>`).join('')}
-        </div>
-        <div class="task-card-actions"><button class="danger-btn" type="button" data-delete-task="${esc(task.id)}" data-admin-only>مسح الحملة</button></div>
       </div>
     </article>`;
   }

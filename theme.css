@@ -6303,3 +6303,137 @@ body:has(#taskDetailsModal.is-open){
 .compact-publish-card:not(.is-open){
   max-height:none;
 }
+
+
+/* Fix publish expanded size to stay compact */
+.compact-publish-card .publish-details-panel{
+  margin-top:10px !important;
+  padding:10px !important;
+  border:1px solid rgba(62,36,32,.10);
+  border-radius:18px;
+  background:#fffaf6;
+}
+.compact-publish-card .publish-info-box{
+  padding:10px 12px !important;
+  border-radius:14px !important;
+  margin-bottom:10px !important;
+  font-size:12px !important;
+}
+.compact-publish-card .publish-info-box strong,
+.compact-publish-card .publish-info-box small{
+  line-height:1.6 !important;
+}
+.compact-publish-card .publish-start-row{
+  margin:6px 0 10px !important;
+}
+.compact-publish-card .publish-start-row .primary-btn{
+  min-height:38px !important;
+  padding:8px 18px !important;
+  border-radius:14px !important;
+  font-size:13px !important;
+}
+.compact-publish-card .publish-actions-grid{
+  display:grid !important;
+  grid-template-columns:repeat(3,minmax(0,1fr)) !important;
+  gap:8px !important;
+  margin-top:8px !important;
+}
+.compact-publish-card .publish-actions-grid .task-step-btn{
+  min-height:70px !important;
+  padding:10px !important;
+  border-radius:16px !important;
+  box-shadow:none !important;
+}
+.compact-publish-card .publish-actions-grid .task-step-btn span{
+  font-size:13px !important;
+}
+.compact-publish-card .publish-actions-grid .task-step-btn small{
+  font-size:11px !important;
+}
+.compact-publish-card .task-card-actions{
+  margin-top:8px !important;
+}
+.compact-publish-card .task-card-actions .danger-btn{
+  min-height:36px !important;
+  padding:8px 14px !important;
+  border-radius:14px !important;
+  font-size:13px !important;
+}
+@media(max-width:760px){
+  .compact-publish-card .publish-actions-grid{
+    grid-template-columns:1fr !important;
+  }
+}
+
+
+/* Strong compact publish expansion */
+.publish-super-compact .publish-details-panel{
+  margin-top:8px !important;
+  padding:8px !important;
+  border:1px solid rgba(62,36,32,.10) !important;
+  border-radius:16px !important;
+  background:#fffaf6 !important;
+  min-height:0 !important;
+}
+.publish-super-compact .publish-compact-meta{
+  display:flex !important;
+  flex-wrap:wrap !important;
+  gap:6px !important;
+  justify-content:center !important;
+  margin-bottom:8px !important;
+}
+.publish-super-compact .publish-compact-meta span{
+  display:inline-flex !important;
+  align-items:center !important;
+  min-height:28px !important;
+  padding:5px 9px !important;
+  border-radius:999px !important;
+  background:#fff !important;
+  border:1px solid rgba(62,36,32,.08) !important;
+  color:#4b241f !important;
+  font-size:11px !important;
+  font-weight:900 !important;
+}
+.publish-super-compact .publish-compact-actions{
+  display:flex !important;
+  flex-wrap:wrap !important;
+  gap:6px !important;
+  justify-content:center !important;
+  align-items:center !important;
+}
+.publish-super-compact .primary-btn,
+.publish-super-compact .task-step-btn,
+.publish-super-compact .danger-btn{
+  min-height:34px !important;
+  height:34px !important;
+  padding:5px 10px !important;
+  border-radius:12px !important;
+  font-size:12px !important;
+  line-height:1 !important;
+  box-shadow:none !important;
+  width:auto !important;
+  min-width:0 !important;
+}
+.publish-super-compact .publish-mini-step{
+  background:#fff !important;
+  border:1px solid rgba(62,36,32,.12) !important;
+  color:#4b241f !important;
+  display:inline-flex !important;
+  align-items:center !important;
+  gap:5px !important;
+}
+.publish-super-compact .publish-mini-step small{
+  font-size:10px !important;
+  color:#8e766c !important;
+}
+.publish-super-compact .publish-mini-step.is-done{
+  background:#4b241f !important;
+  color:#fff !important;
+}
+.publish-super-compact .publish-mini-step.is-done small{
+  color:#f4ded3 !important;
+}
+.publish-super-compact .publish-mini-delete{
+  background:#f4e7dd !important;
+  color:#9d1f1f !important;
+}

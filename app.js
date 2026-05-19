@@ -2169,10 +2169,13 @@ function buildSpecialDepartmentFields(kind) {
   return `
     <div class="dept-special-fields universal-required-fields" data-special-kind="${escapeHTML(kind)}">
       <div class="dept-special-head">
-        <strong>المحتوى المطلوب - قسم ${escapeHTML(kindLabel)}</strong>
+        <div>
+          <span class="content-box-eyebrow">قسم ${escapeHTML(kindLabel)}</span>
+          <strong>تفاصيل المطلوب</strong>
+        </div>
         <button class="soft-btn" type="button" data-add-universal-required>+ إضافة مطلوب</button>
       </div>
-      <div class="required-content-note">اكتب المحتوى المطلوب، اختار أكتر من سيارة Checkbox، واختار نوع المحتوى. بعدها اختار القسم واليوزرات من نفس البلوك.</div>
+      <div class="required-content-note">اكتب المحتوى المطلوب بشكل واضح، اختار السيارات المطلوبة، ثم حدد نوع المحتوى قبل توزيع التاسك على الأقسام واليوزرات.</div>
       <div class="universal-required-list" data-universal-required-list>
         ${renderUniversalRequiredItem(kind)}
       </div>
@@ -2222,8 +2225,8 @@ function initCreateTaskFromTemplate() {
 
   if (!modal || !form || !typeSelect || !templateSelect || !departmentsList) return;
 
-  departmentsCache = [];
-  usersCache = [];
+  let departmentsCache = [];
+  let usersCache = [];
   let departmentIndex = 0;
   let platformsCache = [];
   let funnelsCache = [];
@@ -2372,24 +2375,43 @@ function initCreateTaskFromTemplate() {
   function createDepartmentAssignmentHTML(dept, index = 1) {
     const kind = 'content';
     return `
-      <article class="department-assignment-row" data-department-assignment-row data-assignment-index="${escapeHTML(index)}">
+      <article class="department-assignment-row professional-assignment-card" data-department-assignment-row data-assignment-index="${escapeHTML(index)}">
         <div class="department-assignment-head">
-          <strong>\u062a\u0643\u0644\u064a\u0641 ${escapeHTML(index)}</strong>
-          <button class="soft-danger-btn" type="button" data-remove-department-assignment>\u0645\u0633\u062d \u0627\u0644\u062a\u0643\u0644\u064a\u0641</button>
+          <div class="assignment-title-group">
+            <span class="assignment-number-chip">تكليف ${escapeHTML(index)}</span>
+            <strong>قسم المحتوى</strong>
+            <small>اكتب المطلوب مرة واحدة ثم وزعه على الأقسام واليوزرات المناسبة.</small>
+          </div>
+          <button class="soft-danger-btn" type="button" data-remove-department-assignment>مسح التكليف</button>
         </div>
-        <div class="department-task-grid department-task-core-grid">
-          <label class="mzj-field">
+
+        <div class="department-task-grid department-task-core-grid professional-core-grid">
+          <label class="mzj-field full-width-field">
             <span>اسم التاسك</span>
-            <input type="text" data-assignment-task-name placeholder="اكتب اسم التاسك">
+            <input type="text" data-assignment-task-name placeholder="مثال: تجهيز محتوى إعلان عرض الجمعة">
           </label>
-          <label class="mzj-field">
-            <span>الأقسام المطلوبة (اختار أكتر من قسم)</span>
-            <select data-target-department-select multiple size="5">${renderDepartmentTargetOptions()}</select>
-          </label>
-          <label class="mzj-field">
-            <span>اليوزرات / المسؤولين في الأقسام المختارة</span>
-            <select data-user-select multiple size="5">${renderUserOptionsForDepartmentIds([])}</select>
-          </label>
+
+          <div class="field-panel">
+            <div class="field-panel-head">
+              <strong>الأقسام المطلوبة</strong>
+              <small>ينفع تختار أكثر من قسم</small>
+            </div>
+            <label class="mzj-field multi-select-shell">
+              <select data-target-department-select multiple size="5">${renderDepartmentTargetOptions()}</select>
+              <span class="multi-select-tip">اختار الأقسام اللي هيوصل لها نفس المطلوب.</span>
+            </label>
+          </div>
+
+          <div class="field-panel">
+            <div class="field-panel-head">
+              <strong>اليوزرات / المسؤولين</strong>
+              <small>حسب الأقسام المختارة</small>
+            </div>
+            <label class="mzj-field multi-select-shell">
+              <select data-user-select multiple size="5">${renderUserOptionsForDepartmentIds([])}</select>
+              <span class="multi-select-tip">ينفع تختار أكثر من يوزر من الأقسام اللي اخترتها.</span>
+            </label>
+          </div>
         </div>
 
         ${buildSpecialDepartmentFields(kind)}
@@ -2425,28 +2447,34 @@ function initCreateTaskFromTemplate() {
 
   function createDepartmentRow(dept) {
     const row = document.createElement('article');
-    row.className = 'department-task-row department-task-row-selectable department-accordion-row is-open is-selected';
+    row.className = 'department-task-row department-task-row-selectable department-accordion-row is-open is-selected content-hub-row';
     row.dataset.departmentId = dept.id || 'content';
     row.dataset.departmentKind = 'content';
     row.innerHTML = `
-      <div class="department-row-head">
+      <div class="department-row-head content-hub-head">
         <input type="checkbox" data-department-enabled hidden checked>
-        <button class="department-toggle-btn" type="button" data-department-toggle>
-          <strong>قسم المحتوى</strong>
-          <small>من هنا فقط اكتب المطلوب، اختار الأقسام، واختار يوزر أو أكتر لكل تاسك.</small>
+        <button class="department-toggle-btn content-hub-toggle" type="button" data-department-toggle>
+          <span class="content-hub-badge">قسم المحتوى</span>
+          <span class="content-hub-copy">
+            <strong>لوحة إدارة المطلوب والتوزيع</strong>
+            <small>من هنا فقط اكتب المطلوب، اختار الأقسام المطلوبة، ثم اختار يوزر أو أكثر لتنفيذ التاسك.</small>
+          </span>
+          <span class="content-hub-status">جاهز للتوزيع</span>
         </button>
-        <span class="department-source-label">content only</span>
       </div>
 
       <div class="department-task-body" data-department-body>
-        <div class="department-assignments-head">
-          <strong>تكليفات قسم المحتوى</strong>
-          <button class="soft-btn" type="button" data-add-department-assignment>+ إضافة مطلوب / يوزرات</button>
+        <div class="department-assignments-head content-assignments-head">
+          <div>
+            <span class="content-box-eyebrow">content workflow</span>
+            <strong>التكليفات الحالية</strong>
+          </div>
+          <button class="soft-btn" type="button" data-add-department-assignment>+ إضافة تكليف جديد</button>
         </div>
         <div class="department-assignments-list" data-department-assignments-list>
           ${createDepartmentAssignmentHTML(dept, 1)}
         </div>
-        <p class="admin-only-note department-receive-note">تم إلغاء بلوكات الأقسام المنفصلة. اختار الأقسام واليوزرات من داخل قسم المحتوى فقط.</p>
+        <p class="admin-only-note department-receive-note">تم إلغاء بلوكات الأقسام المنفصلة. أي تاسك جديد بيتكتب من هنا داخل قسم المحتوى فقط.</p>
       </div>
     `;
     departmentsList.appendChild(row);

@@ -6670,3 +6670,244 @@ body:has(#taskDetailsModal.is-open){
 @media(max-width:900px){
   .department-task-core-grid{grid-template-columns:1fr!important}
 }
+
+
+/* Professional create-task content hub redesign */
+#createTaskModal .task-details-head{
+  position:sticky;
+  top:0;
+  z-index:30;
+  margin:-4px -4px 18px;
+  padding:18px 22px;
+  border-bottom:1px solid rgba(62,36,32,.08);
+  background:rgba(255,251,246,.92);
+  backdrop-filter:blur(14px);
+}
+#createTaskModal .task-details-head p{
+  margin:0 0 6px;
+  color:rgba(75,36,31,.56);
+  font-weight:900;
+  letter-spacing:.04em;
+}
+#createTaskModal .task-details-head h3{
+  margin:0;
+  font-size:30px;
+}
+#createTaskModal .create-task-form{
+  display:grid;
+  gap:18px;
+  padding-bottom:18px;
+}
+#createTaskModal .create-task-section{
+  padding:24px;
+  border:1px solid rgba(62,36,32,.08);
+  border-radius:28px;
+  background:linear-gradient(180deg, rgba(255,255,255,.88), rgba(255,248,239,.68));
+  box-shadow:0 18px 40px rgba(75,36,31,.05);
+}
+#createTaskModal .section-title-row h4{
+  margin:6px 0 0;
+  font-size:24px;
+}
+#createTaskModal .section-title-row p,
+#createTaskModal .admin-only-note{
+  line-height:1.8;
+}
+#createTaskModal .department-task-list{
+  display:grid;
+  gap:18px;
+}
+#createTaskModal .content-hub-row{
+  padding:18px;
+  border-radius:30px;
+  border:1px solid rgba(73,36,30,.1);
+  background:linear-gradient(180deg, rgba(255,252,248,.96), rgba(255,245,234,.82));
+  box-shadow:0 24px 56px rgba(75,36,31,.08);
+}
+#createTaskModal .content-hub-head{
+  margin-bottom:14px;
+}
+#createTaskModal .content-hub-toggle{
+  align-items:flex-start;
+  gap:16px;
+  padding:18px 20px;
+  border-radius:22px;
+  background:linear-gradient(135deg, rgba(255,249,242,.98), rgba(247,236,227,.92));
+  border:1px solid rgba(73,36,30,.08);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.8);
+}
+#createTaskModal .department-accordion-row.is-selected .content-hub-toggle{
+  color:var(--brown-900);
+  background:linear-gradient(135deg, rgba(255,249,242,.98), rgba(247,236,227,.92));
+}
+#createTaskModal .department-accordion-row.is-selected .content-hub-toggle small{
+  color:rgba(75,36,31,.72);
+}
+#createTaskModal .content-hub-badge,
+#createTaskModal .assignment-number-chip,
+#createTaskModal .content-hub-status,
+#createTaskModal .content-box-eyebrow{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  border-radius:999px;
+  padding:7px 12px;
+  font-size:12px;
+  font-weight:900;
+  letter-spacing:.02em;
+}
+#createTaskModal .content-hub-badge{
+  background:rgba(75,36,31,.1);
+  color:var(--brown-900);
+  white-space:nowrap;
+}
+#createTaskModal .content-hub-copy{
+  display:grid;
+  gap:6px;
+  flex:1;
+  text-align:right;
+}
+#createTaskModal .content-hub-copy strong{
+  font-size:22px;
+}
+#createTaskModal .content-hub-status{
+  background:rgba(129,111,81,.12);
+  color:var(--brown-900);
+  white-space:nowrap;
+}
+#createTaskModal .content-assignments-head{
+  padding:16px 18px;
+  border-radius:22px;
+  background:rgba(255,255,255,.72);
+  border:1px solid rgba(73,36,30,.08);
+}
+#createTaskModal .content-assignments-head > div{
+  display:grid;
+  gap:6px;
+}
+#createTaskModal .content-box-eyebrow{
+  width:max-content;
+  background:rgba(75,36,31,.08);
+  color:rgba(75,36,31,.74);
+  text-transform:uppercase;
+}
+#createTaskModal .professional-assignment-card{
+  padding:20px;
+  border-radius:24px;
+  background:#fff;
+  border:1px solid rgba(73,36,30,.08);
+  box-shadow:0 14px 34px rgba(75,36,31,.06);
+}
+#createTaskModal .assignment-title-group{
+  display:grid;
+  gap:6px;
+}
+#createTaskModal .assignment-title-group strong{
+  font-size:22px;
+}
+#createTaskModal .assignment-title-group small{
+  color:var(--muted);
+  font-weight:800;
+}
+#createTaskModal .assignment-number-chip{
+  width:max-content;
+  background:rgba(75,36,31,.08);
+  color:var(--brown-900);
+}
+#createTaskModal .professional-core-grid{
+  gap:14px;
+}
+#createTaskModal .professional-core-grid > .full-width-field{
+  grid-column:1 / -1;
+}
+#createTaskModal .field-panel{
+  padding:16px;
+  border-radius:20px;
+  border:1px solid rgba(73,36,30,.08);
+  background:rgba(255,248,239,.55);
+  display:grid;
+  gap:12px;
+}
+#createTaskModal .field-panel-head{
+  display:grid;
+  gap:4px;
+}
+#createTaskModal .field-panel-head strong{
+  color:var(--brown-900);
+  font-size:16px;
+}
+#createTaskModal .field-panel-head small,
+#createTaskModal .multi-select-tip{
+  color:var(--muted);
+  font-weight:800;
+  line-height:1.7;
+}
+#createTaskModal .multi-select-shell{
+  display:grid;
+  gap:10px;
+}
+#createTaskModal .department-task-core-grid select[multiple],
+#createTaskModal .multi-select-shell select[multiple]{
+  min-height:170px;
+  width:100%;
+  padding:12px 14px;
+  border-radius:18px;
+  border:1px solid rgba(73,36,30,.12);
+  background:#fff;
+  box-shadow:inset 0 1px 2px rgba(75,36,31,.03);
+}
+#createTaskModal .dept-special-fields{
+  margin-top:16px;
+  padding:18px;
+  border-radius:22px;
+  border:1px solid rgba(73,36,30,.08);
+  background:linear-gradient(180deg, rgba(255,250,245,.96), rgba(255,245,236,.88));
+}
+#createTaskModal .dept-special-head{
+  align-items:flex-start;
+}
+#createTaskModal .dept-special-head > div{
+  display:grid;
+  gap:6px;
+}
+#createTaskModal .dept-special-head strong{
+  font-size:20px;
+}
+#createTaskModal .required-content-note{
+  padding:12px 14px;
+  border-radius:16px;
+  background:rgba(75,36,31,.05);
+  color:rgba(75,36,31,.82);
+  font-weight:800;
+  line-height:1.8;
+}
+#createTaskModal .universal-required-item{
+  padding:18px;
+  border-radius:22px;
+  border:1px solid rgba(73,36,30,.08);
+  background:#fff;
+  box-shadow:0 10px 24px rgba(75,36,31,.04);
+}
+#createTaskModal .universal-content-type-wrap{
+  padding:14px;
+  border-radius:18px;
+  background:rgba(255,248,239,.5);
+  border:1px solid rgba(73,36,30,.06);
+}
+#createTaskModal .stock-car-choice-grid{
+  max-height:220px;
+}
+#createTaskModal .create-task-actions{
+  z-index:20;
+  margin-top:4px;
+  padding-top:14px;
+  border-top:1px solid rgba(73,36,30,.08);
+}
+@media(max-width:900px){
+  #createTaskModal .task-details-head h3{font-size:24px;}
+  #createTaskModal .create-task-section{padding:18px;}
+  #createTaskModal .content-hub-toggle{flex-direction:column;}
+  #createTaskModal .content-hub-status{align-self:flex-start;}
+  #createTaskModal .department-task-core-grid,
+  #createTaskModal .professional-core-grid{grid-template-columns:1fr!important;}
+}

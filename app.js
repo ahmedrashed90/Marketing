@@ -929,19 +929,36 @@ function openTaskDetails(button) {
   if (taskDetailsDept) taskDetailsDept.textContent = button.dataset.dept || 'تفاصيل القسم';
   if (taskDetailsTitle) taskDetailsTitle.textContent = button.dataset.taskTitle || 'تفاصيل التاسك';
 
-  if (taskDetailsRequired) {
-    if (assignments.length > 1) {
-      taskDetailsRequired.innerHTML = `<div class="assignment-required-list">${assignments.map(({ dept }, idx) => `
-        <article class="assignment-required-item">
-          <strong>تكليف ${idx + 1}</strong>
-          <div>${renderTaskRequirementDetails(formatDepartmentRequirement(dept), deptKeyValue)}</div>
-        </article>`).join('')}</div>`;
-    } else {
-      taskDetailsRequired.innerHTML = renderTaskRequirementDetails(button.dataset.required || formatDepartmentRequirement(clickedDept), deptKeyValue);
+  const renderSelectedRequirement = (assignmentIndex = 0) => {
+    const selectedAssignment = assignments[assignmentIndex] || assignments[0] || { dept: clickedDept };
+    if (taskDetailsRequired) {
+      taskDetailsRequired.innerHTML = renderTaskRequirementDetails(formatDepartmentRequirement(selectedAssignment.dept), deptKeyValue);
     }
-  }
+  };
+  renderSelectedRequirement(0);
 
   taskStepButtons.innerHTML = '';
+  if (assignments.length > 1) {
+    const switcher = document.createElement('div');
+    switcher.className = 'assignment-switcher';
+    switcher.setAttribute('data-assignment-switcher', 'true');
+    switcher.innerHTML = `
+      <strong>اختار التكليف</strong>
+      <div class="assignment-switcher-buttons">
+        ${assignments.map(({ dept }, index) => {
+          const shortTitle = [
+            dept.contentType || dept.deliverable || dept.taskNo || '',
+            dept.carType || ''
+          ].filter(Boolean).join(' - ');
+          return `<button type="button" class="assignment-switch-btn ${index === 0 ? 'is-active' : ''}" data-switch-assignment="${index}">
+            <span>تكليف ${index + 1}</span>
+            ${shortTitle ? `<small>${escapeHTML(shortTitle)}</small>` : ''}
+          </button>`;
+        }).join('')}
+      </div>
+    `;
+    taskStepButtons.appendChild(switcher);
+  }
   const deptCampaignShare = activeTaskCard ? Number(activeTaskCard.dataset.departmentShare || 0) : 0;
   const totalAssignments = Math.max(assignments.length, 1);
 
@@ -950,8 +967,10 @@ function openTaskDetails(button) {
     const selected = mzjDetailsReadinessSteps(fullTask || {}, dept, deptIndex).map(String);
     const steps = decodeTaskSteps(button.dataset.steps || '', deptKeyValue);
     const block = document.createElement('section');
-    block.className = 'assignment-step-block';
+    block.className = `assignment-step-block ${assignmentIndex === 0 ? 'is-active' : ''}`;
     block.dataset.assignmentStepBlock = 'true';
+    block.dataset.assignmentIndex = String(assignmentIndex);
+    block.hidden = assignmentIndex !== 0;
     block.dataset.readinessKey = readinessKey;
     block.dataset.legacyReadinessKey = mzjDetailsLegacyReadinessKey(dept);
     block.dataset.deptIndex = String(deptIndex);
@@ -1034,6 +1053,26 @@ function closeTaskDetails() {
 document.addEventListener('click', (event) => {
   const taskDetailsButton = event.target.closest('[data-open-task-details]');
   if (taskDetailsButton) openTaskDetails(taskDetailsButton);
+
+  const assignmentSwitch = event.target.closest('[data-switch-assignment]');
+  if (assignmentSwitch) {
+    const index = Number(assignmentSwitch.dataset.switchAssignment || 0);
+    const modal = assignmentSwitch.closest('#taskDetailsModal') || taskDetailsModal;
+    modal?.querySelectorAll('[data-switch-assignment]').forEach((btn) => {
+      btn.classList.toggle('is-active', Number(btn.dataset.switchAssignment || 0) === index);
+    });
+    modal?.querySelectorAll('[data-assignment-step-block]').forEach((block) => {
+      const isSelected = Number(block.dataset.assignmentIndex || 0) === index;
+      block.hidden = !isSelected;
+      block.classList.toggle('is-active', isSelected);
+    });
+    const selectedMeta = activeTaskDetailsMeta?.relatedAssignments?.[index];
+    if (selectedMeta?.deptData && taskDetailsRequired) {
+      taskDetailsRequired.innerHTML = renderTaskRequirementDetails(formatDepartmentRequirement(selectedMeta.deptData), activeTaskDetailsMeta?.deptKey || '');
+    }
+    syncTaskProgress();
+    return;
+  }
 
   const uploadTaskAttachment = event.target.closest('[data-upload-task-attachment]');
   if (uploadTaskAttachment) {

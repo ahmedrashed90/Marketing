@@ -5244,3 +5244,65 @@ body.sidebar-collapsed .database-main {
     width:100%;
   }
 }
+
+
+/* Assignment switcher inside task details */
+.assignment-switcher{
+  border:1px solid rgba(75,36,31,.12);
+  border-radius:20px;
+  background:#fff;
+  padding:14px;
+  margin-bottom:14px;
+  display:grid;
+  gap:10px;
+}
+.assignment-switcher > strong{
+  color:var(--brown,#4b241f);
+  font-weight:900;
+}
+.assignment-switcher-buttons{
+  display:flex;
+  flex-wrap:wrap;
+  gap:10px;
+}
+.assignment-switch-btn{
+  border:1px solid rgba(75,36,31,.16);
+  background:#fffaf6;
+  color:var(--brown,#4b241f);
+  border-radius:16px;
+  padding:10px 14px;
+  cursor:pointer;
+  min-width:130px;
+  display:grid;
+  gap:4px;
+  text-align:center;
+  font-weight:900;
+}
+.assignment-switch-btn small{
+  color:#8e766c;
+  font-size:11px;
+  line-height:1.5;
+  max-width:180px;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.assignment-switch-btn.is-active{
+  background:var(--brown,#4b241f);
+  color:#fff;
+  border-color:var(--brown,#4b241f);
+  box-shadow:0 12px 24px rgba(75,36,31,.16);
+}
+.assignment-switch-btn.is-active small{
+  color:#f3ded2;
+}
+.assignment-step-block[hidden]{
+  display:none !important;
+}
+.assignment-step-block.is-active{
+  animation:assignmentFadeIn .16s ease;
+}
+@keyframes assignmentFadeIn{
+  from{opacity:.2;transform:translateY(4px)}
+  to{opacity:1;transform:translateY(0)}
+}

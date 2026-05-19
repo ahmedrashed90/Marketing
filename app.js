@@ -583,19 +583,16 @@ function mzjCollectTaskContentTypes(deptTask) {
 function renderReadableDepartmentRequirement(deptTask, deptKeyValue) {
   const safe = (value) => escapeHTML(String(value || '').trim());
   const details = deptTask?.requiredDetails && typeof deptTask.requiredDetails === 'object' ? deptTask.requiredDetails : {};
-  const rawFallback = mzjCleanTaskText(deptTask?.requiredText || deptTask?.required || details.requiredText || '');
   const cars = mzjCollectTaskCars(deptTask);
   const contentTypes = mzjCollectTaskContentTypes(deptTask).filter((value) => !/^مطلوب\s*\d+/i.test(value));
   const explicitTitle = mzjTaskExplicitName(deptTask);
-  const finalTitle = explicitTitle ||
-    mzjCleanTaskText(deptTask?.taskName || deptTask?.taskTitle || deptTask?.title || deptTask?.name || details.taskName || details.taskTitle || '') ||
-    'تكليف مطلوب';
+  const fallbackTitle = mzjCleanTaskText(deptTask?.taskName || deptTask?.taskTitle || details.taskName || details.taskTitle || '');
+  const finalTitle = explicitTitle || (contentTypes.includes(fallbackTitle) ? 'تكليف مطلوب' : fallbackTitle) || 'تكليف مطلوب';
 
   const deptLabel = mzjCleanTaskText(deptTask?.departmentName || details.departmentName || '—');
   const userLabel = mzjCleanTaskText(deptTask?.userDisplayName || deptTask?.userName || deptTask?.assigneeName || deptTask?.userEmail || '—');
   const contentLabel = contentTypes.length ? contentTypes.join('، ') : 'غير محدد';
   const carCountLabel = cars.length ? `${cars.length} سيارة` : 'غير محدد';
-  const carList = cars.length ? cars : [];
 
   return `<section class="fresh-task-details">
     <header class="fresh-task-header">
@@ -612,7 +609,7 @@ function renderReadableDepartmentRequirement(deptTask, deptKeyValue) {
 
     <section class="fresh-task-cars">
       <small>السيارات المختارة</small>
-      ${carList.length ? `<div class="fresh-car-list">${carList.map((car, index) => `<span>${index + 1}. ${safe(car)}</span>`).join('')}</div>` : '<em>غير محدد</em>'}
+      ${cars.length ? `<div class="fresh-car-list">${cars.map((car, index) => `<span>${index + 1}. ${safe(car)}</span>`).join('')}</div>` : '<em>غير محدد</em>'}
     </section>
   </section>`;
 }
@@ -2263,7 +2260,7 @@ function mzjStockCarFullLabel(car, index = 0) {
 function renderStockCarChoiceCards() {
   const stockCarsCache = Array.isArray(window.MZJStockCarsCache) && window.MZJStockCarsCache.length ? window.MZJStockCarsCache : (Array.isArray(window.stockCarsCache) ? window.stockCarsCache : []);
   if (!stockCarsCache.length) {
-    return '<div class="required-content-empty">جاري تحميل سيارات الاستوك... لو لم تظهر اضغط تحديث السيارات.</div><button class="soft-btn" type="button" data-refresh-stock-cars>تحديث السيارات</button>';
+    return '<div class="required-content-empty">جاري تحميل سيارات الاستوك من collection: cars...</div><button class="soft-btn" type="button" data-refresh-stock-cars>تحديث السيارات</button>';
   }
   return stockCarsCache.map((car, index) => {
     const label = mzjStockCarFullLabel(car, index);
@@ -3604,75 +3601,31 @@ function initCreateTaskFromTemplate() {
   async function loadStockCarsForDropdown(force = false) {
     if (stockCarsLoaded && !force && stockCarsCache.length) return stockCarsCache;
     stockCarsLoaded = true;
-
-    const uniqueByDisplay = (items) => {
-      const seen = new Set();
-      return (items || []).filter((item) => {
-        const key = templateCellText(item?.display || mzjStockCarFullLabel(item) || item?.id || '');
-        if (!key || seen.has(key)) return false;
-        seen.add(key);
-        return true;
-      });
-    };
-
-    const readCollection = async (db, collectionName) => {
-      const snap = await db.collection(collectionName).get();
-      const rows = [];
-      snap.forEach((doc) => {
-        const raw = doc.data() || {};
-        const car = normalizeStockCar({ ...raw, docId: doc.id });
-        if (!shouldHideStockCar(car)) rows.push(car);
-      });
-      return rows;
-    };
-
-    const sourceRows = [];
+    stockCarsCache = [];
+    window.MZJStockCarsCache = stockCarsCache;
+    window.stockCarsCache = stockCarsCache;
     try {
       if (!window.firebase || !firebase.firestore) {
         console.warn('Stock cars dropdown: Firebase SDK not ready.');
-      } else {
-        const appConfigs = [];
-        if (window.MZJ_STOCK_FIREBASE_CONFIG) appConfigs.push({ name: 'mzjStockReadonlyApp', config: window.MZJ_STOCK_FIREBASE_CONFIG });
-        if (window.MZJ_FIREBASE_CONFIG) appConfigs.push({ name: 'mzjMarketingPrimaryStockReadApp', config: window.MZJ_FIREBASE_CONFIG });
-
-        const collectionNames = Array.from(new Set([
-          window.MZJ_STOCK_CARS_COLLECTION || 'cars',
-          'cars',
-          'stock',
-          'stock_cars',
-          'stockCars',
-          'vehicles',
-          'inventory'
-        ].filter(Boolean)));
-
-        for (const appInfo of appConfigs) {
-          let db = null;
-          try {
-            let stockApp = null;
-            try { stockApp = firebase.app(appInfo.name); }
-            catch (_error) { stockApp = firebase.initializeApp(appInfo.config, appInfo.name); }
-            db = stockApp.firestore();
-          } catch (error) {
-            console.warn('Stock firebase app init failed:', appInfo.name, error);
-            continue;
-          }
-
-          for (const collectionName of collectionNames) {
-            try {
-              const rows = await readCollection(db, collectionName);
-              if (rows.length) {
-                sourceRows.push(...rows);
-                break;
-              }
-            } catch (error) {
-              console.warn('Stock collection read failed:', appInfo.name, collectionName, error?.message || error);
-            }
-          }
-          if (sourceRows.length) break;
-        }
+        return stockCarsCache;
       }
+      if (!window.MZJ_STOCK_FIREBASE_CONFIG) {
+        console.warn('Stock cars dropdown: MZJ_STOCK_FIREBASE_CONFIG missing.');
+        return stockCarsCache;
+      }
+      const appName = 'mzjStockReadonlyApp';
+      let stockApp = null;
+      try { stockApp = firebase.app(appName); }
+      catch (_error) { stockApp = firebase.initializeApp(window.MZJ_STOCK_FIREBASE_CONFIG, appName); }
 
-      stockCarsCache = uniqueByDisplay(buildStockSpecsForDropdown(sourceRows));
+      const collectionName = 'cars';
+      const snap = await stockApp.firestore().collection(collectionName).get();
+      const items = [];
+      snap.forEach((doc) => {
+        const car = normalizeStockCar({ ...(doc.data() || {}), docId: doc.id });
+        if (!shouldHideStockCar(car)) items.push(car);
+      });
+      stockCarsCache = buildStockSpecsForDropdown(items);
       window.MZJStockCarsCache = stockCarsCache;
       window.stockCarsCache = stockCarsCache;
       return stockCarsCache;
@@ -4420,7 +4373,7 @@ function initCreateTaskFromTemplate() {
             customTaskName: typedTaskName,
             userTaskName: typedTaskName,
             taskGroupId: groupId,
-            taskGroupTitle: typedTaskName || title,
+            taskGroupTitle: typedTaskName || '',
             requiredText: requiredParts.join(' — ') || title,
             carType: singleCar || '',
             selectedCars: singleCar ? [singleCar] : [],
@@ -4512,10 +4465,10 @@ function initCreateTaskFromTemplate() {
       receivedAt: '',
       receivedBy: '',
       attachmentLabel: attachmentLabelForKind(kind),
-      taskName: special.customTaskName || special.userTaskName || special.taskGroupTitle || special.taskName || special.taskTitle || '',
-      taskTitle: special.customTaskName || special.userTaskName || special.taskGroupTitle || special.taskTitle || special.taskName || '',
-      title: special.customTaskName || special.userTaskName || special.taskGroupTitle || special.title || special.taskName || special.taskTitle || '',
-      name: special.customTaskName || special.userTaskName || special.taskGroupTitle || special.title || special.taskName || special.taskTitle || '',
+      taskName: special.customTaskName || special.userTaskName || special.taskGroupTitle || special.taskName || special.taskTitle || 'تكليف مطلوب',
+      taskTitle: special.customTaskName || special.userTaskName || special.taskGroupTitle || special.taskTitle || special.taskName || 'تكليف مطلوب',
+      title: special.customTaskName || special.userTaskName || special.taskGroupTitle || special.title || special.taskName || special.taskTitle || 'تكليف مطلوب',
+      name: special.customTaskName || special.userTaskName || special.taskGroupTitle || special.title || special.taskName || special.taskTitle || 'تكليف مطلوب',
       customTaskName: special.customTaskName || special.userTaskName || '',
       userTaskName: special.userTaskName || special.customTaskName || '',
       taskGroupId: special.taskGroupId || special.assignmentGroupId || '',

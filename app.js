@@ -5506,6 +5506,10 @@ initCreateTaskFromTemplate();
     return [dept.departmentId || dept.departmentKey || dept.departmentName || '', dept.userId || dept.uid || dept.assigneeUid || dept.userEmail || dept.userName || ''].map(v => String(v || '').trim()).filter(Boolean).join('::');
   }
   function autoStage(task){
+    if (task.archived === true || task.archiveDate || task.archivedAt || task.stage === 'archive') {
+      task.stage = 'archive';
+      return task;
+    }
     if (!task.stage) task.stage = 'required';
     const ready = taskReadiness(task);
     if (task.stage !== 'archive' && ready >= 100) {

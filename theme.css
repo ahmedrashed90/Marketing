@@ -6437,3 +6437,81 @@ body:has(#taskDetailsModal.is-open){
   background:#f4e7dd !important;
   color:#9d1f1f !important;
 }
+
+
+/* Database campaign results and archive workflow */
+.db-results-manager{
+  display:grid;
+  gap:16px;
+}
+.db-results-upload-row,
+.db-campaign-links-box{
+  border:1px solid rgba(62,36,32,.10);
+  border-radius:20px;
+  background:#fffaf6;
+  padding:14px;
+}
+.db-results-upload-row{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:14px;
+  flex-wrap:wrap;
+}
+.db-results-upload-row h4,
+.db-campaign-links-box h4{
+  margin:0 0 8px;
+  color:#3e2420;
+  font-size:18px;
+}
+.db-result-file-link{
+  display:inline-flex;
+  padding:8px 12px;
+  border-radius:999px;
+  background:#f4e7dd;
+  color:#4b241f;
+  font-weight:900;
+  text-decoration:none;
+}
+.db-upload-result-btn{
+  cursor:pointer;
+}
+.db-links-head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  margin-bottom:10px;
+}
+.db-campaign-links-list{
+  display:grid;
+  gap:10px;
+}
+.db-campaign-link-row{
+  display:grid;
+  grid-template-columns:minmax(160px,.7fr) minmax(260px,1fr) auto;
+  gap:10px;
+  align-items:center;
+}
+.db-campaign-link-row select,
+.db-campaign-link-row input{
+  width:100%;
+  min-height:44px;
+  border:1px solid rgba(62,36,32,.12);
+  border-radius:14px;
+  background:#fff;
+  padding:8px 12px;
+  font-weight:800;
+}
+.db-save-links-btn{
+  margin-top:12px;
+}
+.db-archive-btn{
+  background:#fff2d8 !important;
+  color:#6f3a00 !important;
+}
+@media(max-width:760px){
+  .db-campaign-link-row{
+    grid-template-columns:1fr;
+  }
+}

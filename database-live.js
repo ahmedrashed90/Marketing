@@ -3,6 +3,7 @@
   let firestoreRecords = [];
   let firebaseUsers = [];
   let firebaseDepartments = [];
+  let marketingPlatforms = [];
 
   const DEFAULT_EDIT_DEPARTMENTS = [
     { key: 'photography', label: 'قسم التصوير', aliases: ['photography','photo','قسم التصوير','التصوير','تصوير'] },
@@ -83,6 +84,124 @@
     const user = currentUser();
     const role = String(user.role || '').toLowerCase();
     return role === 'admin' || role === 'administrator' || String(user.email||'').toLowerCase() === 'mr.ahmed_rashed@outlook.sa';
+  }
+
+
+  function todayISO(){
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  }
+
+  function getUploadEndpoint(){
+    if(location.hostname && location.hostname.includes('vercel.app')) return '/api/zoho-upload';
+    return String(window.MZJ_DRIVE_UPLOAD_WEB_APP_URL || '').trim();
+  }
+
+  function fileToBase64(file){
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || '').split(',')[1] || '');
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function uploadDatabaseResultFile(file, record){
+    const endpoint = getUploadEndpoint();
+    if(!endpoint) throw new Error('رابط رفع الملفات غير موجود في firebase-config.js');
+    const base64 = await fileToBase64(file);
+    const user = currentUser();
+    const payload = {
+      action: 'uploadCampaignResultFile',
+      fileName: file.name,
+      name: file.name,
+      filename: file.name,
+      mimeType: file.type || 'application/octet-stream',
+      type: file.type || 'application/octet-stream',
+      contentType: file.type || 'application/octet-stream',
+      base64,
+      file: base64,
+      fileBase64: base64,
+      content: base64,
+      taskId: record.id || record.firestoreId || '',
+      campaignName: record.name || '',
+      campaignCode: record.code || '',
+      meta: {
+        taskId: record.id || record.firestoreId || '',
+        campaignName: record.name || '',
+        campaignCode: record.code || '',
+        departmentKey: 'results',
+        departmentName: 'نتائج الحملة',
+        uploadedBy: user.email || user.name || ''
+      }
+    };
+
+    const response = await fetch(endpoint, {
+      method:'POST',
+      headers:{ 'Content-Type':'text/plain;charset=utf-8' },
+      body: JSON.stringify(payload)
+    });
+    const raw = await response.text();
+    let result = null;
+    try{ result = JSON.parse(raw); }catch(e){ result = { ok: response.ok, success: response.ok, raw }; }
+    const success = response.ok && (result.ok === true || result.success === true);
+    if(!success) throw new Error(result.error || result.message || result.raw || 'فشل رفع ملف النتائج.');
+    const fileId = result.fileId || result.id || result.resource_id || result.resourceId || '';
+    const fileUrl = result.fileUrl || result.url || result.viewUrl || result.webViewLink || result.permalink || result.downloadUrl || (fileId ? `https://workdrive.zoho.sa/file/${encodeURIComponent(fileId)}` : '');
+    return {
+      name: result.name || result.fileName || file.name,
+      fileName: result.fileName || result.name || file.name,
+      url: fileUrl,
+      fileUrl,
+      webViewLink: result.webViewLink || result.viewUrl || fileUrl,
+      downloadUrl: result.downloadUrl || '',
+      fileId,
+      mimeType: file.type || result.mimeType || '',
+      size: file.size || 0,
+      uploadedAt: new Date().toISOString(),
+      uploadedBy: user.email || user.name || ''
+    };
+  }
+
+  function platformOptions(selected=''){
+    const items = marketingPlatforms.length ? marketingPlatforms : [
+      { name:'Facebook' }, { name:'Instagram' }, { name:'TikTok' }, { name:'YouTube' }, { name:'Snapchat' }, { name:'Google' }, { name:'X' }
+    ];
+    return '<option value="">اختار المنصة</option>' + items.map((p) => {
+      const name = p.name || p.title || p.label || p.slug || '';
+      return `<option value="${esc(name)}" ${String(selected)===String(name)?'selected':''}>${esc(name)}</option>`;
+    }).join('');
+  }
+
+  function campaignPublishDate(record){
+    const publishTasks = (record.departmentTasks || []).filter((task) => deptKey(task) === 'publish');
+    for(const task of publishTasks){
+      const date = task.publishDate || task.deliveryDate || task.deliveredAt || task.doneAt || task.completedAt;
+      if(date) return normalizeDate(date);
+    }
+    return normalizeDate(record.publishStartDate || record.publishDate || record.deliveryDate || '');
+  }
+
+  function hasResultsFile(record){
+    const results = record.resultsDetails || record.results || record.campaignResults || {};
+    const file = results.file || results.resultFile || results.resultsFile || null;
+    return Boolean(
+      results.fileUrl || results.url || results.webViewLink || results.downloadUrl ||
+      (file && (file.fileUrl || file.url || file.webViewLink))
+    );
+  }
+
+  async function saveRecordPatch(recordId, patch){
+    const target = loadRecords().find(r => String(r.id) === String(recordId));
+    if(!target) throw new Error('لم يتم العثور على الحملة.');
+    if(!window.firebase || !window.MZJ_FIREBASE_CONFIG || !firebase.firestore) throw new Error('Firebase SDK غير موجود');
+    if(!firebase.apps.length) firebase.initializeApp(window.MZJ_FIREBASE_CONFIG);
+    const col = target.sourceFirestoreCollection || 'workspace_tasks';
+    const docId = target.firestoreId || target.docId || target.id;
+    await firebase.firestore().collection(col).doc(String(docId)).set(patch, { merge:true });
+    firestoreRecords = firestoreRecords.map(r => String(r.id || r.firestoreId) === String(recordId) ? { ...r, ...patch } : r);
+    render();
+    return { ...target, ...patch };
   }
 
 
@@ -217,9 +336,10 @@
     if(!window.firebase || !window.MZJ_FIREBASE_CONFIG || !firebase.firestore) return;
     try{
       if(!firebase.apps.length) firebase.initializeApp(window.MZJ_FIREBASE_CONFIG);
-      const [usersSnap, depsSnap] = await Promise.all([
+      const [usersSnap, depsSnap, platformsSnap] = await Promise.all([
         firebase.firestore().collection('users').get(),
-        firebase.firestore().collection('departments').get().catch(() => ({ forEach: () => {} }))
+        firebase.firestore().collection('departments').get().catch(() => ({ forEach: () => {} })),
+        firebase.firestore().collection('marketing_platforms').get().catch(() => ({ forEach: () => {} }))
       ]);
       const users=[];
       usersSnap.forEach(doc => users.push({ id: doc.id, firestoreId: doc.id, ...(doc.data() || {}) }));
@@ -227,6 +347,9 @@
       const deps=[];
       depsSnap.forEach(doc => deps.push({ id: doc.id, firestoreId: doc.id, ...(doc.data() || {}) }));
       firebaseDepartments = deps;
+      const platforms=[];
+      platformsSnap.forEach(doc => platforms.push({ id: doc.id, firestoreId: doc.id, ...(doc.data() || {}) }));
+      marketingPlatforms = platforms;
     }catch(err){
       console.warn('فشل قراءة users/departments للتعديل:', err);
     }
@@ -342,11 +465,38 @@
   }
 
   function resultsHtml(record){
-    const results = record.resultsDetails || record.results || record.campaignResults;
-    if(!results) return '<p class="db-empty-line">لا يوجد تقرير نتائج محفوظ.</p>';
-    if(typeof results === 'string') return `<p>${esc(results)}</p>`;
-    if(Array.isArray(results)) return `<div class="db-inner-table"><table><tbody>${results.map((r, i) => `<tr><th>نتيجة ${i+1}</th><td>${esc(typeof r === 'object' ? JSON.stringify(r) : r)}</td></tr>`).join('')}</tbody></table></div>`;
-    return `<div class="db-inner-table"><table><tbody>${Object.entries(results).map(([k,v]) => `<tr><th>${esc(k)}</th><td>${esc(typeof v === 'object' ? JSON.stringify(v) : v)}</td></tr>`).join('')}</tbody></table></div>`;
+    const results = record.resultsDetails || record.results || record.campaignResults || {};
+    const file = results.file || results.resultFile || results.resultsFile || null;
+    const fileUrl = results.fileUrl || results.url || results.webViewLink || file?.fileUrl || file?.url || file?.webViewLink || '';
+    const fileName = results.fileName || results.name || file?.fileName || file?.name || 'ملف نتائج الحملة';
+    const links = Array.isArray(results.links) ? results.links : (Array.isArray(record.campaignLinks) ? record.campaignLinks : []);
+
+    return `<div class="db-results-manager" data-results-manager data-record-id="${esc(record.id)}">
+      <div class="db-results-upload-row">
+        <div>
+          <h4>ملف نتائج الحملة</h4>
+          ${fileUrl ? `<a class="db-result-file-link" href="${esc(fileUrl)}" target="_blank" rel="noopener">${esc(fileName)}</a>` : '<p class="db-empty-line">لا يوجد ملف نتائج مرفوع.</p>'}
+        </div>
+        ${isAdmin() ? `<label class="soft-btn db-upload-result-btn">رفع ملف نتائج الحملة<input type="file" data-upload-results-file data-record-id="${esc(record.id)}" hidden></label>` : ''}
+      </div>
+
+      <div class="db-campaign-links-box">
+        <div class="db-links-head">
+          <h4>روابط الحملة</h4>
+          ${isAdmin() ? `<button class="soft-btn" type="button" data-add-campaign-link>+ إضافة منصة ورابط</button>` : ''}
+        </div>
+        <div class="db-campaign-links-list" data-campaign-links-list>
+          ${(links.length ? links : [{ platform:'', url:'' }]).map((link) => `
+            <div class="db-campaign-link-row" data-campaign-link-row>
+              <select data-campaign-link-platform ${!isAdmin() ? 'disabled' : ''}>${platformOptions(link.platform || link.name || '')}</select>
+              <input type="url" data-campaign-link-url placeholder="رابط الحملة" value="${esc(link.url || link.link || '')}" ${!isAdmin() ? 'readonly' : ''}>
+              ${isAdmin() ? `<button class="soft-danger-btn" type="button" data-remove-campaign-link>مسح</button>` : ''}
+            </div>
+          `).join('')}
+        </div>
+        ${isAdmin() ? `<button class="primary-btn db-save-links-btn" type="button" data-save-campaign-links data-record-id="${esc(record.id)}">حفظ روابط الحملة</button>` : ''}
+      </div>
+    </div>`;
   }
 
   function detailSectionHtml(record, section){
@@ -760,7 +910,7 @@
       return `<tr data-record-id="${esc(r.id)}">
         <td>${idx+1}</td><td>${esc(formatDate(r.taskDate || r.createdAt || r.launchDate))}</td><td>${esc(r.code || '--')}</td><td>${esc(r.name)}</td><td>${esc(recordTypeValue(r) || '--')}</td><td>${esc(r.goal || '--')}</td><td>${esc(formatDate(r.startDate || r.launchDate))}</td><td>${esc(formatDate(r.endDate))}</td>
         <td>${renderDeptSummary(r,'photography')}</td><td>${renderDeptSummary(r,'content')}</td><td>${renderDeptSummary(r,'design')}</td><td>${renderDeptSummary(r,'video')}</td><td>${renderDeptSummary(r,'publish')}</td>
-        <td>${renderSectionButton(r,'all','عرض البيانات')}</td><td>${isAdmin() ? `<div class="db-action-stack"><button class="soft-btn db-edit-btn" type="button" data-edit-record="${esc(r.id)}" onclick="window.openDatabaseEditCampaign && window.openDatabaseEditCampaign(this.dataset.editRecord)">تعديل</button><button class="danger-btn db-delete-btn" type="button" data-delete-record="${esc(r.id)}">مسح</button></div>` : '--'}</td>
+        <td>${renderSectionButton(r,'all','عرض البيانات')}</td><td>${isAdmin() ? `<div class="db-action-stack"><button class="soft-btn db-edit-btn" type="button" data-edit-record="${esc(r.id)}" onclick="window.openDatabaseEditCampaign && window.openDatabaseEditCampaign(this.dataset.editRecord)">تعديل</button><button class="soft-btn db-archive-btn" type="button" data-archive-record="${esc(r.id)}">أرشيف</button><button class="danger-btn db-delete-btn" type="button" data-delete-record="${esc(r.id)}">مسح</button></div>` : '--'}</td>
       </tr>`;
     }).join('')}</tbody></table></div><div class="campaign-db-sticky-scroll" aria-hidden="true"><div></div></div></div>`;
     setupDatabaseStickyScroll(holder);
@@ -790,6 +940,68 @@
       openDbDetails(detailsBtn.dataset.dbDetails, detailsBtn.dataset.dbSection || 'all');
       return;
     }
+    const archiveBtn = e.target.closest('[data-archive-record]');
+    if(archiveBtn){
+      e.preventDefault();
+      e.stopPropagation();
+      const recordId = archiveBtn.dataset.archiveRecord || '';
+      const record = loadRecords().find(r => String(r.id) === String(recordId));
+      if(!record){ alert('لم يتم العثور على الحملة.'); return; }
+      if(!hasResultsFile(record)){
+        alert('لا يمكن أرشفة الحملة قبل رفع ملف نتائج الحملة.');
+        return;
+      }
+      const publishDate = campaignPublishDate(record);
+      if(!publishDate){
+        alert('لا يمكن أرشفة الحملة قبل تحديد تاريخ النشر في قسم النشر.');
+        return;
+      }
+      if(!confirm('تأكيد نقل الحملة إلى قسم الأرشيف؟')) return;
+      try{
+        await saveRecordPatch(recordId, {
+          stage: 'archive',
+          archived: true,
+          archivedAt: new Date().toISOString(),
+          archiveDate: todayISO(),
+          publishDate
+        });
+        alert('تم نقل الحملة إلى الأرشيف.');
+      }catch(err){
+        alert('فشل أرشفة الحملة: ' + (err.message || err.code || err));
+      }
+      return;
+    }
+
+    const saveLinksBtn = e.target.closest('[data-save-campaign-links]');
+    if(saveLinksBtn){
+      e.preventDefault();
+      e.stopPropagation();
+      const recordId = saveLinksBtn.dataset.saveCampaignLinks || '';
+      const manager = saveLinksBtn.closest('[data-results-manager]');
+      const rows = Array.from(manager?.querySelectorAll('[data-campaign-link-row]') || []);
+      const links = rows.map((row) => ({
+        platform: row.querySelector('[data-campaign-link-platform]')?.value.trim() || '',
+        url: row.querySelector('[data-campaign-link-url]')?.value.trim() || ''
+      })).filter((item) => item.platform || item.url);
+      try{
+        await saveRecordPatch(recordId, {
+          resultsDetails: {
+            ...(loadRecords().find(r => String(r.id) === String(recordId))?.resultsDetails || {}),
+            links,
+            updatedAt: new Date().toISOString()
+          },
+          campaignLinks: links
+        });
+        const record = loadRecords().find(r => String(r.id) === String(recordId));
+        const content = document.getElementById('detailsContent');
+        if(record && content) content.innerHTML = detailsHtml(record);
+        alert('تم حفظ روابط الحملة.');
+      }catch(err){
+        alert('فشل حفظ روابط الحملة: ' + (err.message || err.code || err));
+      }
+      return;
+    }
+
     const editBtn = e.target.closest('[data-edit-record]');
     if(editBtn){
       e.preventDefault();
@@ -808,6 +1020,32 @@
       if(enabled) enabled.checked = true;
       return;
     }
+    const addCampaignLink = e.target.closest('[data-add-campaign-link]');
+    if(addCampaignLink){
+      e.preventDefault();
+      const list = addCampaignLink.closest('.db-campaign-links-box')?.querySelector('[data-campaign-links-list]');
+      if(list){
+        list.insertAdjacentHTML('beforeend', `<div class="db-campaign-link-row" data-campaign-link-row>
+          <select data-campaign-link-platform>${platformOptions('')}</select>
+          <input type="url" data-campaign-link-url placeholder="رابط الحملة">
+          <button class="soft-danger-btn" type="button" data-remove-campaign-link>مسح</button>
+        </div>`);
+      }
+      return;
+    }
+    const removeCampaignLink = e.target.closest('[data-remove-campaign-link]');
+    if(removeCampaignLink){
+      e.preventDefault();
+      const row = removeCampaignLink.closest('[data-campaign-link-row]');
+      const list = removeCampaignLink.closest('[data-campaign-links-list]');
+      if(row && list && list.querySelectorAll('[data-campaign-link-row]').length > 1) row.remove();
+      else if(row){
+        row.querySelector('[data-campaign-link-platform]').value = '';
+        row.querySelector('[data-campaign-link-url]').value = '';
+      }
+      return;
+    }
+
     const closeEditBtn = e.target.closest('[data-close-db-edit]');
     if(closeEditBtn){
       e.preventDefault();
@@ -823,7 +1061,42 @@
   }, true);
 
 
-  document.addEventListener('change', function(event){
+  document.addEventListener('change', async function(event){
+    const resultInput = event.target.closest('[data-upload-results-file]');
+    if(resultInput && resultInput.files && resultInput.files[0]){
+      const file = resultInput.files[0];
+      const recordId = resultInput.dataset.recordId || '';
+      const record = loadRecords().find(r => String(r.id) === String(recordId));
+      if(!record){ alert('لم يتم العثور على الحملة.'); resultInput.value=''; return; }
+      const label = resultInput.closest('label');
+      const oldText = label?.childNodes?.[0]?.textContent || '';
+      try{
+        if(label) label.childNodes[0].textContent = 'جاري الرفع...';
+        const fileRecord = await uploadDatabaseResultFile(file, record);
+        const existingResults = record.resultsDetails || record.results || record.campaignResults || {};
+        await saveRecordPatch(recordId, {
+          resultsDetails: {
+            ...(typeof existingResults === 'object' && !Array.isArray(existingResults) ? existingResults : {}),
+            file: fileRecord,
+            fileUrl: fileRecord.fileUrl || fileRecord.url || '',
+            fileName: fileRecord.fileName || fileRecord.name || file.name,
+            uploadedAt: fileRecord.uploadedAt,
+            updatedAt: new Date().toISOString()
+          }
+        });
+        const fresh = loadRecords().find(r => String(r.id) === String(recordId));
+        const content = document.getElementById('detailsContent');
+        if(fresh && content) content.innerHTML = detailsHtml(fresh);
+        alert('تم رفع ملف نتائج الحملة.');
+      }catch(err){
+        alert('فشل رفع ملف نتائج الحملة: ' + (err.message || err.code || err));
+      }finally{
+        if(label && oldText) label.childNodes[0].textContent = oldText;
+        resultInput.value = '';
+      }
+      return;
+    }
+
     const userSelect = event.target.closest('[data-edit-user-select]');
     if(userSelect){
       const opt = userSelect.selectedOptions?.[0];

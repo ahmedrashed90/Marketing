@@ -1054,11 +1054,7 @@ function openTaskDetails(button) {
           <span>التكليفات المطلوبة</span>
           <strong>اختار التكليف اللي هتشتغل عليه</strong>
         </div>
-        <div class="assignment-combined-percent">
-          <b>${assignments.length} تكليف</b>
-          <em>اكتمال التكليفات معًا: <strong data-switch-total-task-percent>0%</strong></em>
-          <em>نسبة الحملة: <strong data-switch-total-campaign-percent>0%</strong></em>
-        </div>
+        <b>${assignments.length} تكليف</b>
       </div>
       <div class="assignment-switcher-buttons">
         ${assignments.map(({ dept }, index) => {
@@ -1069,6 +1065,10 @@ function openTaskDetails(button) {
           return `<button type="button" class="assignment-switch-btn ${index === 0 ? 'is-active' : ''}" data-switch-assignment="${index}">
             <b>${index + 1}</b>
             <span>تكليف ${index + 1}</span>
+            <em class="assignment-card-total-percent">
+              <i>اكتمال التكليفات معًا: <strong data-switch-total-task-percent>0%</strong></i>
+              <i>نسبة الحملة: <strong data-switch-total-campaign-percent>0%</strong></i>
+            </em>
             ${shortTitle ? `<small>${escapeHTML(shortTitle)}</small>` : '<small>مطلوب مستقل</small>'}
           </button>`;
         }).join('')}

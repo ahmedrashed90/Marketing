@@ -6583,3 +6583,43 @@ body:has(#taskDetailsModal.is-open){
     justify-content:center;
   }
 }
+
+
+/* Put combined assignment percentage inside each assignment card */
+.assignment-combined-percent{
+  display:none !important;
+}
+.assignment-card-total-percent{
+  display:grid;
+  gap:6px;
+  width:100%;
+  margin:10px 0 6px;
+  font-style:normal;
+}
+.assignment-card-total-percent i{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  min-height:30px;
+  padding:6px 8px;
+  border-radius:999px;
+  background:#fff;
+  border:1px solid rgba(62,36,32,.10);
+  color:#4b241f;
+  font-style:normal;
+  font-size:12px;
+  font-weight:900;
+  line-height:1.4;
+}
+.assignment-card-total-percent strong{
+  margin-inline-start:4px;
+  color:#3e2420;
+}
+.assignment-switch-btn.is-active .assignment-card-total-percent i{
+  background:rgba(255,255,255,.12);
+  border-color:rgba(255,255,255,.20);
+  color:#fff;
+}
+.assignment-switch-btn.is-active .assignment-card-total-percent strong{
+  color:#fff;
+}

@@ -6542,3 +6542,44 @@ body:has(#taskDetailsModal.is-open){
     grid-template-columns:1fr;
   }
 }
+
+
+/* Combined assignment percentage in task details */
+.assignment-combined-percent{
+  display:flex;
+  align-items:center;
+  justify-content:flex-end;
+  gap:8px;
+  flex-wrap:wrap;
+}
+.assignment-combined-percent b,
+.assignment-combined-percent em{
+  display:inline-flex;
+  align-items:center;
+  min-height:34px;
+  padding:7px 11px;
+  border-radius:999px;
+  background:#f4e7dd;
+  color:#4b241f;
+  font-style:normal;
+  font-weight:900;
+  font-size:12px;
+}
+.assignment-combined-percent em{
+  background:#fff;
+  border:1px solid rgba(62,36,32,.10);
+}
+.assignment-combined-percent strong{
+  margin-inline-start:4px;
+  color:#3e2420;
+}
+@media(max-width:760px){
+  .assignment-combined-percent{
+    justify-content:stretch;
+  }
+  .assignment-combined-percent b,
+  .assignment-combined-percent em{
+    width:100%;
+    justify-content:center;
+  }
+}

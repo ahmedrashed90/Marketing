@@ -185,6 +185,8 @@ function syncTaskProgress() {
     if (modalCampaignPercent) modalCampaignPercent.textContent = campaignPercent + '%';
     taskStepButtons.querySelectorAll('[data-modal-task-percent]').forEach((node) => node.textContent = taskPercent + '%');
     taskStepButtons.querySelectorAll('[data-modal-campaign-percent]').forEach((node) => node.textContent = campaignPercent + '%');
+    taskStepButtons.querySelectorAll('[data-switch-total-task-percent]').forEach((node) => node.textContent = taskPercent + '%');
+    taskStepButtons.querySelectorAll('[data-switch-total-campaign-percent]').forEach((node) => node.textContent = campaignPercent + '%');
 
     if (activeTaskCard) {
       const taskPercentNode = activeTaskCard.querySelector('[data-task-percent]');
@@ -206,6 +208,8 @@ function syncTaskProgress() {
   if (modalCampaignPercent) modalCampaignPercent.textContent = campaignPercent + '%';
   taskStepButtons.querySelectorAll('[data-modal-task-percent]').forEach((node) => node.textContent = taskPercent + '%');
   taskStepButtons.querySelectorAll('[data-modal-campaign-percent]').forEach((node) => node.textContent = campaignPercent + '%');
+  taskStepButtons.querySelectorAll('[data-switch-total-task-percent]').forEach((node) => node.textContent = taskPercent + '%');
+  taskStepButtons.querySelectorAll('[data-switch-total-campaign-percent]').forEach((node) => node.textContent = campaignPercent + '%');
 
   if (activeTaskCard) {
     const selectedIndexes = activeButtons.map((btn) => btn.dataset.stepIndex).join(',');
@@ -1050,7 +1054,11 @@ function openTaskDetails(button) {
           <span>التكليفات المطلوبة</span>
           <strong>اختار التكليف اللي هتشتغل عليه</strong>
         </div>
-        <b>${assignments.length} تكليف</b>
+        <div class="assignment-combined-percent">
+          <b>${assignments.length} تكليف</b>
+          <em>اكتمال التكليفات معًا: <strong data-switch-total-task-percent>0%</strong></em>
+          <em>نسبة الحملة: <strong data-switch-total-campaign-percent>0%</strong></em>
+        </div>
       </div>
       <div class="assignment-switcher-buttons">
         ${assignments.map(({ dept }, index) => {

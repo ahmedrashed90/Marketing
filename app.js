@@ -5651,7 +5651,7 @@ initCreateTaskFromTemplate();
             const departmentShare = Math.round((100 / deptCount) * 100) / 100;
             const percent = taskDeptProgress(task, d, realIndex);
             const requirement = formatDepartmentRequirement(d);
-            return `<div class="readiness-dept-item" data-dept-task-card data-task-id="${esc(task.id)}" data-task-type="${esc(task.taskTypeLabel || task.taskType || '')}" data-campaign-code="${esc(task.campaignCode || '')}" data-readiness-key="${esc(key)}" data-legacy-readiness-key="${esc(legacyDeptReadinessKey(d))}" data-dept-identity="${esc(deptIdentity(d))}" data-dept-key="${esc(dkey)}" data-department-share="${esc(departmentShare)}" data-group-count="${esc(groupDepts.length)}" data-completed-steps="${esc(selected)}">
+            return `<div class="readiness-dept-item" data-dept-task-card data-task-id="${esc(task.id)}" data-task-type="${esc(task.taskTypeLabel || task.taskType || '')}" data-campaign-code="${esc(task.campaignCode || '')}" data-readiness-key="${esc(key)}" data-legacy-readiness-key="${esc(legacyDeptReadinessKey(d))}" data-dept-identity="${esc(deptIdentity(d))}" data-dept-key="${esc(dkey)}" data-department-share="${esc(departmentShare)}" data-group-count="1" data-completed-steps="${esc(selected)}">
               <button type="button" class="readiness-open-details" data-open-task-details data-task-id="${esc(task.id)}" data-dept-index="${esc(realIndex)}" data-readiness-key="${esc(key)}" data-dept-key="${esc(dkey)}" data-dept="${esc(d.departmentName || 'قسم')}" data-task-title="${esc(taskTitle(task))}" data-required="${esc(requirement)}" data-dept-task-json="${esc(encodeURIComponent(JSON.stringify(d || {})))}" data-steps="${esc(steps)}">
                 <strong>${esc(d.departmentName || 'قسم')}</strong>
                 <b class="dept-task-short-name">${esc(departmentTaskShortName(d))}</b>
@@ -5692,6 +5692,16 @@ initCreateTaskFromTemplate();
           <button class="danger-btn publish-mini-delete" type="button" data-delete-task="${esc(task.id)}" data-admin-only>مسح</button>
         </div>
       </div>
+    </article>`;
+  }
+
+  function safeDashboardCard(task, title, hint){
+    return `<article class="readiness-card dynamic-dashboard-card compact-readiness-card" data-dash-task-id="${esc(task.id)}">
+      <button class="readiness-card-summary" type="button">
+        <div class="task-template-top"><strong>${esc(taskTitle(task))}</strong><span>${meta(task)}</span></div>
+        <div class="mini-progress"><span style="width:${taskReadiness(task)}%"></span></div>
+        <small>${esc(hint || title)}</small>
+      </button>
     </article>`;
   }
   function archiveCard(task){
@@ -5792,8 +5802,20 @@ initCreateTaskFromTemplate();
         if (task.stage === 'archive') appendCard(archive, archiveCard(task));
         else {
           if (taskReceiptProgress(task) < 100) appendCard(required, requiredCard(task));
-          appendCard(readiness, readinessCard(task));
-          if (publishDepts.length || task.stage === 'publish') appendCard(publishing, publishCard(task));
+          try {
+            appendCard(readiness, readinessCard(task));
+          } catch (error) {
+            console.warn('readiness card failed:', task?.id, error);
+            appendCard(readiness, safeDashboardCard(task, 'جاهزية المطلوب', 'اضغط تحديث لو التفاصيل لم تظهر'));
+          }
+          if (publishDepts.length || task.stage === 'publish') {
+            try {
+              appendCard(publishing, publishCard(task));
+            } catch (error) {
+              console.warn('publish card failed:', task?.id, error);
+              appendCard(publishing, safeDashboardCard(task, 'قسم النشر', 'تجهيزات النشر'));
+            }
+          }
         }
 
         const visibleGroups = new Map();

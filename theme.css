@@ -5528,3 +5528,58 @@ body.sidebar-collapsed .database-main {
     grid-template-columns:1fr !important;
   }
 }
+
+
+/* Full screen task details popup */
+#taskDetailsModal{
+  padding:0 !important;
+}
+#taskDetailsModal.is-open{
+  align-items:stretch !important;
+  justify-content:stretch !important;
+}
+#taskDetailsModal .task-details-modal,
+#taskDetailsModal .modal-card,
+#taskDetailsModal .task-modal-card,
+#taskDetailsModal .details-modal-card,
+#taskDetailsModal > .modal-content,
+#taskDetailsModal > .task-details-card,
+#taskDetailsModal > div:not(.modal-backdrop){
+  width:100vw !important;
+  max-width:100vw !important;
+  height:100vh !important;
+  max-height:100vh !important;
+  border-radius:0 !important;
+  margin:0 !important;
+  overflow:auto !important;
+}
+#taskDetailsModal [data-close-task-modal],
+#taskDetailsModal .modal-close{
+  position:sticky !important;
+  top:18px !important;
+  left:18px !important;
+  z-index:50 !important;
+}
+#taskDetailsModal #taskStepButtons{
+  max-width:1500px;
+  margin-inline:auto;
+}
+#taskDetailsModal #taskDetailsRequired{
+  max-width:1500px;
+  margin-inline:auto;
+}
+#taskDetailsModal .task-attachment-box{
+  max-width:1500px;
+  margin-inline:auto;
+}
+@media(max-width:760px){
+  #taskDetailsModal .task-details-modal,
+  #taskDetailsModal .modal-card,
+  #taskDetailsModal .task-modal-card,
+  #taskDetailsModal .details-modal-card,
+  #taskDetailsModal > .modal-content,
+  #taskDetailsModal > .task-details-card,
+  #taskDetailsModal > div:not(.modal-backdrop){
+    padding:16px 12px !important;
+  }
+}

@@ -2263,7 +2263,7 @@ function mzjStockCarFullLabel(car, index = 0) {
 function renderStockCarChoiceCards() {
   const stockCarsCache = Array.isArray(window.MZJStockCarsCache) && window.MZJStockCarsCache.length ? window.MZJStockCarsCache : (Array.isArray(window.stockCarsCache) ? window.stockCarsCache : []);
   if (!stockCarsCache.length) {
-    return '<div class="required-content-empty">لا توجد سيارات متاحة من الاستوك حاليًا. اكتب المطلوب يدويًا في الخانة أسفل الاختيارات.</div>';
+    return '<div class="required-content-empty">جاري تحميل سيارات الاستوك... لو لم تظهر اضغط تحديث السيارات.</div><button class="soft-btn" type="button" data-refresh-stock-cars>تحديث السيارات</button>';
   }
   return stockCarsCache.map((car, index) => {
     const label = mzjStockCarFullLabel(car, index);
@@ -2468,7 +2468,7 @@ function initCreateTaskFromTemplate() {
     funnelsCache = await loadMarketingFunnels();
     requiredContentTypesCache = await loadRequiredContentTypes();
     window.MZJRequiredContentTypesCache = requiredContentTypesCache;
-    await loadStockCarsForDropdown();
+    await loadStockCarsForDropdown(true);
     await refreshCampaignTypes();
     try { await loadTaskTemplatesFromFirebase(); } catch (error) { if (note) note.textContent = '⚠️ فشل قراءة قوالب Firebase: ' + (error?.message || error?.code || error); }
     applyDateLabels();
@@ -3602,30 +3602,89 @@ function initCreateTaskFromTemplate() {
   }
 
   async function loadStockCarsForDropdown(force = false) {
-    if (stockCarsLoaded && !force) return stockCarsCache;
+    if (stockCarsLoaded && !force && stockCarsCache.length) return stockCarsCache;
     stockCarsLoaded = true;
-    stockCarsCache = [];
-    window.MZJStockCarsCache = stockCarsCache;
-    try {
-      if (!window.firebase || !firebase.firestore || !window.MZJ_STOCK_FIREBASE_CONFIG) return stockCarsCache;
-      const appName = 'mzjStockReadonlyApp';
-      let stockApp = null;
-      try { stockApp = firebase.app(appName); } catch (_error) { stockApp = firebase.initializeApp(window.MZJ_STOCK_FIREBASE_CONFIG, appName); }
-      const collectionName = window.MZJ_STOCK_CARS_COLLECTION || 'cars';
-      const snap = await stockApp.firestore().collection(collectionName).get();
-      const items = [];
-      snap.forEach((doc) => {
-        const car = normalizeStockCar({ ...(doc.data() || {}), docId: doc.id });
-        if (!shouldHideStockCar(car)) items.push(car);
+
+    const uniqueByDisplay = (items) => {
+      const seen = new Set();
+      return (items || []).filter((item) => {
+        const key = templateCellText(item?.display || mzjStockCarFullLabel(item) || item?.id || '');
+        if (!key || seen.has(key)) return false;
+        seen.add(key);
+        return true;
       });
-      stockCarsCache = buildStockSpecsForDropdown(items);
+    };
+
+    const readCollection = async (db, collectionName) => {
+      const snap = await db.collection(collectionName).get();
+      const rows = [];
+      snap.forEach((doc) => {
+        const raw = doc.data() || {};
+        const car = normalizeStockCar({ ...raw, docId: doc.id });
+        if (!shouldHideStockCar(car)) rows.push(car);
+      });
+      return rows;
+    };
+
+    const sourceRows = [];
+    try {
+      if (!window.firebase || !firebase.firestore) {
+        console.warn('Stock cars dropdown: Firebase SDK not ready.');
+      } else {
+        const appConfigs = [];
+        if (window.MZJ_STOCK_FIREBASE_CONFIG) appConfigs.push({ name: 'mzjStockReadonlyApp', config: window.MZJ_STOCK_FIREBASE_CONFIG });
+        if (window.MZJ_FIREBASE_CONFIG) appConfigs.push({ name: 'mzjMarketingPrimaryStockReadApp', config: window.MZJ_FIREBASE_CONFIG });
+
+        const collectionNames = Array.from(new Set([
+          window.MZJ_STOCK_CARS_COLLECTION || 'cars',
+          'cars',
+          'stock',
+          'stock_cars',
+          'stockCars',
+          'vehicles',
+          'inventory'
+        ].filter(Boolean)));
+
+        for (const appInfo of appConfigs) {
+          let db = null;
+          try {
+            let stockApp = null;
+            try { stockApp = firebase.app(appInfo.name); }
+            catch (_error) { stockApp = firebase.initializeApp(appInfo.config, appInfo.name); }
+            db = stockApp.firestore();
+          } catch (error) {
+            console.warn('Stock firebase app init failed:', appInfo.name, error);
+            continue;
+          }
+
+          for (const collectionName of collectionNames) {
+            try {
+              const rows = await readCollection(db, collectionName);
+              if (rows.length) {
+                sourceRows.push(...rows);
+                break;
+              }
+            } catch (error) {
+              console.warn('Stock collection read failed:', appInfo.name, collectionName, error?.message || error);
+            }
+          }
+          if (sourceRows.length) break;
+        }
+      }
+
+      stockCarsCache = uniqueByDisplay(buildStockSpecsForDropdown(sourceRows));
       window.MZJStockCarsCache = stockCarsCache;
+      window.stockCarsCache = stockCarsCache;
+      return stockCarsCache;
     } catch (error) {
       console.warn('Stock cars dropdown load failed:', error);
       stockCarsCache = [];
       window.MZJStockCarsCache = stockCarsCache;
+      window.stockCarsCache = stockCarsCache;
+      return stockCarsCache;
+    } finally {
+      try { refreshUniversalCarChoiceGrids(); } catch (_error) {}
     }
-    return stockCarsCache;
   }
 
   function renderStockCarsDatalist() {
@@ -4264,7 +4323,7 @@ function initCreateTaskFromTemplate() {
     }
     try {
       await ensureDepartments();
-      await loadStockCarsForDropdown();
+      await loadStockCarsForDropdown(true);
       refreshStockCarsDatalist();
       const buffer = await file.arrayBuffer();
       const workbook = XLSX.read(buffer, { type: 'array', cellDates: true });
@@ -4285,7 +4344,7 @@ function initCreateTaskFromTemplate() {
     }
     try {
       await ensureDepartments();
-      await loadStockCarsForDropdown();
+      await loadStockCarsForDropdown(true);
       refreshStockCarsDatalist();
       const buffer = await file.arrayBuffer();
       const workbook = XLSX.read(buffer, { type: 'array', cellDates: true });
@@ -4576,7 +4635,7 @@ function initCreateTaskFromTemplate() {
       applyDateLabels();
       ensureGeneratedCode();
       setAutomaticTaskDate();
-      await loadStockCarsForDropdown();
+      await loadStockCarsForDropdown(true);
       refreshStockCarsDatalist();
       refreshBudgetDropdownOptions();
       if (note) note.textContent = 'جاهز لإنشاء التاسك.';
@@ -4601,7 +4660,7 @@ function initCreateTaskFromTemplate() {
         return;
       }
       await ensureDepartments();
-      await loadStockCarsForDropdown();
+      await loadStockCarsForDropdown(true);
       refreshStockCarsDatalist();
       fillTemplateOptions();
       applyImportedTemplateRows(rows, review.fileName || 'حملة تحت المراجعة', review.sheetName || 'محتوي الحمله');

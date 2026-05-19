@@ -709,6 +709,39 @@
     render();
   }
 
+
+  function setupDatabaseStickyScroll(holder){
+    const wrap = holder?.querySelector('.campaign-db-table-wrap');
+    const bar = holder?.querySelector('.campaign-db-sticky-scroll');
+    const inner = bar?.querySelector('div');
+    if(!wrap || !bar || !inner) return;
+
+    const syncWidth = () => {
+      inner.style.width = Math.max(wrap.scrollWidth, wrap.clientWidth) + 'px';
+    };
+    syncWidth();
+
+    let lock = false;
+    wrap.addEventListener('scroll', () => {
+      if(lock) return;
+      lock = true;
+      bar.scrollLeft = wrap.scrollLeft;
+      lock = false;
+    });
+    bar.addEventListener('scroll', () => {
+      if(lock) return;
+      lock = true;
+      wrap.scrollLeft = bar.scrollLeft;
+      lock = false;
+    });
+    window.addEventListener('resize', syncWidth, { passive: true });
+    if(window.ResizeObserver){
+      const ro = new ResizeObserver(syncWidth);
+      ro.observe(wrap);
+      ro.observe(wrap.querySelector('table'));
+    }
+  }
+
   function render(){
     const holder = document.getElementById('campaignRecordsLive');
     if(!holder) return;
@@ -719,7 +752,7 @@
       holder.innerHTML='<article class="empty-database-state"><div class="empty-icon">DB</div><div><span class="eyebrow">قاعدة البيانات جاهزة</span><h4>لا توجد حملات أو أجندات مطابقة</h4><p>الحملات والأجندات تظهر هنا من Firebase من مسار workspace_tasks فقط.</p></div></article>';
       return;
     }
-    holder.innerHTML = `<div class="campaign-db-table-wrap"><table class="campaign-db-table campaign-db-final-table"><thead><tr>
+    holder.innerHTML = `<div class="campaign-db-table-shell"><div class="campaign-db-table-wrap"><table class="campaign-db-table campaign-db-final-table"><thead><tr>
       <th>م</th><th>التاريخ</th><th>كود الحملة</th><th>اسم الحملة</th><th>نوع الحملة</th><th>الهدف من الحملة</th><th>تاريخ بداية الحملة</th><th>تاريخ نهاية الحملة</th>
       <th>قسم التصوير</th><th>قسم المحتوى</th><th>قسم التصميم</th><th>قسم المونتاج</th><th>قسم النشر</th>
       <th>عرض البيانات</th><th>إجراءات</th>
@@ -729,7 +762,8 @@
         <td>${renderDeptSummary(r,'photography')}</td><td>${renderDeptSummary(r,'content')}</td><td>${renderDeptSummary(r,'design')}</td><td>${renderDeptSummary(r,'video')}</td><td>${renderDeptSummary(r,'publish')}</td>
         <td>${renderSectionButton(r,'all','عرض البيانات')}</td><td>${isAdmin() ? `<div class="db-action-stack"><button class="soft-btn db-edit-btn" type="button" data-edit-record="${esc(r.id)}" onclick="window.openDatabaseEditCampaign && window.openDatabaseEditCampaign(this.dataset.editRecord)">تعديل</button><button class="danger-btn db-delete-btn" type="button" data-delete-record="${esc(r.id)}">مسح</button></div>` : '--'}</td>
       </tr>`;
-    }).join('')}</tbody></table></div>`;
+    }).join('')}</tbody></table></div><div class="campaign-db-sticky-scroll" aria-hidden="true"><div></div></div></div>`;
+    setupDatabaseStickyScroll(holder);
   }
 
   window.openDatabaseEditCampaign = async function(recordId){

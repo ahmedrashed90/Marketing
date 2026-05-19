@@ -5710,3 +5710,100 @@ body:has(#taskDetailsModal.is-open){
   font-size:11px;
   font-weight:900;
 }
+
+
+/* Database full table + fixed horizontal scroll */
+.database-main{
+  max-width:none !important;
+  width:auto !important;
+  overflow:visible !important;
+}
+.campaign-db-panel{
+  width:100% !important;
+  max-width:none !important;
+  overflow:visible !important;
+}
+.campaign-records{
+  display:block !important;
+  width:100% !important;
+  max-width:none !important;
+  overflow:visible !important;
+}
+.campaign-db-table-shell{
+  position:relative;
+  width:100%;
+  max-width:100%;
+}
+.campaign-db-table-wrap{
+  width:100% !important;
+  max-width:100% !important;
+  overflow:auto !important;
+  max-height:calc(100vh - 245px);
+  border-radius:26px 26px 14px 14px !important;
+  scrollbar-gutter:stable both-edges;
+}
+.campaign-db-table{
+  width:max-content !important;
+  min-width:2200px !important;
+}
+.campaign-db-table th{
+  top:0 !important;
+  z-index:5 !important;
+}
+.campaign-db-table td,
+.campaign-db-table th{
+  min-width:145px;
+}
+.campaign-db-table th:nth-child(1),
+.campaign-db-table td:nth-child(1){
+  min-width:60px;
+}
+.campaign-db-table th:nth-child(4),
+.campaign-db-table td:nth-child(4),
+.campaign-db-table th:nth-child(6),
+.campaign-db-table td:nth-child(6){
+  min-width:210px;
+}
+.campaign-db-table th:nth-child(n+9):nth-child(-n+13),
+.campaign-db-table td:nth-child(n+9):nth-child(-n+13){
+  min-width:230px;
+}
+.campaign-db-sticky-scroll{
+  position:sticky;
+  bottom:0;
+  z-index:20;
+  height:18px;
+  overflow-x:auto;
+  overflow-y:hidden;
+  background:rgba(255,248,239,.95);
+  border:1px solid rgba(62,36,32,.12);
+  border-top:0;
+  border-radius:0 0 18px 18px;
+  box-shadow:0 -10px 24px rgba(62,36,32,.08);
+}
+.campaign-db-sticky-scroll div{
+  height:1px;
+}
+.campaign-db-table-wrap::-webkit-scrollbar,
+.campaign-db-sticky-scroll::-webkit-scrollbar{
+  height:14px;
+}
+.campaign-db-table-wrap::-webkit-scrollbar-track,
+.campaign-db-sticky-scroll::-webkit-scrollbar-track{
+  background:#f4e7dd;
+  border-radius:999px;
+}
+.campaign-db-table-wrap::-webkit-scrollbar-thumb,
+.campaign-db-sticky-scroll::-webkit-scrollbar-thumb{
+  background:#4b241f;
+  border-radius:999px;
+  border:3px solid #f4e7dd;
+}
+@media(max-width:760px){
+  .campaign-db-table-wrap{
+    max-height:calc(100vh - 210px);
+  }
+  .campaign-db-table{
+    min-width:1900px !important;
+  }
+}

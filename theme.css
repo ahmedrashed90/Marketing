@@ -7026,3 +7026,36 @@ body:has(#taskDetailsModal.is-open){
   #createTaskModal .distribution-pro-picker{grid-template-columns:1fr;}
   #createTaskModal .pro-chip-grid{grid-template-columns:1fr;max-height:none;}
 }
+
+/* User chips grouped by selected department - fixed */
+#createTaskModal .department-user-chip-section{
+  grid-column:1 / -1;
+  display:grid;
+  gap:12px;
+  padding:14px;
+  border:1px solid rgba(73,36,30,.08);
+  border-radius:20px;
+  background:rgba(255,248,239,.55);
+}
+#createTaskModal .department-user-chip-title{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+}
+#createTaskModal .department-user-chip-title strong{
+  color:var(--brown-900);
+  font-size:16px;
+}
+#createTaskModal .department-user-chip-title small{
+  color:var(--muted);
+  font-weight:800;
+}
+#createTaskModal .department-user-chip-list{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(180px,1fr));
+  gap:10px;
+}
+#createTaskModal .department-user-chip-list .user-chip{
+  width:100%;
+}

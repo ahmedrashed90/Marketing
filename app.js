@@ -1688,6 +1688,7 @@ function normalizeSystemUser(user) {
   if (!id && !uid && !name && !email) return null;
   const department = user.department || user.departmentId || user.departmentName || user.section || user.sectionId || '';
   return {
+    ...user,
     id: id || uid || email || name,
     uid: uid || id || email || name,
     name: name || email || id || uid,
@@ -1752,6 +1753,87 @@ function renderUserOptions(users, departmentId = '', allowFallback = true) {
 var departmentsCache = Array.isArray(MZJ_DEPARTMENTS_FALLBACK) ? MZJ_DEPARTMENTS_FALLBACK : [];
 var usersCache = [];
 
+function normalizeDeptCompareValue(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/^قسم\s+/u, '')
+    .replace(/\s+/g, ' ')
+    .replace(/[ـ_,-]+/g, ' ')
+    .trim();
+}
+
+function departmentKindAliases(kind) {
+  const map = {
+    photography: ['photography', 'photo', 'تصوير', 'التصوير', 'قسم التصوير'],
+    content: ['content', 'copy', 'كتابة', 'محتوى', 'المحتوى', 'قسم المحتوى'],
+    design: ['design', 'designer', 'تصميم', 'التصميم', 'قسم التصميم'],
+    montage: ['montage', 'video', 'editing', 'مونتاج', 'المونتاج', 'قسم المونتاج'],
+    publish: ['publish', 'publishing', 'نشر', 'النشر', 'قسم النشر']
+  };
+  return (map[kind] || []).map(normalizeDeptCompareValue).filter(Boolean);
+}
+
+function departmentAliasesForMatch(dept) {
+  const aliases = new Set();
+  if (!dept) return aliases;
+  [
+    dept.id, dept.uid, dept.key, dept.slug, dept.kind, dept.type, dept.name, dept.title,
+    dept.label, dept.department, dept.departmentId, dept.departmentName, dept.section,
+    dept.sectionId, dept.sectionName
+  ].forEach((value) => {
+    const normalized = normalizeDeptCompareValue(value);
+    if (normalized) aliases.add(normalized);
+  });
+  const kind = deptKindFromName(dept.name || dept.kind || dept.id || '');
+  departmentKindAliases(kind).forEach((value) => aliases.add(value));
+  return aliases;
+}
+
+function collectDepartmentValuesFromUser(user) {
+  const values = [];
+  const push = (value) => {
+    if (value == null || value === '') return;
+    if (Array.isArray(value)) {
+      value.forEach(push);
+      return;
+    }
+    if (typeof value === 'object') {
+      [
+        value.id, value.uid, value.key, value.slug, value.kind, value.type, value.name,
+        value.title, value.label, value.department, value.departmentId, value.departmentName,
+        value.section, value.sectionId, value.sectionName
+      ].forEach(push);
+      return;
+    }
+    values.push(value);
+  };
+  [
+    user.department, user.departmentId, user.departmentName, user.departmentKey,
+    user.deptId, user.dept, user.deptName, user.section, user.sectionId,
+    user.sectionName, user.team, user.teamId, user.teamName, user.roleDepartment,
+    user.assignedDepartment, user.assignedDepartmentId, user.assignedDepartments,
+    user.departments, user.departmentIds, user.departmentNames, user.sections,
+    user.teams, user.groups, user.permissionsDepartments
+  ].forEach(push);
+  return values.map(normalizeDeptCompareValue).filter(Boolean);
+}
+
+function userMatchesDepartment(user, dept) {
+  const aliases = departmentAliasesForMatch(dept);
+  if (!aliases.size) return false;
+  const userValues = collectDepartmentValuesFromUser(user);
+  if (!userValues.length) return false;
+  return userValues.some((value) => aliases.has(value));
+}
+
+function optionValueForDepartmentUser(user, dept) {
+  const base = String(user.email || user.name || user.id || user.uid || '').trim();
+  const deptId = String(dept?.id || dept?.name || '').trim();
+  return `${base}@@${deptId}`;
+}
+
+
 function renderDepartmentTargetOptions(selectedIds = []) {
   const selectedSet = new Set((Array.isArray(selectedIds) ? selectedIds : [selectedIds]).map((id) => String(id || '')));
   const list = ((departmentsCache || []).filter(Boolean).length ? (departmentsCache || []) : MZJ_DEPARTMENTS_FALLBACK).filter(Boolean);
@@ -1775,12 +1857,22 @@ function usersForSelectedDepartmentIds(ids) {
 
 function renderUserOptionsForDepartmentIds(ids, selectedValues = []) {
   const selectedSet = new Set((Array.isArray(selectedValues) ? selectedValues : [selectedValues]).map((value) => String(value || '')));
-  const list = usersForSelectedDepartmentIds(ids).map(normalizeSystemUser).filter(Boolean);
-  if (!list.length) return '<option value="">لا يوجد يوزرات في الأقسام المختارة</option>';
-  return list.map((user) => {
-    const value = user.email || user.name || user.id;
-    return `<option value="${escapeHTML(value)}" data-user-id="${escapeHTML(user.id || '')}" data-user-uid="${escapeHTML(user.uid || user.id || '')}" data-user-name="${escapeHTML(user.name || '')}" data-user-email="${escapeHTML(user.email || '')}" ${selectedSet.has(String(value || '')) ? 'selected' : ''}>${escapeHTML(user.label || value)}</option>`;
-  }).join('');
+  const selectedIds = (ids || []).map((id) => String(id || '')).filter(Boolean);
+  if (!selectedIds.length) return '<option value="">اختار قسم الأول</option>';
+
+  const departments = selectedIds.map((deptId) => (departmentsCache || []).find((item) => String(item.id || item.name || '') === String(deptId)) || { id: deptId, name: deptId });
+  const options = [];
+  departments.forEach((dept) => {
+    usersForDepartment(dept, usersCache).map(normalizeSystemUser).filter(Boolean).forEach((user) => {
+      const actualValue = user.email || user.name || user.id || user.uid || '';
+      if (!actualValue) return;
+      const optionValue = optionValueForDepartmentUser(user, dept);
+      const isSelected = selectedSet.has(String(optionValue)) || selectedSet.has(String(actualValue));
+      options.push(`<option value="${escapeHTML(optionValue)}" data-user-value="${escapeHTML(actualValue)}" data-user-id="${escapeHTML(user.id || '')}" data-user-uid="${escapeHTML(user.uid || user.id || '')}" data-user-name="${escapeHTML(user.name || '')}" data-user-email="${escapeHTML(user.email || '')}" data-user-department-id="${escapeHTML(dept.id || dept.name || '')}" data-user-department-name="${escapeHTML(dept.name || dept.id || '')}" data-user-department-kind="${escapeHTML(deptKindFromName(dept.name || dept.kind || dept.id || ''))}" ${isSelected ? 'selected' : ''}>${escapeHTML(user.label || actualValue)}</option>`);
+    });
+  });
+  if (!options.length) return '<option value="">لا يوجد يوزرات في الأقسام المختارة</option>';
+  return options.join('');
 }
 
 function usersForDepartment(dept, allUsers) {
@@ -1798,25 +1890,21 @@ function usersForDepartment(dept, allUsers) {
     .concat(Array.isArray(dept?.memberUids) ? dept.memberUids : [])
     .concat(Array.isArray(dept?.memberEmails) ? dept.memberEmails : [])
     .concat(Array.isArray(dept?.members) ? dept.members : [])
-    .concat(Array.isArray(dept?.assignees) ? dept.assignees : []);
+    .concat(Array.isArray(dept?.assignees) ? dept.assignees : [])
+    .concat(Array.isArray(dept?.responsibles) ? dept.responsibles : [])
+    .concat(Array.isArray(dept?.usersList) ? dept.usersList : []);
   const linkedUsers = deptKeys.map((key) => {
     if (key && typeof key === 'object') return normalizeSystemUser(key);
     return byKey.get(String(key || '').trim().toLowerCase());
   }).filter(Boolean);
 
-  const deptId = String(dept?.id || '').trim().toLowerCase();
-  const deptName = String(dept?.name || dept?.departmentName || '').trim().toLowerCase();
-  const departmentUsers = normalizedAllUsers.filter((user) => {
-    const values = [user.department, user.departmentId, user.departmentName, user.section, user.sectionId]
-      .filter(Boolean)
-      .map((value) => String(value).trim().toLowerCase());
-    return values.includes(deptId) || values.includes(deptName);
-  });
+  const departmentUsers = normalizedAllUsers.filter((user) => userMatchesDepartment(user, dept));
 
   const merged = new Map();
   [...explicitUsers, ...linkedUsers, ...departmentUsers].forEach((user) => {
-    const key = String(user.uid || user.id || user.email || user.name || '').trim().toLowerCase();
-    if (key) merged.set(key, { ...user, department: user.department || dept?.id || '' });
+    const normalized = normalizeSystemUser(user);
+    const key = String(normalized?.uid || normalized?.id || normalized?.email || normalized?.name || '').trim().toLowerCase();
+    if (key) merged.set(key, { ...normalized, department: normalized.department || dept?.id || '', departmentId: normalized.departmentId || dept?.id || '', departmentName: normalized.departmentName || dept?.name || '' });
   });
   return Array.from(merged.values());
 }
@@ -2401,14 +2489,34 @@ function initCreateTaskFromTemplate() {
     const selectedUsers = selectedValuesFromSelect(userSelect);
     userSelect.innerHTML = renderUserOptionsForDepartmentIds(selectedDeptIds, selectedUsers);
     const active = new Set(selectedValuesFromSelect(userSelect));
+    const selectedDepartments = Array.from(deptSelect.selectedOptions || []).filter((option) => option.value).map((option) => {
+      const dept = (departmentsCache || []).find((item) => String(item.id || item.name || '') === String(option.value));
+      return { id: dept?.id || option.value, name: dept?.name || option.dataset.departmentName || option.textContent || option.value, kind: deptKindFromName(dept?.name || option.dataset.departmentKind || option.textContent || '') };
+    });
+
+    if (!selectedDepartments.length) {
+      grid.innerHTML = '<p class="required-content-empty">اختار قسم الأول علشان تظهر اليوزرات.</p>';
+      return;
+    }
+
     const options = Array.from(userSelect.options).filter((option) => option.value);
-    grid.innerHTML = options.length ? options.map((option) => {
-      const isActive = active.has(option.value);
-      return `<button class="pro-select-chip user-chip ${isActive ? 'is-selected' : ''}" type="button" data-user-chip value="${escapeHTML(option.value)}">
-        <span>${escapeHTML(option.textContent || option.value)}</span>
-        <small>${isActive ? 'مختار' : 'اختيار اليوزر'}</small>
-      </button>`;
-    }).join('') : '<p class="required-content-empty">اختار قسم الأول علشان تظهر اليوزرات.</p>';
+    grid.innerHTML = selectedDepartments.map((dept) => {
+      const deptOptions = options.filter((option) => String(option.dataset.userDepartmentId || '') === String(dept.id || dept.name || ''));
+      const cards = deptOptions.length ? deptOptions.map((option) => {
+        const isActive = active.has(option.value);
+        return `<button class="pro-select-chip user-chip ${isActive ? 'is-selected' : ''}" type="button" data-user-chip value="${escapeHTML(option.value)}" data-user-department-id="${escapeHTML(dept.id || '')}">
+          <span>${escapeHTML(option.textContent || option.dataset.userValue || option.value)}</span>
+          <small>${isActive ? 'مختار' : 'اختيار اليوزر'}</small>
+        </button>`;
+      }).join('') : '<p class="required-content-empty">لا يوجد يوزرات محفوظة لهذا القسم.</p>';
+      return `<section class="department-user-chip-section" data-department-user-chip-section="${escapeHTML(dept.id || dept.name || '')}">
+        <div class="department-user-chip-title">
+          <strong>${escapeHTML(dept.name || dept.id || 'قسم')}</strong>
+          <small>اختار يوزر أو أكثر من هذا القسم فقط</small>
+        </div>
+        <div class="department-user-chip-list">${cards}</div>
+      </section>`;
+    }).join('');
   }
 
   function hydrateAssignmentPickers(scope = departmentsList) {
@@ -4248,14 +4356,18 @@ function initCreateTaskFromTemplate() {
         const targetDepartments = selectedDepartments.length ? selectedDepartments : [{ id: 'content', name: 'قسم المحتوى', kind: 'content' }];
         const userSelect = assignmentRow.querySelector('[data-user-select]');
         const selectedOptions = Array.from(userSelect?.selectedOptions || []).filter((option) => option.value);
-        const optionsToSave = selectedOptions.length ? selectedOptions : [null];
         const assignmentNo = assignmentIndex + 1;
         targetDepartments.forEach((targetDept) => {
+          const deptOptions = selectedOptions.filter((option) => {
+            const optionDeptId = String(option.dataset.userDepartmentId || '');
+            return optionDeptId && optionDeptId === String(targetDept.id || targetDept.name || '');
+          });
+          const optionsToSave = deptOptions.length ? deptOptions : [null];
           optionsToSave.forEach((selectedOption) => {
-            const selectedUser = selectedOption?.value || '';
+            const selectedUser = selectedOption?.dataset.userValue || selectedOption?.dataset.userEmail || selectedOption?.value || '';
             const optionText = selectedOption?.textContent || '';
             const selectedName = selectedOption?.dataset.userName || (selectedUser ? optionText : '');
-            const selectedEmail = selectedOption?.dataset.userEmail || selectedUser;
+            const selectedEmail = selectedOption?.dataset.userEmail || selectedOption?.dataset.userValue || '';
             const selectedId = selectedOption?.dataset.userId || selectedOption?.dataset.userUid || selectedEmail || selectedName;
             const item = {
               enabled,

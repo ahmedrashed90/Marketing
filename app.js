@@ -5164,6 +5164,67 @@ initCreateTaskFromTemplate();
     else firestoreTaskCache.unshift(cleanTask);
   }
   function writeTasks(tasks){ firestoreTaskCache = tasks; }
+
+  let dashboardLiveUnsubscribers = [];
+  let dashboardLiveStarted = false;
+  let dashboardLiveRenderTimer = null;
+
+  function scheduleDashboardLiveRender() {
+    clearTimeout(dashboardLiveRenderTimer);
+    dashboardLiveRenderTimer = setTimeout(() => {
+      window.renderDashboardTasks?.();
+      if (typeof window.renderCampaignRecordsLive === 'function') window.renderCampaignRecordsLive();
+    }, 80);
+  }
+
+  function setDashboardLiveStatus(statusText) {
+    const badge = document.getElementById('dashboardLiveStatus');
+    if (badge) badge.textContent = statusText;
+  }
+
+  function mergeFirestoreLiveRecords(collectionName, docs) {
+    const others = firestoreTaskCache.filter((item) => String(item.sourceFirestoreCollection || 'workspace_tasks') !== String(collectionName));
+    const next = docs.map((doc) => ({
+      id: doc.id,
+      firestoreId: doc.id,
+      sourceFirestoreCollection: collectionName,
+      ...(doc.data() || {})
+    }));
+    firestoreTaskCache = others.concat(next);
+  }
+
+  function startDashboardLiveSync() {
+    if (dashboardLiveStarted) return;
+    if (!window.firebase || !window.MZJ_FIREBASE_CONFIG || !firebase.firestore) {
+      setDashboardLiveStatus('Live غير متاح');
+      return;
+    }
+
+    try {
+      if (!firebase.apps.length) firebase.initializeApp(window.MZJ_FIREBASE_CONFIG);
+      const db = firebase.firestore();
+      dashboardLiveStarted = true;
+      setDashboardLiveStatus('Live متصل');
+
+      dashboardLiveUnsubscribers = FIRESTORE_TASK_COLLECTIONS.map((collectionName) => {
+        return db.collection(collectionName).onSnapshot((snap) => {
+          mergeFirestoreLiveRecords(collectionName, snap.docs || []);
+          scheduleDashboardLiveRender();
+          setDashboardLiveStatus('Live متصل');
+        }, (error) => {
+          console.warn('dashboard live sync failed:', collectionName, error);
+          setDashboardLiveStatus('Live يحتاج تحديث');
+        });
+      });
+    } catch (error) {
+      console.warn('dashboard live setup failed:', error);
+      dashboardLiveStarted = false;
+      setDashboardLiveStatus('Live يحتاج تحديث');
+    }
+  }
+
+  window.startDashboardLiveSync = startDashboardLiveSync;
+
   async function refreshWorkspaceTasksFromFirestore(){
     if (!window.firebase || !window.MZJ_FIREBASE_CONFIG || !firebase.firestore) return;
     try {
@@ -5561,6 +5622,17 @@ initCreateTaskFromTemplate();
 
   document.addEventListener('DOMContentLoaded', function(){
     setTimeout(window.renderDashboardTasks, 120);
-    setTimeout(refreshWorkspaceTasksFromFirestore, 250);
+    setTimeout(() => {
+      startDashboardLiveSync();
+      refreshWorkspaceTasksFromFirestore();
+    }, 250);
+  });
+
+  window.addEventListener('beforeunload', function(){
+    dashboardLiveUnsubscribers.forEach((unsub) => {
+      try { if (typeof unsub === 'function') unsub(); } catch(e) {}
+    });
+    dashboardLiveUnsubscribers = [];
+    dashboardLiveStarted = false;
   });
 })();

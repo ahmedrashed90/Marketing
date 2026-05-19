@@ -5856,3 +5856,31 @@ body:has(#taskDetailsModal.is-open){
   scrollbar-color:#4b241f #f4e7dd;
   scrollbar-width:auto;
 }
+
+
+.dashboard-live-badge{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  min-height:42px;
+  padding:0 14px;
+  border-radius:999px;
+  background:rgba(75,36,31,.08);
+  color:var(--brown-900,#3e2420);
+  font-weight:900;
+  white-space:nowrap;
+}
+.dashboard-live-badge::before{
+  content:'';
+  width:8px;
+  height:8px;
+  margin-inline-end:8px;
+  border-radius:50%;
+  background:#21a45d;
+  box-shadow:0 0 0 5px rgba(33,164,93,.12);
+}
+@media(max-width:760px){
+  .dashboard-live-badge{
+    width:100%;
+  }
+}

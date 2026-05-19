@@ -316,8 +316,10 @@ function departmentTaskShortName(deptTask) {
       return true;
     });
   };
+  const customTaskName = clean(deptTask.taskName || deptTask.taskTitle || deptTask.title || deptTask.name);
+  if (customTaskName) return customTaskName;
   const taskNo = clean(deptTask.taskNo || deptTask.contentTaskId || deptTask.taskCode);
-  const direct = clean(deptTask.contentType || deptTask.deliverable || deptTask.title || deptTask.taskTitle || deptTask.name);
+  const direct = clean(deptTask.contentType || deptTask.deliverable);
   if (direct && taskNo && direct !== taskNo) return `${direct} — ${taskNo}`;
   if (direct) return direct;
   if (taskNo) return taskNo;
@@ -2082,6 +2084,10 @@ function renderStockCarChoiceCards() {
 function renderUniversalRequiredItem(kind, removable = false) {
   return `
     <article class="universal-required-item" data-universal-required-item>
+      <label class="mzj-field full-width-field">
+        <span>اسم التاسك الذي سيظهر لليوزر</span>
+        <input type="text" data-universal-task-name placeholder="مثال: تصوير ريل السيارة / تصميم بوست العرض">
+      </label>
       <div class="universal-car-choice-wrap full-width-field">
         <div class="universal-content-type-head">اختيار السيارة</div>
         <div class="universal-car-choice-grid" data-universal-car-choice-grid>
@@ -4046,9 +4052,14 @@ function initCreateTaskFromTemplate() {
         details: input.dataset.desc || ''
       })).filter((entry) => entry.title);
       const selectedCars = Array.from(item.querySelectorAll('[data-universal-car-choice]:checked')).map((input) => input.value.trim()).filter(Boolean);
+      const taskName = item.querySelector('[data-universal-task-name]')?.value.trim() || '';
       const manualText = item.querySelector('[data-universal-car-type]')?.value.trim() || '';
       const carOrRequired = [...selectedCars, manualText].filter(Boolean).join('، ');
       return {
+        taskName,
+        taskTitle: taskName,
+        title: taskName,
+        name: taskName,
         requiredText: manualText || carOrRequired,
         carType: carOrRequired,
         selectedCars,
@@ -4058,10 +4069,10 @@ function initCreateTaskFromTemplate() {
         details: selectedTypes.map((entry) => entry.details).filter(Boolean).join(' | '),
         printSize: item.querySelector('[data-universal-print-size]')?.value.trim() || ''
       };
-    }).filter((item) => item.requiredText || item.carType || item.contentType || item.printSize);
+    }).filter((item) => item.taskName || item.requiredText || item.carType || item.contentType || item.printSize);
 
     const requiredText = items.map((item, index) => [
-      `مطلوب ${index + 1}`,
+      item.taskName ? `اسم التاسك: ${item.taskName}` : `مطلوب ${index + 1}`,
       item.requiredText ? `المطلوب: ${item.requiredText}` : '',
       item.carType ? `السيارة / المطلوب: ${item.carType}` : '',
       item.contentType ? `نوع المحتوى: ${item.contentType}` : '',
@@ -4069,7 +4080,10 @@ function initCreateTaskFromTemplate() {
     ].filter(Boolean).join(' — ')).join(' | ');
 
     const deliverables = items.map((item) => ({
-      title: item.contentType || item.requiredText || 'مطلوب',
+      title: item.taskName || item.contentType || item.requiredText || 'مطلوب',
+      taskName: item.taskName,
+      taskTitle: item.taskName,
+      name: item.taskName,
       details: [item.details, item.carType ? `السيارة / المطلوب: ${item.carType}` : '', item.printSize ? `المقاس: ${item.printSize}` : '', item.requiredText].filter(Boolean).join(' — '),
       carType: item.carType,
       selectedCars: item.selectedCars || [],
@@ -4085,6 +4099,9 @@ function initCreateTaskFromTemplate() {
       contentType: items.map((item) => item.contentType).filter(Boolean).join('، '),
       carType: items.map((item) => item.carType).filter(Boolean).join('، '),
       printSize: items.map((item) => item.printSize).filter(Boolean).join('، '),
+      taskName: items.map((item) => item.taskName).filter(Boolean).join('، '),
+      taskTitle: items.map((item) => item.taskName).filter(Boolean).join('، '),
+      title: items.map((item) => item.taskName).filter(Boolean).join('، '),
       notes: items.map((item) => item.requiredText).filter(Boolean).join(' | '),
       requiredText
     };
@@ -4137,6 +4154,10 @@ function initCreateTaskFromTemplate() {
             receivedAt: '',
             receivedBy: '',
             attachmentLabel: attachmentLabelForKind(kind),
+            taskName: special.taskName || special.taskTitle || '',
+            taskTitle: special.taskTitle || special.taskName || '',
+            title: special.title || special.taskName || special.taskTitle || '',
+            name: special.title || special.taskName || special.taskTitle || '',
             requiredText,
             requiredDetails: special,
             photoItems: kind === 'photography' ? (special.items || []) : [],
@@ -4167,7 +4188,11 @@ function initCreateTaskFromTemplate() {
     }
   }
 
-  function openCreateTaskModal() {
+  function openCreateTaskModal(event) {
+    if (event?.preventDefault) event.preventDefault();
+    modal.classList.add('is-open');
+    modal.setAttribute('aria-hidden', 'false');
+    if (note) note.textContent = 'جاري تجهيز بيانات الأقسام واليوزرات...';
     ensureDepartments().then(async () => {
       fillTemplateOptions();
       applyDateLabels();
@@ -4176,8 +4201,11 @@ function initCreateTaskFromTemplate() {
       await loadStockCarsForDropdown();
       refreshStockCarsDatalist();
       refreshBudgetDropdownOptions();
-      modal.classList.add('is-open');
-      modal.setAttribute('aria-hidden', 'false');
+      if (note) note.textContent = 'جاهز لإنشاء التاسك.';
+    }).catch((error) => {
+      console.error('open create task modal failed:', error);
+      if (note) note.textContent = '⚠️ حصل خطأ أثناء تجهيز البيانات، لكن تقدر تكمل يدويًا: ' + (error?.message || error?.code || error);
+      if (!departmentsList.children.length) renderAllDepartments();
     });
   }
 
@@ -4208,8 +4236,11 @@ function initCreateTaskFromTemplate() {
     }
   };
 
-  if (openBtn) openBtn.addEventListener('click', openCreateTaskModal);
-  if (openBtnMini) openBtnMini.addEventListener('click', openCreateTaskModal);
+  document.addEventListener('click', (event) => {
+    const createBtn = event.target.closest('#createTaskOpen, #createTaskOpenMini');
+    if (!createBtn) return;
+    openCreateTaskModal(event);
+  });
 
   typeSelect.addEventListener('change', async () => {
     try { await loadTaskTemplatesFromFirebase(); } catch (error) { if (note) note.textContent = '⚠️ فشل قراءة قوالب Firebase: ' + (error?.message || error?.code || error); }
@@ -4612,10 +4643,7 @@ function initCreateTaskFromTemplate() {
       return;
     }
 
-    if (taskType === 'campaign' && !selectedTemplate && !importedTemplateContext.loaded) {
-      if (note) note.textContent = '⚠️ اختار قالب حملة محفوظ أو ارفع شيت حملة جاهز الأول.';
-      return;
-    }
+    // يمكن إنشاء حملة يدويًا من المطلوب من الأقسام بدون اختيار Template أو رفع شيت.
 
     if (!departmentTasks.length) {
       if (note) note.textContent = '⚠️ اختار قسم واحد على الأقل واكتب المطلوب.';
@@ -5712,7 +5740,7 @@ initCreateTaskFromTemplate();
             const percent = taskDeptProgress(task, d, realIndex);
             const requirement = formatDepartmentRequirement(d);
             return `<div class="readiness-dept-item" data-dept-task-card data-task-id="${esc(task.id)}" data-task-type="${esc(task.taskTypeLabel || task.taskType || '')}" data-campaign-code="${esc(task.campaignCode || '')}" data-readiness-key="${esc(key)}" data-legacy-readiness-key="${esc(legacyDeptReadinessKey(d))}" data-dept-identity="${esc(deptIdentity(d))}" data-dept-key="${esc(dkey)}" data-department-share="${esc(departmentShare)}" data-group-count="1" data-completed-steps="${esc(selected)}">
-              <button type="button" class="readiness-open-details" data-open-task-details data-task-id="${esc(task.id)}" data-dept-index="${esc(realIndex)}" data-readiness-key="${esc(key)}" data-dept-key="${esc(dkey)}" data-dept="${esc(d.departmentName || 'قسم')}" data-task-title="${esc(taskTitle(task))}" data-required="${esc(requirement)}" data-dept-task-json="${esc(encodeURIComponent(JSON.stringify(d || {})))}" data-steps="${esc(steps)}">
+              <button type="button" class="readiness-open-details" data-open-task-details data-task-id="${esc(task.id)}" data-dept-index="${esc(realIndex)}" data-readiness-key="${esc(key)}" data-dept-key="${esc(dkey)}" data-dept="${esc(d.departmentName || 'قسم')}" data-task-title="${esc(departmentTaskShortName(d))}" data-required="${esc(requirement)}" data-dept-task-json="${esc(encodeURIComponent(JSON.stringify(d || {})))}" data-steps="${esc(steps)}">
                 <strong>${esc(d.departmentName || 'قسم')}</strong>
                 <b class="dept-task-short-name">${esc(departmentTaskShortName(d))}</b>
                 <small>${percent}%</small>
@@ -5823,7 +5851,7 @@ initCreateTaskFromTemplate();
       </div>
       <div class="department-progress-row"><div class="department-progress-box"><small>اكتمال التاسك</small><strong data-task-percent>${p}%</strong></div><div class="department-progress-box"><small>نسبة الحملة</small><strong data-campaign-percent>${groupCampaignPercent}%</strong></div></div>
       <div class="mini-progress"><span data-task-bar style="width:${p}%"></span></div>
-      <div class="task-card-actions"><button class="details-btn" type="button" data-open-task-details data-dept-index="${esc(deptIndex)}" data-readiness-key="${esc(key)}" data-dept-key="${esc(dkey)}" data-dept="${esc(deptTask.departmentName || 'قسم')}" data-task-title="${esc(taskTitle(task))}" data-required="${esc(formatDepartmentRequirement(deptTask))}" data-dept-task-json="${esc(encodeURIComponent(JSON.stringify(deptTask || {})))}" data-steps="${esc(steps)}">تفاصيل</button><button class="soft-btn receive-task-btn ${(deptTask.receivedConfirmed || deptTask.received || deptTask.receivedAt) ? 'is-done' : ''}" type="button" data-receive-task data-task-id="${esc(task.id)}" data-dept-index="${esc(deptIndex)}" data-readiness-key="${esc(key)}" data-dept-identity="${esc(deptIdentity(deptTask))}" ${(deptTask.receivedConfirmed || deptTask.received || deptTask.receivedAt) ? 'disabled' : ''}>${(deptTask.receivedConfirmed || deptTask.received || deptTask.receivedAt) ? 'تم تأكيد الاستلام' : 'تأكيد استلام التاسك'}</button></div>
+      <div class="task-card-actions"><button class="details-btn" type="button" data-open-task-details data-dept-index="${esc(deptIndex)}" data-readiness-key="${esc(key)}" data-dept-key="${esc(dkey)}" data-dept="${esc(deptTask.departmentName || 'قسم')}" data-task-title="${esc(departmentTaskShortName(deptTask))}" data-required="${esc(formatDepartmentRequirement(deptTask))}" data-dept-task-json="${esc(encodeURIComponent(JSON.stringify(deptTask || {})))}" data-steps="${esc(steps)}">تفاصيل</button><button class="soft-btn receive-task-btn ${(deptTask.receivedConfirmed || deptTask.received || deptTask.receivedAt) ? 'is-done' : ''}" type="button" data-receive-task data-task-id="${esc(task.id)}" data-dept-index="${esc(deptIndex)}" data-readiness-key="${esc(key)}" data-dept-identity="${esc(deptIdentity(deptTask))}" ${(deptTask.receivedConfirmed || deptTask.received || deptTask.receivedAt) ? 'disabled' : ''}>${(deptTask.receivedConfirmed || deptTask.received || deptTask.receivedAt) ? 'تم تأكيد الاستلام' : 'تأكيد استلام التاسك'}</button></div>
     </article>`;
   }
 

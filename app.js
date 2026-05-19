@@ -5319,9 +5319,26 @@ initCreateTaskFromTemplate();
       stage: task.stage || 'required'
     };
   }
+  function readLocalDashboardTasksFallback(){
+    const local = [];
+    TASK_KEYS.forEach((key) => {
+      try {
+        const raw = localStorage.getItem(key);
+        if (!raw) return;
+        const parsed = JSON.parse(raw);
+        const list = Array.isArray(parsed) ? parsed : (Array.isArray(parsed?.items) ? parsed.items : (Array.isArray(parsed?.tasks) ? parsed.tasks : []));
+        list.forEach((item, index) => local.push({ sourceLocalKey: key, ...(item || {}), id: item?.id || item?.firestoreId || item?.docId || `${key}_${index}` }));
+      } catch (error) {
+        console.warn('dashboard local fallback failed:', key, error);
+      }
+    });
+    return local;
+  }
+
   function readTasks(){
     const all = [];
-    firestoreTaskCache.forEach((task, index) => all.push(normalizeWorkspaceTask(task, 'firestore_' + index)));
+    const source = firestoreTaskCache.length ? firestoreTaskCache : readLocalDashboardTasksFallback();
+    source.forEach((task, index) => all.push(normalizeWorkspaceTask(task, (task?.sourceLocalKey ? 'local_' : 'firestore_') + index)));
     const map = new Map();
     all.filter(Boolean).forEach((task) => map.set(String(task.id), { ...(map.get(String(task.id)) || {}), ...task }));
     return Array.from(map.values());
@@ -5424,7 +5441,7 @@ initCreateTaskFromTemplate();
       window.renderDashboardTasks?.();
     } catch (error) {
       console.warn('workspace_tasks load failed:', error);
-      firestoreTaskCache = [];
+      setDashboardLiveStatus('Live يحتاج تحديث');
       window.renderDashboardTasks?.();
     }
   }
@@ -5743,7 +5760,21 @@ initCreateTaskFromTemplate();
   window.renderDashboardTasks = function renderDashboardTasks(){
     if (!document.getElementById('adminRequiredTasks') && !document.getElementById('userShootingTasks')) return;
     const query = document.getElementById('dashboardTaskSearch')?.value || '';
-    const tasks = readTasks().map(autoStage).filter((task) => taskMatchesDashboardSearch(task, query));
+    let tasks = [];
+    try {
+      tasks = readTasks()
+        .map((task) => {
+          try { return autoStage(task); }
+          catch (error) { console.warn('dashboard task autoStage failed:', task?.id, error); return task; }
+        })
+        .filter((task) => {
+          try { return taskMatchesDashboardSearch(task, query); }
+          catch (error) { console.warn('dashboard search filter failed:', task?.id, error); return true; }
+        });
+    } catch (error) {
+      console.error('dashboard render load failed:', error);
+      tasks = [];
+    }
     const required = clearList('adminRequiredTasks','لا توجد تاسكات مطلوبة حالياً.');
     const readiness = clearList('adminReadinessTasks','لا توجد حملات في جاهزية المطلوب حالياً.');
     const publishing = clearList('adminPublishingTasks','لا توجد حملات جاهزة للنشر حالياً.');
@@ -5756,29 +5787,38 @@ initCreateTaskFromTemplate();
     };
     const current = user();
     tasks.forEach(task => {
-      const publishDepts = (task.departmentTasks || []).filter((dept) => deptKey(dept.departmentName) === 'publish');
-      if (task.stage === 'archive') appendCard(archive, archiveCard(task));
-      else {
-        if (taskReceiptProgress(task) < 100) appendCard(required, requiredCard(task));
-        appendCard(readiness, readinessCard(task));
-        if (publishDepts.length || task.stage === 'publish') appendCard(publishing, publishCard(task));
-      }
+      try {
+        const publishDepts = (task.departmentTasks || []).filter((dept) => deptKey(dept.departmentName) === 'publish');
+        if (task.stage === 'archive') appendCard(archive, archiveCard(task));
+        else {
+          if (taskReceiptProgress(task) < 100) appendCard(required, requiredCard(task));
+          appendCard(readiness, readinessCard(task));
+          if (publishDepts.length || task.stage === 'publish') appendCard(publishing, publishCard(task));
+        }
 
-      const visibleGroups = new Map();
-      (task.departmentTasks || []).forEach((dept, deptIndex) => {
-        const visible = assignedToCurrentUser(dept, current);
-        if (!visible) return;
-        const listKey = deptKey(dept.departmentName);
-        const userKey = String(dept.userId || dept.userUid || dept.assigneeUid || dept.userEmail || dept.assigneeEmail || dept.userName || dept.userDisplayName || '').trim() || deptIdentity(dept);
-        const groupKey = `${listKey}::${userKey}`;
-        if (!visibleGroups.has(groupKey)) visibleGroups.set(groupKey, { listKey, dept, indexes: [], depts: [] });
-        visibleGroups.get(groupKey).indexes.push(deptIndex);
-        visibleGroups.get(groupKey).depts.push(dept);
-      });
-      visibleGroups.forEach((group) => {
-        appendCard(userLists[group.listKey], userDeptCard(task, group.dept, group.indexes[0], group.depts, group.indexes));
-      });
+        const visibleGroups = new Map();
+        (task.departmentTasks || []).forEach((dept, deptIndex) => {
+          const visible = assignedToCurrentUser(dept, current);
+          if (!visible) return;
+          const listKey = deptKey(dept.departmentName);
+          const userKey = String(dept.userId || dept.userUid || dept.assigneeUid || dept.userEmail || dept.assigneeEmail || dept.userName || dept.userDisplayName || '').trim() || deptIdentity(dept);
+          const groupKey = `${listKey}::${userKey}`;
+          if (!visibleGroups.has(groupKey)) visibleGroups.set(groupKey, { listKey, dept, indexes: [], depts: [] });
+          visibleGroups.get(groupKey).indexes.push(deptIndex);
+          visibleGroups.get(groupKey).depts.push(dept);
+        });
+        visibleGroups.forEach((group) => {
+          const targetList = userLists[group.listKey];
+          if (!targetList) return;
+          appendCard(targetList, userDeptCard(task, group.dept, group.indexes[0], group.depts, group.indexes));
+        });
+      } catch (error) {
+        console.warn('dashboard task card render failed:', task?.id, error);
+      }
     });
+    if (!tasks.length && required) {
+      required.innerHTML = '<article class="task-template-card dashboard-empty-card"><div class="task-empty-note">لا توجد تاسكات محملة حالياً. اضغط تحديث أو تأكد من اتصال Firebase.</div></article>';
+    }
     Object.entries(userLists).forEach(([key,el]) => ensureEmpty(el, 'لا توجد تاسكات حالياً.'));
   };
 

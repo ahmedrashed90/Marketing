@@ -489,10 +489,10 @@ function mzjTaskArray(value) {
 function mzjExtractLabeledValues(text, labels) {
   const source = String(text || '');
   const values = [];
-  const stopLabels = ['السيارة', 'نوع السيارة', 'السيارات المختارة', 'نوع المحتوى', 'المحتوى', 'المقاس', 'التفاصيل', 'ملاحظة', 'اسم التاسك'];
+  const allLabels = ['اسم التاسك', 'السيارة', 'نوع السيارة', 'السيارات المختارة', 'نوع المحتوى', 'المحتوى', 'المقاس', 'التفاصيل', 'ملاحظة'];
   labels.forEach((label) => {
-    const stop = stopLabels.filter((item) => item !== label).join('|');
-    const re = new RegExp(`${label}\\s*:?\\s*([\\s\\S]*?)(?=\\s*(?:—|\\|)\\s*(?:${stop})\\s*:?|\\s*\\|\\s*|$)`, 'gi');
+    const others = allLabels.filter((item) => item !== label).map((item) => item.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+    const re = new RegExp(`${label}\\s*:?\\s*([\\s\\S]*?)(?=\\s*(?:—|\\|)\\s*(?:${others})\\s*:?|\\s*\\|\\s*|$)`, 'gi');
     let match;
     while ((match = re.exec(source))) {
       const value = mzjCleanTaskText(match[1]);
@@ -530,17 +530,25 @@ function mzjCollectTaskCars(deptTask) {
       item?.carType
     ]),
     ...mzjExtractLabeledValues(fallbackText, ['السيارة', 'نوع السيارة', 'السيارات المختارة'])
-  ]);
+  ]).filter((value) => !/^سيارة\s*\d+$/i.test(value));
 }
-
 
 function mzjTaskExplicitName(deptTask) {
   const details = deptTask?.requiredDetails && typeof deptTask.requiredDetails === 'object' ? deptTask.requiredDetails : {};
-  const rawFallback = mzjCleanTaskText(deptTask?.requiredText || deptTask?.required || details.requiredText || '');
-  const labeled = mzjFirstLabeledValue(rawFallback, ['اسم التاسك']);
+  const fallbackText = [
+    deptTask?.requiredText,
+    deptTask?.required,
+    details.requiredText,
+    details.notes
+  ].filter(Boolean).join(' | ');
+  const labeled = mzjFirstLabeledValue(fallbackText, ['اسم التاسك']);
   return mzjCleanTaskText(
-    details.customTaskName || details.userTaskName || deptTask?.customTaskName || deptTask?.userTaskName ||
-    details.taskGroupTitle || deptTask?.taskGroupTitle || labeled || ''
+    deptTask?.customTaskName ||
+    deptTask?.userTaskName ||
+    details.customTaskName ||
+    details.userTaskName ||
+    labeled ||
+    ''
   );
 }
 
@@ -577,49 +585,35 @@ function renderReadableDepartmentRequirement(deptTask, deptKeyValue) {
   const details = deptTask?.requiredDetails && typeof deptTask.requiredDetails === 'object' ? deptTask.requiredDetails : {};
   const rawFallback = mzjCleanTaskText(deptTask?.requiredText || deptTask?.required || details.requiredText || '');
   const cars = mzjCollectTaskCars(deptTask);
-  const rawContentTypes = mzjCollectTaskContentTypes(deptTask);
+  const contentTypes = mzjCollectTaskContentTypes(deptTask).filter((value) => !/^مطلوب\s*\d+/i.test(value));
   const explicitTitle = mzjTaskExplicitName(deptTask);
-  const possibleTitle = explicitTitle || mzjCleanTaskText(details.taskName || details.taskTitle || deptTask?.taskName || deptTask?.taskTitle || deptTask?.title || deptTask?.name || '');
-  const finalTitle = (rawContentTypes.includes(possibleTitle) && !explicitTitle)
-    ? (departmentTaskShortName(deptTask) || 'تكليف مطلوب')
-    : (possibleTitle || departmentTaskShortName(deptTask) || 'تكليف مطلوب');
-  const contentTypes = rawContentTypes.filter((value) => value !== finalTitle && !/^مطلوب\s*\d+/i.test(value));
-  const printSizes = mzjUniqueTaskValues([deptTask?.printSize, details.printSize]);
-  const extraDetails = mzjUniqueTaskValues([details.details, details.desc, details.description, deptTask?.deliveryDetails])
-    .filter((value) => value && value !== finalTitle && !contentTypes.includes(value) && !cars.includes(value));
-
-  const chips = (items, className = '') => items.length
-    ? `<div class="readable-chip-row ${className}">${items.map((item) => `<span title="${safe(item)}">${safe(item)}</span>`).join('')}</div>`
-    : `<em class="readable-empty">غير محدد</em>`;
+  const finalTitle = explicitTitle ||
+    mzjCleanTaskText(deptTask?.taskName || deptTask?.taskTitle || deptTask?.title || deptTask?.name || details.taskName || details.taskTitle || '') ||
+    'تكليف مطلوب';
 
   const deptLabel = mzjCleanTaskText(deptTask?.departmentName || details.departmentName || '—');
   const userLabel = mzjCleanTaskText(deptTask?.userDisplayName || deptTask?.userName || deptTask?.assigneeName || deptTask?.userEmail || '—');
   const contentLabel = contentTypes.length ? contentTypes.join('، ') : 'غير محدد';
   const carCountLabel = cars.length ? `${cars.length} سيارة` : 'غير محدد';
+  const carList = cars.length ? cars : [];
 
-  return `<section class="readable-task-details readable-task-details-v6">
-    <article class="readable-task-hero">
-      <div>
-        <small>اسم التاسك</small>
-        <strong>${safe(finalTitle)}</strong>
-      </div>
-      <div class="readable-task-hero-meta">
-        <span><small>القسم</small><b>${safe(deptLabel)}</b></span>
-        <span><small>المسؤول</small><b>${safe(userLabel)}</b></span>
-      </div>
-    </article>
-    <div class="readable-task-summary readable-task-summary-v6">
-      <span><small>نوع المحتوى</small><strong>${safe(contentLabel)}</strong></span>
-      <span><small>عدد السيارات المختارة</small><strong>${safe(carCountLabel)}</strong></span>
-      ${printSizes.length ? `<span><small>المقاس</small><strong>${safe(printSizes.join('، '))}</strong></span>` : ''}
+  return `<section class="fresh-task-details">
+    <header class="fresh-task-header">
+      <small>اسم التاسك</small>
+      <h2>${safe(finalTitle)}</h2>
+    </header>
+
+    <div class="fresh-task-meta-grid">
+      <div><small>القسم</small><strong>${safe(deptLabel)}</strong></div>
+      <div><small>المسؤول</small><strong>${safe(userLabel)}</strong></div>
+      <div><small>نوع المحتوى</small><strong>${safe(contentLabel)}</strong></div>
+      <div><small>عدد السيارات المختارة</small><strong>${safe(carCountLabel)}</strong></div>
     </div>
-    <article class="readable-task-main readable-task-main-v6">
-      <div class="readable-detail-grid readable-detail-grid-v6">
-        <div class="readable-detail-item readable-detail-wide"><small>السيارات المختارة</small>${chips(cars, 'car-chips')}</div>
-        ${extraDetails.length ? `<div class="readable-detail-item readable-detail-wide"><small>تفاصيل إضافية</small>${chips(extraDetails)}</div>` : ''}
-        ${(!cars.length && !contentTypes.length && rawFallback) ? `<div class="readable-detail-item readable-detail-wide"><small>المطلوب</small><div class="readable-fallback-text">${renderTaskRequirementDetails(rawFallback, deptKeyValue)}</div></div>` : ''}
-      </div>
-    </article>
+
+    <section class="fresh-task-cars">
+      <small>السيارات المختارة</small>
+      ${carList.length ? `<div class="fresh-car-list">${carList.map((car, index) => `<span>${index + 1}. ${safe(car)}</span>`).join('')}</div>` : '<em>غير محدد</em>'}
+    </section>
   </section>`;
 }
 
@@ -1251,8 +1245,7 @@ function openTaskDetails(button) {
           const taskName = mzjTaskExplicitName(dept) || dept.taskName || dept.taskTitle || departmentTaskShortName(dept);
           const shortTitle = [
             carName ? `السيارة: ${carName}` : '',
-            contentName ? `نوع المحتوى: ${contentName}` : '',
-            taskName ? `اسم التاسك: ${taskName}` : ''
+            contentName ? `نوع المحتوى: ${contentName}` : ''
           ].filter(Boolean).join(' — ');
           return `<button type="button" class="assignment-switch-btn ${index === 0 ? 'is-active' : ''}" data-switch-assignment="${index}">
             <b>${index + 1}</b>
@@ -1287,7 +1280,6 @@ function openTaskDetails(button) {
     const assignmentContentType = assignmentContentTypes[0] || '';
     const assignmentTaskName = mzjTaskExplicitName(dept) || dept.taskName || dept.taskTitle || dept.title || departmentTaskShortName(dept);
     const assignmentTitle = [
-      assignmentTaskName ? `اسم التاسك: ${assignmentTaskName}` : '',
       assignmentCar ? `السيارة: ${assignmentCar}` : '',
       assignmentContentType ? `نوع المحتوى: ${assignmentContentType}` : '',
       dept.requiredDate ? `مطلوب: ${dept.requiredDate}` : ''
@@ -1303,7 +1295,6 @@ function openTaskDetails(button) {
           <div><small>إنجاز السيارة</small><b data-assignment-task-percent>0%</b></div>
         </div>
       </div>
-      <div class="assignment-step-required">${renderReadableDepartmentRequirement(dept, deptKeyValue)}</div>
       <div class="assignment-actions-title">إجراءات التكليف</div>
       <div class="assignment-step-buttons" data-assignment-step-buttons></div>
     `;
@@ -2265,11 +2256,12 @@ function mzjStockCarFullLabel(car, index = 0) {
   const fallback = clean(car?.display || car?.label || '');
   const main = [name, statement].filter(Boolean).join(' - ');
   const full = [main, model].filter(Boolean).join(' , ');
-  return full || fallback || ('سيارة ' + (index + 1));
+  // الاسم الظاهر والمحفوظ لازم يكون الماركة + المواصفة + الموديل فقط، بدون ألوان أو VIN أو حالات.
+  return full || fallback.split('|').slice(0, 3).map((part) => clean(part)).filter(Boolean).join(' , ') || ('سيارة ' + (index + 1));
 }
 
 function renderStockCarChoiceCards() {
-  const stockCarsCache = Array.isArray(window.MZJStockCarsCache) ? window.MZJStockCarsCache : [];
+  const stockCarsCache = Array.isArray(window.MZJStockCarsCache) && window.MZJStockCarsCache.length ? window.MZJStockCarsCache : (Array.isArray(window.stockCarsCache) ? window.stockCarsCache : []);
   if (!stockCarsCache.length) {
     return '<div class="required-content-empty">لا توجد سيارات متاحة من الاستوك حاليًا. اكتب المطلوب يدويًا في الخانة أسفل الاختيارات.</div>';
   }
@@ -3652,6 +3644,14 @@ function initCreateTaskFromTemplate() {
     } else if (form) {
       form.insertAdjacentHTML('beforeend', html);
     }
+    refreshUniversalCarChoiceGrids();
+  }
+
+  function refreshUniversalCarChoiceGrids() {
+    const html = renderStockCarChoiceCards();
+    document.querySelectorAll('[data-universal-car-choice-grid]').forEach((grid) => {
+      grid.innerHTML = html;
+    });
   }
 
   function renderContentTypeLinkAssignmentRow() {
@@ -6242,7 +6242,8 @@ initCreateTaskFromTemplate();
     const departmentShare = Math.round((groupDepts.length / Math.max((task.departmentTasks||[]).length,1)) * 10000) / 100;
     const summaryCars = mzjUniqueTaskValues(groupDepts.flatMap((d) => mzjCollectTaskCars(d)));
     const summaryContent = mzjUniqueTaskValues(groupDepts.flatMap((d) => mzjCollectTaskContentTypes(d)));
-    const summaryTitle = mzjTaskExplicitName(deptTask) || deptTask.customTaskName || deptTask.userTaskName || deptTask.taskGroupTitle || deptTask.taskName || deptTask.taskTitle || deptTask.title || departmentTaskShortName(deptTask);
+    const explicitSummaryTitle = groupDepts.map((d) => mzjTaskExplicitName(d)).find(Boolean) || '';
+    const summaryTitle = explicitSummaryTitle || deptTask.taskName || deptTask.taskTitle || deptTask.title || departmentTaskShortName(deptTask);
     const groupKey = dashboardTaskGroupKey(deptTask, deptIndex);
     return `<article class="department-task-card dynamic-dashboard-card user-task-card-clean" data-dept-task-card data-task-id="${esc(task.id)}" data-task-type="${esc(task.taskTypeLabel || task.taskType || '')}" data-campaign-code="${esc(task.campaignCode || '')}" data-readiness-key="${esc(key)}" data-legacy-readiness-key="${esc(legacyDeptReadinessKey(deptTask))}" data-dept-identity="${esc(deptIdentity(deptTask))}" data-dept-key="${esc(dkey)}" data-task-group-key="${esc(groupKey)}" data-department-share="${esc(departmentShare)}" data-completed-steps="${esc(selected)}">
       <div class="task-template-top user-task-title-only"><strong>${esc(summaryTitle)}</strong><span class="user-task-short-name">${esc(summaryContent[0] || departmentTaskShortName(deptTask))}</span></div>
@@ -6250,7 +6251,7 @@ initCreateTaskFromTemplate();
         <span class="meta-person"><small>المسؤول</small><strong>${esc(deptTask.userDisplayName || deptTask.userName || deptTask.userEmail || 'بدون مسؤول')}</strong></span>
         <span class="meta-dept"><small>القسم</small><strong>${esc(deptTask.departmentName || '—')}</strong></span>
         <span class="meta-content"><small>نوع المحتوى</small><strong>${esc(summaryContent.join('، ') || deptTask.contentType || deptTask.requiredDetails?.contentType || '—')}</strong></span>
-        <span class="meta-cars"><small>السيارات المختارة</small><strong>${esc(summaryCars.join('، ') || deptTask.carType || deptTask.requiredDetails?.carType || '—')}</strong></span>
+        <span class="meta-cars"><small>السيارات المختارة</small><strong>${esc(summaryCars.join(' | ') || deptTask.carType || deptTask.requiredDetails?.carType || '—')}</strong></span>
         <span class="meta-date meta-delivery"><small>${dkey === 'publish' ? 'تاريخ الاطلاع' : 'تاريخ التسليم'}</small><strong>${esc(deptTask.deliveryDate || deptTask.publishDate || '—')}</strong></span>
       </div>
       <div class="mini-progress"><span data-task-bar style="width:${p}%"></span></div>

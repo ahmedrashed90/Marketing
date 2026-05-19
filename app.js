@@ -1471,6 +1471,52 @@ async function loadMarketingPlatforms() {
   return Array.from(map.values());
 }
 
+function normalizeFunnel(row, id) {
+  const name = String(row?.name || row?.title || row?.label || row || '').trim();
+  if (!name) return null;
+  return {
+    id: id || row?.id || name,
+    name,
+    active: row?.active !== false,
+    source: row?.source || 'firebase'
+  };
+}
+
+async function loadMarketingFunnels() {
+  const collected = [];
+  if (window.firebase && window.MZJ_FIREBASE_CONFIG && firebase.firestore) {
+    try {
+      if (!firebase.apps.length) firebase.initializeApp(window.MZJ_FIREBASE_CONFIG);
+      const snap = await firebase.firestore().collection('marketing_funnels').get();
+      snap.forEach((doc) => {
+        const item = normalizeFunnel(doc.data() || {}, doc.id);
+        if (item && item.active !== false) collected.push(item);
+      });
+    } catch (error) {
+      console.warn('marketing_funnels load failed:', error);
+    }
+  }
+  const map = new Map();
+  collected.filter(Boolean).forEach((funnel) => map.set(String(funnel.name).toLowerCase(), funnel));
+  return Array.from(map.values());
+}
+
+async function saveMarketingFunnel(name) {
+  const clean = String(name || '').trim();
+  if (!clean) throw new Error('اكتب اسم Funnel الأول.');
+  if (!window.firebase || !window.MZJ_FIREBASE_CONFIG || !firebase.firestore) throw new Error('Firebase SDK غير موجود');
+  if (!firebase.apps.length) firebase.initializeApp(window.MZJ_FIREBASE_CONFIG);
+  const id = 'funnel_' + Date.now();
+  await firebase.firestore().collection('marketing_funnels').doc(id).set({
+    id,
+    name: clean,
+    active: true,
+    createdAt: new Date().toISOString(),
+    source: 'dashboard'
+  });
+  return { id, name: clean, active: true, source: 'firebase' };
+}
+
 const DEFAULT_CAMPAIGN_TYPES = ['حملة بيعية', 'حملة تسويقية', 'حملة تفاعلية', 'حملة محتوى', 'أجندة'];
 
 function normalizeCampaignType(row, id) {
@@ -1704,6 +1750,7 @@ function initCreateTaskFromTemplate() {
   let usersCache = [];
   let departmentIndex = 0;
   let platformsCache = [];
+  let funnelsCache = [];
   let campaignTypesCache = [];
   let importedTemplateContext = {
     loaded: false,
@@ -1794,6 +1841,7 @@ function initCreateTaskFromTemplate() {
     departmentsCache = await loadDepartmentsFromContentTasks();
     usersCache = await loadUsersFromSystemPath();
     platformsCache = await loadMarketingPlatforms();
+    funnelsCache = await loadMarketingFunnels();
     await refreshCampaignTypes();
     try { await loadTaskTemplatesFromFirebase(); } catch (error) { if (note) note.textContent = '⚠️ فشل قراءة قوالب Firebase: ' + (error?.message || error?.code || error); }
     applyDateLabels();
@@ -1933,59 +1981,110 @@ function initCreateTaskFromTemplate() {
     departmentsCache.forEach((dept) => createDepartmentRow(dept));
   }
 
-  function createBudgetPlatformRows(itemIndex) {
-    if (!platformsCache.length) {
-      return '<p class="template-empty">لا توجد منصات. أضفها من صفحة منصات الميزانية.</p>';
+  function renderBudgetFunnelOptions(selected = '') {
+    const current = String(selected || '').trim();
+    const options = ['<option value="">اختار Funnel</option>'];
+    funnelsCache.forEach((funnel) => {
+      options.push(`<option value="${escapeHTML(funnel.name)}" ${current === funnel.name ? 'selected' : ''}>${escapeHTML(funnel.name)}</option>`);
+    });
+    if (current && !funnelsCache.some((funnel) => funnel.name === current)) {
+      options.push(`<option value="${escapeHTML(current)}" selected>${escapeHTML(current)}</option>`);
     }
-    return platformsCache.map((platform) => `
-      <article class="platform-budget-row budget-item-platform-row" data-platform-budget-row data-platform-id="${escapeHTML(platform.id)}" data-platform-name="${escapeHTML(platform.name)}">
-        <label class="platform-budget-check">
-          <input type="checkbox" data-platform-check>
-          <strong>${escapeHTML(platform.name)}</strong>
-        </label>
-        <input type="number" min="0" step="1" data-platform-amount placeholder="ميزانية ${escapeHTML(platform.name)} لهذا الإعلان">
-      </article>
-    `).join('');
+    return options.join('');
+  }
+
+  function renderBudgetProductOptions(selected = '') {
+    const current = String(selected || '').trim();
+    const products = getPublishChoiceLabels();
+    const options = ['<option value="">اختار المنتج</option>'];
+    products.forEach((product) => {
+      options.push(`<option value="${escapeHTML(product)}" ${current === product ? 'selected' : ''}>${escapeHTML(product)}</option>`);
+    });
+    if (current && !products.includes(current)) {
+      options.push(`<option value="${escapeHTML(current)}" selected>${escapeHTML(current)}</option>`);
+    }
+    return options.join('');
+  }
+
+  function renderBudgetPlatformOptions(selected = '') {
+    const current = String(selected || '').trim();
+    const options = ['<option value="">اختار المنصة</option>'];
+    platformsCache.forEach((platform) => {
+      options.push(`<option value="${escapeHTML(platform.name)}" data-platform-id="${escapeHTML(platform.id)}" ${current === platform.name ? 'selected' : ''}>${escapeHTML(platform.name)}</option>`);
+    });
+    if (current && !platformsCache.some((platform) => platform.name === current)) {
+      options.push(`<option value="${escapeHTML(current)}" selected>${escapeHTML(current)}</option>`);
+    }
+    return options.join('');
+  }
+
+  function refreshBudgetDropdownOptions() {
+    if (!budgetItemsList) return;
+    budgetItemsList.querySelectorAll('[data-budget-funnel]').forEach((select) => {
+      const current = select.value;
+      select.innerHTML = renderBudgetFunnelOptions(current);
+    });
+    budgetItemsList.querySelectorAll('[data-budget-product]').forEach((select) => {
+      const current = select.value;
+      select.innerHTML = renderBudgetProductOptions(current);
+    });
+    budgetItemsList.querySelectorAll('[data-budget-platform]').forEach((select) => {
+      const current = select.value;
+      select.innerHTML = renderBudgetPlatformOptions(current);
+    });
   }
 
   function createBudgetItem(data = {}) {
     if (!budgetItemsList) return;
     const itemIndex = budgetItemsList.querySelectorAll('[data-budget-item]').length + 1;
     const item = document.createElement('article');
-    item.className = 'budget-item-accordion is-open';
+    item.className = 'budget-item-accordion is-open budget-item-simple';
     item.dataset.budgetItem = String(itemIndex);
+    const platformName = data.platformName || data.platform || data.platforms?.[0]?.name || '';
+    const amount = data.value || data.amount || data.itemTotal || data.platforms?.[0]?.amount || '';
     item.innerHTML = `
       <div class="budget-item-head">
         <button class="budget-item-toggle" type="button" data-budget-toggle>
-          <strong>إعلان / ميزانية ${itemIndex}</strong>
-          <small data-budget-item-summary>اضغط للفتح والإغلاق</small>
+          <strong>ميزانية ${itemIndex}</strong>
+          <small data-budget-item-summary>اختار Funnel والمنتج والمنصة والقيمة</small>
         </button>
         <button class="soft-danger-btn" type="button" data-remove-budget-item>مسح</button>
       </div>
 
       <div class="budget-item-body" data-budget-body>
-        <div class="create-task-grid budget-fields-grid">
-          <label class="mzj-field"><span>نوع الإعلان</span><input type="text" data-budget-ad-type placeholder="مثال: بيعي / كاش / توعوي" value="${escapeHTML(data.adType || '')}"></label>
-          <label class="mzj-field"><span>اسم الإعلان</span><input type="text" data-budget-ad-name placeholder="مثال: سيارة هيونداي / النترا" value="${escapeHTML(data.adName || '')}"></label>
-          <label class="mzj-field"><span>تاريخ النشر</span><input type="date" data-budget-publish-date value="${escapeHTML(data.publishDate || '')}"></label>
-          <label class="mzj-field"><span>مدة الإعلان</span><input type="text" data-budget-duration placeholder="مثال: 7 أيام" value="${escapeHTML(data.duration || '')}"></label>
-          <label class="mzj-field"><span>عدد الإعلانات</span><input type="number" min="0" data-budget-ads-count placeholder="0" value="${escapeHTML(data.adsCount || '')}"></label>
-          <label class="mzj-field"><span>هدف المحتوى</span><input type="text" data-budget-content-goal placeholder="اكتب هدف المحتوى" value="${escapeHTML(data.contentGoal || '')}"></label>
-          <label class="mzj-field"><span>الهدف المتوقع</span><input type="text" data-budget-expected-goal placeholder="اكتب الهدف المتوقع" value="${escapeHTML(data.expectedGoal || '')}"></label>
+        <div class="create-task-grid budget-fields-grid budget-funnel-grid">
+          <label class="mzj-field">
+            <span>Funnel</span>
+            <select data-budget-funnel>${renderBudgetFunnelOptions(data.funnel || data.funnelName || '')}</select>
+          </label>
+
+          <div class="budget-new-funnel-box">
+            <label class="mzj-field">
+              <span>إضافة Funnel جديد</span>
+              <input type="text" data-new-budget-funnel placeholder="اكتب Funnel جديد">
+            </label>
+            <button class="soft-btn" type="button" data-save-budget-funnel>حفظ Funnel</button>
+          </div>
+
+          <label class="mzj-field">
+            <span>المنتج</span>
+            <select data-budget-product>${renderBudgetProductOptions(data.product || data.productName || data.adName || '')}</select>
+          </label>
+
+          <label class="mzj-field">
+            <span>المنصة</span>
+            <select data-budget-platform>${renderBudgetPlatformOptions(platformName)}</select>
+          </label>
+
+          <label class="mzj-field">
+            <span>القيمة</span>
+            <input type="number" min="0" step="1" data-budget-value placeholder="اكتب القيمة" value="${escapeHTML(amount || '')}">
+          </label>
         </div>
 
-        <div class="platform-budget-area budget-item-platforms-area">
-          <div class="platform-budget-head">
-            <strong>ميزانية المنصات لهذا الإعلان</strong>
-            <small>اختار المنصات المطلوبة واكتب ميزانية كل منصة للإعلان الحالي فقط.</small>
-          </div>
-          <div class="budget-platforms-list compact-budget-platforms" data-budget-platforms-list>
-            ${createBudgetPlatformRows(itemIndex)}
-          </div>
-          <div class="budget-total-box budget-item-total-box">
-            <span>إجمالي هذا الإعلان</span>
-            <strong data-budget-item-total>0</strong>
-          </div>
+        <div class="budget-total-box budget-item-total-box">
+          <span>إجمالي هذا البند</span>
+          <strong data-budget-item-total>0</strong>
         </div>
       </div>
     `;
@@ -1994,27 +2093,37 @@ function initCreateTaskFromTemplate() {
   }
 
   function collectBudgetItem(item) {
-    const platforms = Array.from(item.querySelectorAll('[data-platform-budget-row]')).map((row) => {
-      const checked = row.querySelector('[data-platform-check]')?.checked;
-      const amount = Number(row.querySelector('[data-platform-amount]')?.value || 0);
-      return {
-        id: row.dataset.platformId || '',
-        name: row.dataset.platformName || '',
-        amount,
-        selected: Boolean(checked)
-      };
-    }).filter((platform) => platform.selected || platform.amount > 0);
-    const itemTotal = platforms.reduce((sum, platform) => sum + Number(platform.amount || 0), 0);
+    const platformSelect = item.querySelector('[data-budget-platform]');
+    const platformOption = platformSelect?.selectedOptions?.[0];
+    const amount = Number(item.querySelector('[data-budget-value]')?.value || 0);
+    const platformName = platformSelect?.value || '';
+    const platformId = platformOption?.dataset.platformId || platformName;
+    const product = item.querySelector('[data-budget-product]')?.value || '';
+    const funnel = item.querySelector('[data-budget-funnel]')?.value || '';
+    const platforms = platformName || amount > 0 ? [{
+      id: platformId,
+      name: platformName,
+      amount,
+      selected: Boolean(platformName || amount > 0)
+    }] : [];
     return {
-      adType: item.querySelector('[data-budget-ad-type]')?.value.trim() || '',
-      adName: item.querySelector('[data-budget-ad-name]')?.value.trim() || '',
-      publishDate: item.querySelector('[data-budget-publish-date]')?.value || '',
-      duration: item.querySelector('[data-budget-duration]')?.value.trim() || '',
-      adsCount: item.querySelector('[data-budget-ads-count]')?.value || '',
-      contentGoal: item.querySelector('[data-budget-content-goal]')?.value.trim() || '',
-      expectedGoal: item.querySelector('[data-budget-expected-goal]')?.value.trim() || '',
+      funnel,
+      funnelName: funnel,
+      product,
+      productName: product,
+      platform: platformName,
+      platformName,
+      value: amount,
+      amount,
+      adType: funnel,
+      adName: product,
+      publishDate: '',
+      duration: '',
+      adsCount: '',
+      contentGoal: '',
+      expectedGoal: '',
       platforms,
-      itemTotal
+      itemTotal: amount
     };
   }
 
@@ -2027,7 +2136,7 @@ function initCreateTaskFromTemplate() {
       const totalEl = item.querySelector('[data-budget-item-total]');
       if (totalEl) totalEl.textContent = details.itemTotal.toLocaleString('ar-EG');
       const summary = item.querySelector('[data-budget-item-summary]');
-      if (summary) summary.textContent = `${details.adName || 'إعلان بدون اسم'} — الإجمالي ${details.itemTotal.toLocaleString('ar-EG')}`;
+      if (summary) summary.textContent = `${details.funnel || 'Funnel غير محدد'} / ${details.product || 'منتج غير محدد'} / ${details.platform || 'منصة غير محددة'} — ${details.itemTotal.toLocaleString('ar-EG')}`;
       const title = item.querySelector('.budget-item-toggle strong');
       if (title) title.textContent = `إعلان / ميزانية ${index + 1}`;
     });
@@ -3468,7 +3577,7 @@ function initCreateTaskFromTemplate() {
 
   function collectBudgetDetails() {
     const items = budgetItemsList ? Array.from(budgetItemsList.querySelectorAll('[data-budget-item]')).map(collectBudgetItem).filter((item) => {
-      return item.adType || item.adName || item.publishDate || item.duration || item.adsCount || item.contentGoal || item.expectedGoal || item.platforms.length;
+      return item.funnel || item.product || item.platform || item.value || item.platforms.length;
     }) : [];
     const totalBudget = items.reduce((sum, item) => sum + Number(item.itemTotal || 0), 0);
     return {
@@ -3476,7 +3585,7 @@ function initCreateTaskFromTemplate() {
       totalBudget,
       adsCount: items.length,
       platformsTotal: totalBudget,
-      mode: 'items_by_ad'
+      mode: 'funnel_product_platform'
     };
   }
 
@@ -3626,6 +3735,7 @@ function initCreateTaskFromTemplate() {
       setAutomaticTaskDate();
       await loadStockCarsForDropdown();
       refreshStockCarsDatalist();
+      refreshBudgetDropdownOptions();
       modal.classList.add('is-open');
       modal.setAttribute('aria-hidden', 'false');
     });
@@ -3852,17 +3962,45 @@ function initCreateTaskFromTemplate() {
         }
       }
       refreshPublishCalendarOptions();
+      refreshBudgetDropdownOptions();
     }
   });
 
   departmentsList.addEventListener('input', (event) => {
-    if (event.target.closest('[data-design-print-size]')) refreshPublishCalendarOptions();
+    if (event.target.closest('[data-design-print-size]')) {
+      refreshPublishCalendarOptions();
+      refreshBudgetDropdownOptions();
+    }
   });
 
   if (budgetItemsList) {
     budgetItemsList.addEventListener('input', updateBudgetTotal);
     budgetItemsList.addEventListener('change', updateBudgetTotal);
-    budgetItemsList.addEventListener('click', (event) => {
+    budgetItemsList.addEventListener('click', async (event) => {
+      const saveFunnelBtn = event.target.closest('[data-save-budget-funnel]');
+      if (saveFunnelBtn) {
+        const item = saveFunnelBtn.closest('[data-budget-item]');
+        const input = item?.querySelector('[data-new-budget-funnel]');
+        const select = item?.querySelector('[data-budget-funnel]');
+        const name = input?.value.trim() || '';
+        if (!name) {
+          if (note) note.textContent = '⚠️ اكتب اسم Funnel الأول.';
+          return;
+        }
+        try {
+          await saveMarketingFunnel(name);
+          funnelsCache = await loadMarketingFunnels();
+          refreshBudgetDropdownOptions();
+          if (select) select.value = name;
+          if (input) input.value = '';
+          updateBudgetTotal();
+          if (note) note.textContent = '✅ تم حفظ Funnel وسيظهر بعد كده في القائمة.';
+        } catch (error) {
+          if (note) note.textContent = '⚠️ فشل حفظ Funnel: ' + (error?.message || error?.code || error);
+        }
+        return;
+      }
+
       const toggle = event.target.closest('[data-budget-toggle]');
       if (toggle) {
         const item = toggle.closest('[data-budget-item]');

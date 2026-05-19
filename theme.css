@@ -5135,3 +5135,27 @@ body.sidebar-collapsed .database-main {
   border-radius:14px;
   background:#fffaf6;
 }
+
+
+.budget-funnel-grid{
+  align-items:end;
+}
+.budget-new-funnel-box{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto;
+  gap:10px;
+  align-items:end;
+}
+.budget-new-funnel-box .soft-btn{
+  min-height:48px;
+  white-space:nowrap;
+}
+.budget-item-simple .budget-item-body{
+  display:grid;
+  gap:16px;
+}
+@media(max-width:760px){
+  .budget-new-funnel-box{
+    grid-template-columns:1fr;
+  }
+}

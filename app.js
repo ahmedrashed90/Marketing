@@ -2060,10 +2060,16 @@ function initCreateTaskFromTemplate() {
     return labels;
   }
 
-  function renderPublishChoicesOptions(selected = []) {
+  function renderPublishChoicesChecklist(selected = []) {
     const values = getPublishChoiceLabels();
-    if (!values.length) return '<option value="">اختار من التصميم والمونتاج بعد تحديد المطلوب</option>';
-    return values.map((value) => `<option value="${escapeHTML(value)}" ${selected.includes(value) ? 'selected' : ''}>${escapeHTML(value)}</option>`).join('');
+    if (!values.length) return '<p class="publish-choice-empty">اختار من قسم التصميم أو المونتاج الأول، وبعدها ارجع لليوم ده.</p>';
+    return values.map((value, index) => {
+      const id = `publish-choice-${Date.now()}-${index}-${Math.random().toString(16).slice(2)}`;
+      return `<label class="publish-choice-checkpoint">
+        <input type="checkbox" data-schedule-content value="${escapeHTML(value)}" ${selected.includes(value) ? 'checked' : ''}>
+        <span>${escapeHTML(value)}</span>
+      </label>`;
+    }).join('');
   }
 
   function renderPublishCalendarDay(date, items = [], isOutOfRange = false) {
@@ -2081,10 +2087,10 @@ function initCreateTaskFromTemplate() {
         <div class="publish-day-editor" data-publish-day-editor hidden>
           <input type="hidden" data-schedule-day value="${escapeHTML(arabicDayName(date))}">
           <input type="hidden" data-schedule-date value="${escapeHTML(iso)}">
-          <label class="mzj-field full-width-field">
-            <span>اختار ما سيتم نشره في اليوم ده</span>
-            <select data-schedule-content multiple size="5">${renderPublishChoicesOptions(selected)}</select>
-          </label>
+          <div class="publish-choice-box">
+            <strong>اختار ما سيتم نشره في اليوم ده</strong>
+            <div class="publish-choice-list" data-publish-choice-list>${renderPublishChoicesChecklist(selected)}</div>
+          </div>
           <small class="admin-only-note">تقدر تختار أكتر من عنصر للنشر في نفس اليوم.</small>
         </div>
       </article>`;
@@ -2130,7 +2136,7 @@ function initCreateTaskFromTemplate() {
     const previous = new Map();
     publishScheduleRows.querySelectorAll('[data-publish-calendar-cell], .publish-schedule-row').forEach((row) => {
       const date = row.querySelector('[data-schedule-date]')?.value || row.dataset.date || '';
-      const selected = Array.from(row.querySelectorAll('[data-schedule-content] option:checked')).map((opt) => opt.value).filter(Boolean);
+      const selected = Array.from(row.querySelectorAll('[data-schedule-content]:checked')).map((input) => input.value).filter(Boolean);
       if (date) previous.set(date, selected);
     });
 
@@ -2183,10 +2189,10 @@ function initCreateTaskFromTemplate() {
       return;
     }
     publishScheduleRows.querySelectorAll('[data-publish-calendar-cell]').forEach((row) => {
-      const select = row.querySelector('[data-schedule-content]');
-      if (!select) return;
-      const selected = Array.from(select.selectedOptions || []).map((opt) => opt.value).filter(Boolean);
-      select.innerHTML = renderPublishChoicesOptions(selected);
+      const list = row.querySelector('[data-publish-choice-list]');
+      if (!list) return;
+      const selected = Array.from(row.querySelectorAll('[data-schedule-content]:checked')).map((input) => input.value).filter(Boolean);
+      list.innerHTML = renderPublishChoicesChecklist(selected);
       const summary = row.querySelector('.publish-calendar-summary');
       if (summary) summary.innerHTML = selected.length ? selected.map((item) => `<span>${escapeHTML(item)}</span>`).join('') : '<em>اضغط لاختيار النشر</em>';
     });
@@ -2195,7 +2201,7 @@ function initCreateTaskFromTemplate() {
   function collectPublishScheduleDetails() {
     if (!publishScheduleRows) return [];
     return Array.from(publishScheduleRows.querySelectorAll('[data-publish-calendar-cell]')).map((row) => {
-      const items = Array.from(row.querySelectorAll('[data-schedule-content] option:checked')).map((opt) => opt.value).filter(Boolean);
+      const items = Array.from(row.querySelectorAll('[data-schedule-content]:checked')).map((input) => input.value).filter(Boolean);
       return {
         day: row.querySelector('[data-schedule-day]')?.value || '',
         date: row.querySelector('[data-schedule-date]')?.value || row.dataset.date || '',
@@ -2760,9 +2766,7 @@ function initCreateTaskFromTemplate() {
       const display = [
         item.carName,
         item.statement,
-        item.model,
-        exterior ? `ألوان خارجية: ${exterior}` : '',
-        interior ? `ألوان داخلية: ${interior}` : ''
+        item.model
       ].filter(Boolean).join(' | ');
       return { ...item, display };
     }).filter((item) => item.display).sort((a, b) => {
@@ -3926,11 +3930,11 @@ function initCreateTaskFromTemplate() {
       editor.hidden = isOpen;
     });
     publishScheduleRows.addEventListener('change', (event) => {
-      const select = event.target.closest('[data-schedule-content]');
-      if (!select) return;
-      const cell = select.closest('[data-publish-calendar-cell]');
+      const changed = event.target.closest('[data-schedule-content]');
+      if (!changed) return;
+      const cell = changed.closest('[data-publish-calendar-cell]');
       const summary = cell?.querySelector('.publish-calendar-summary');
-      const selected = Array.from(select.selectedOptions || []).map((opt) => opt.value).filter(Boolean);
+      const selected = Array.from(cell?.querySelectorAll('[data-schedule-content]:checked') || []).map((input) => input.value).filter(Boolean);
       if (summary) summary.innerHTML = selected.length ? selected.map((item) => `<span>${escapeHTML(item)}</span>`).join('') : '<em>اضغط لاختيار النشر</em>';
     });
   }

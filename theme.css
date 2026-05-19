@@ -5082,3 +5082,56 @@ body.sidebar-collapsed .database-main {
     box-shadow:none;
   }
 }
+
+
+/* Publish calendar checkpoint choices */
+.publish-choice-box{
+  display:grid;
+  gap:10px;
+}
+.publish-choice-box > strong{
+  color:var(--brown,#4b241f);
+  font-weight:900;
+}
+.publish-choice-list{
+  display:grid;
+  gap:8px;
+  max-height:240px;
+  overflow:auto;
+  padding-inline-end:4px;
+}
+.publish-choice-checkpoint{
+  display:flex;
+  align-items:flex-start;
+  gap:10px;
+  padding:10px 12px;
+  border:1px solid rgba(75,36,31,.10);
+  border-radius:14px;
+  background:#fffaf6;
+  cursor:pointer;
+}
+.publish-choice-checkpoint input{
+  width:18px;
+  height:18px;
+  margin-top:3px;
+  accent-color:var(--brown,#4b241f);
+  flex:0 0 auto;
+}
+.publish-choice-checkpoint span{
+  color:#4b241f;
+  font-weight:800;
+  line-height:1.7;
+}
+.publish-choice-checkpoint:has(input:checked){
+  background:#f4e7dd;
+  border-color:rgba(75,36,31,.28);
+}
+.publish-choice-empty{
+  margin:0;
+  color:#9a7d70;
+  font-weight:800;
+  line-height:1.8;
+  padding:10px 12px;
+  border-radius:14px;
+  background:#fffaf6;
+}

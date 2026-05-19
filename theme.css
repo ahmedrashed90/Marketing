@@ -6130,3 +6130,11 @@ body:has(#taskDetailsModal.is-open){
 .universal-content-type-card{
   user-select:none;
 }
+
+
+/* Multi content selections per required item */
+.universal-content-type-card input[type="checkbox"]{
+  position:absolute;
+  opacity:0;
+  pointer-events:none;
+}

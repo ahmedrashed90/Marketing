@@ -1974,7 +1974,7 @@ function renderUniversalContentChoiceCards(kind) {
   }
   return items.map((item, index) => `
     <label class="universal-content-type-card">
-      <input type="radio" name="universal-content-${Date.now()}-${Math.random().toString(16).slice(2)}" data-universal-content-type value="${escapeHTML(item.title)}" data-desc="${escapeHTML(item.details || '')}" data-id="${escapeHTML(item.id)}">
+      <input type="checkbox" data-universal-content-type value="${escapeHTML(item.title)}" data-desc="${escapeHTML(item.details || '')}" data-id="${escapeHTML(item.id)}">
       <span>${escapeHTML(item.title)}</span>
       ${item.details ? `<small>${escapeHTML(item.details)}</small>` : ''}
     </label>
@@ -3929,14 +3929,19 @@ function initCreateTaskFromTemplate() {
 
   function collectSpecialDepartmentDetails(row, kind) {
     const items = Array.from(row.querySelectorAll('[data-universal-required-item]')).map((item) => {
-      const selectedType = item.querySelector('[data-universal-content-type]:checked');
+      const selectedTypes = Array.from(item.querySelectorAll('[data-universal-content-type]:checked')).map((input) => ({
+        title: input.value.trim(),
+        id: input.dataset.id || '',
+        details: input.dataset.desc || ''
+      })).filter((entry) => entry.title);
       const carOrRequired = item.querySelector('[data-universal-car-type]')?.value.trim() || '';
       return {
         requiredText: carOrRequired,
         carType: carOrRequired,
-        contentType: selectedType?.value.trim() || '',
-        contentTypeId: selectedType?.dataset.id || '',
-        details: selectedType?.dataset.desc || '',
+        contentTypes: selectedTypes,
+        contentType: selectedTypes.map((entry) => entry.title).join('، '),
+        contentTypeId: selectedTypes.map((entry) => entry.id).filter(Boolean).join(','),
+        details: selectedTypes.map((entry) => entry.details).filter(Boolean).join(' | '),
         printSize: item.querySelector('[data-universal-print-size]')?.value.trim() || ''
       };
     }).filter((item) => item.requiredText || item.carType || item.contentType || item.printSize);
@@ -4181,20 +4186,13 @@ function initCreateTaskFromTemplate() {
       const input = contentCard.querySelector('[data-universal-content-type]');
       const item = contentCard.closest('[data-universal-required-item]');
       if (input) {
-        const wasChecked = contentCard.classList.contains('is-checked') || input.checked;
         event.preventDefault();
-        item?.querySelectorAll('[data-universal-content-type]').forEach((radio) => {
-          radio.checked = false;
-          radio.closest('.universal-content-type-card')?.classList.remove('is-checked');
-        });
-        if (!wasChecked) {
-          input.checked = true;
-          contentCard.classList.add('is-checked');
-        }
+        input.checked = !input.checked;
+        contentCard.classList.toggle('is-checked', input.checked);
         const wrap = item?.querySelector('[data-universal-print-size-wrap]');
         const sizeInput = item?.querySelector('[data-universal-print-size]');
-        const selectedText = input.checked ? input.value : '';
-        const shouldShowSize = isOfflinePrintContent(selectedText);
+        const selectedTexts = Array.from(item?.querySelectorAll('[data-universal-content-type]:checked') || []).map((checked) => checked.value || '');
+        const shouldShowSize = selectedTexts.some(isOfflinePrintContent);
         if (wrap) wrap.hidden = !shouldShowSize;
         if (!shouldShowSize && sizeInput) sizeInput.value = '';
         refreshPublishCalendarOptions();
@@ -4320,8 +4318,8 @@ function initCreateTaskFromTemplate() {
       });
       const wrap = item?.querySelector('[data-universal-print-size-wrap]');
       const input = item?.querySelector('[data-universal-print-size]');
-      const selectedText = universalSelect.value || '';
-      const shouldShowSize = isOfflinePrintContent(selectedText);
+      const selectedTexts = Array.from(item?.querySelectorAll('[data-universal-content-type]:checked') || []).map((checked) => checked.value || '');
+      const shouldShowSize = selectedTexts.some(isOfflinePrintContent);
       if (wrap) wrap.hidden = !shouldShowSize;
       if (!shouldShowSize && input) input.value = '';
       refreshPublishCalendarOptions();

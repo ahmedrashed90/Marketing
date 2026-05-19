@@ -1746,6 +1746,12 @@ function renderUserOptions(users, departmentId = '', allowFallback = true) {
   }).join('');
 }
 
+
+// Shared caches used by the create-task modal helpers.
+// They must be global here because some helper functions are defined outside initCreateTaskModal().
+var departmentsCache = Array.isArray(window.MZJ_DEPARTMENTS_FALLBACK) ? window.MZJ_DEPARTMENTS_FALLBACK : [];
+var usersCache = [];
+
 function renderDepartmentTargetOptions(selectedIds = []) {
   const selectedSet = new Set((Array.isArray(selectedIds) ? selectedIds : [selectedIds]).map((id) => String(id || '')));
   const list = (departmentsCache || []).filter(Boolean);
@@ -2216,8 +2222,8 @@ function initCreateTaskFromTemplate() {
 
   if (!modal || !form || !typeSelect || !templateSelect || !departmentsList) return;
 
-  let departmentsCache = [];
-  let usersCache = [];
+  departmentsCache = [];
+  usersCache = [];
   let departmentIndex = 0;
   let platformsCache = [];
   let funnelsCache = [];

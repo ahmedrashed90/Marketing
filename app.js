@@ -485,12 +485,38 @@ function mzjUniqueTaskValues(values) {
 function mzjTaskArray(value) {
   return Array.isArray(value) ? value : [];
 }
+
+function mzjExtractLabeledValues(text, labels) {
+  const source = String(text || '');
+  const values = [];
+  const stopLabels = ['السيارة', 'نوع السيارة', 'السيارات المختارة', 'نوع المحتوى', 'المحتوى', 'المقاس', 'التفاصيل', 'ملاحظة', 'اسم التاسك'];
+  labels.forEach((label) => {
+    const stop = stopLabels.filter((item) => item !== label).join('|');
+    const re = new RegExp(`${label}\\s*:?\\s*([\\s\\S]*?)(?=\\s*(?:—|\\|)\\s*(?:${stop})\\s*:?|\\s*\\|\\s*|$)`, 'gi');
+    let match;
+    while ((match = re.exec(source))) {
+      const value = mzjCleanTaskText(match[1]);
+      if (value) values.push(value);
+    }
+  });
+  return values;
+}
+function mzjFirstLabeledValue(text, labels) {
+  return mzjExtractLabeledValues(text, labels)[0] || '';
+}
 function mzjCollectTaskCars(deptTask) {
   const details = deptTask?.requiredDetails && typeof deptTask.requiredDetails === 'object' ? deptTask.requiredDetails : {};
   const contentItems = [];
   [deptTask?.contentItems, deptTask?.photoItems, deptTask?.selectedDeliverables, details.items, details.deliverables, details.selectedDeliverables].forEach((list) => {
     if (Array.isArray(list)) contentItems.push(...list);
   });
+  const fallbackText = [
+    deptTask?.requiredText,
+    deptTask?.required,
+    details.requiredText,
+    details.notes,
+    ...contentItems.map((item) => item?.requiredText || item?.details || item?.desc || item?.description || '')
+  ].filter(Boolean).join(' | ');
   return mzjUniqueTaskValues([
     ...mzjTaskArray(deptTask?.allSelectedCars),
     ...mzjTaskArray(deptTask?.selectedCars),
@@ -502,15 +528,24 @@ function mzjCollectTaskCars(deptTask) {
       ...mzjTaskArray(item?.allSelectedCars),
       ...mzjTaskArray(item?.selectedCars),
       item?.carType
-    ])
+    ]),
+    ...mzjExtractLabeledValues(fallbackText, ['السيارة', 'نوع السيارة', 'السيارات المختارة'])
   ]);
 }
+
 function mzjCollectTaskContentTypes(deptTask) {
   const details = deptTask?.requiredDetails && typeof deptTask.requiredDetails === 'object' ? deptTask.requiredDetails : {};
   const contentItems = [];
   [deptTask?.contentItems, deptTask?.photoItems, deptTask?.selectedDeliverables, details.items, details.deliverables, details.selectedDeliverables].forEach((list) => {
     if (Array.isArray(list)) contentItems.push(...list);
   });
+  const fallbackText = [
+    deptTask?.requiredText,
+    deptTask?.required,
+    details.requiredText,
+    details.notes,
+    ...contentItems.map((item) => item?.requiredText || item?.details || item?.desc || item?.description || '')
+  ].filter(Boolean).join(' | ');
   return mzjUniqueTaskValues([
     deptTask?.contentType,
     details.contentType,
@@ -520,9 +555,9 @@ function mzjCollectTaskContentTypes(deptTask) {
       item?.contentType,
       item?.contentTitle,
       item?.requiredContent,
-      item?.deliverable,
-      item?.title
-    ])
+      item?.deliverable
+    ]),
+    ...mzjExtractLabeledValues(fallbackText, ['نوع المحتوى', 'المحتوى'])
   ]);
 }
 
@@ -530,13 +565,19 @@ function renderReadableDepartmentRequirement(deptTask, deptKeyValue) {
   const safe = (value) => escapeHTML(String(value || '').trim());
   const details = deptTask?.requiredDetails && typeof deptTask.requiredDetails === 'object' ? deptTask.requiredDetails : {};
   const rawFallback = mzjCleanTaskText(deptTask?.requiredText || deptTask?.required || details.requiredText || '');
-  const finalTitle = mzjCleanTaskText(
-    deptTask?.taskName || deptTask?.taskTitle || deptTask?.title || deptTask?.name ||
-    details.taskGroupTitle || details.taskName || details.taskTitle || details.title || details.name || ''
-  ) || departmentTaskShortName(deptTask) || 'تكليف مطلوب';
-
   const cars = mzjCollectTaskCars(deptTask);
-  const contentTypes = mzjCollectTaskContentTypes(deptTask).filter((value) => value !== finalTitle && !/^مطلوب\s*\d+/i.test(value));
+  const rawContentTypes = mzjCollectTaskContentTypes(deptTask);
+  const labelTaskName = mzjFirstLabeledValue(rawFallback, ['اسم التاسك']);
+  const explicitTitle = mzjCleanTaskText(
+    details.customTaskName || details.userTaskName || details.taskGroupTitle ||
+    deptTask?.customTaskName || deptTask?.userTaskName || deptTask?.taskGroupTitle ||
+    labelTaskName ||
+    details.taskName || details.taskTitle || deptTask?.taskName || deptTask?.taskTitle || deptTask?.title || deptTask?.name || ''
+  );
+  const finalTitle = (rawContentTypes.includes(explicitTitle) && !details.taskGroupTitle && !deptTask?.taskGroupTitle)
+    ? 'تكليف مطلوب'
+    : (explicitTitle || departmentTaskShortName(deptTask) || 'تكليف مطلوب');
+  const contentTypes = rawContentTypes.filter((value) => value !== finalTitle && !/^مطلوب\s*\d+/i.test(value));
   const printSizes = mzjUniqueTaskValues([deptTask?.printSize, details.printSize]);
   const extraDetails = mzjUniqueTaskValues([details.details, details.desc, details.description, deptTask?.deliveryDetails])
     .filter((value) => value && value !== finalTitle && !contentTypes.includes(value) && !cars.includes(value));
@@ -4287,10 +4328,12 @@ function initCreateTaskFromTemplate() {
             itemIndex,
             typeIndex,
             carIndex,
-            taskName: title,
-            taskTitle: title,
-            title,
-            name: title,
+            taskName: typedTaskName || title,
+            taskTitle: typedTaskName || title,
+            title: typedTaskName || title,
+            name: typedTaskName || title,
+            customTaskName: typedTaskName,
+            userTaskName: typedTaskName,
             taskGroupId: groupId,
             taskGroupTitle: typedTaskName || title,
             requiredText: requiredParts.join(' — ') || title,
@@ -4320,6 +4363,8 @@ function initCreateTaskFromTemplate() {
       title: item.taskGroupTitle || item.taskName || item.contentType || item.requiredText || 'تكليف',
       taskName: item.taskName,
       taskTitle: item.taskTitle,
+      customTaskName: item.customTaskName,
+      userTaskName: item.userTaskName,
       taskGroupTitle: item.taskGroupTitle,
       name: item.name,
       details: [item.contentType ? `نوع المحتوى: ${item.contentType}` : '', item.details, item.carType ? `السيارة: ${item.carType}` : '', item.printSize ? `المقاس: ${item.printSize}` : ''].filter(Boolean).join(' — '),
@@ -4382,10 +4427,12 @@ function initCreateTaskFromTemplate() {
       receivedAt: '',
       receivedBy: '',
       attachmentLabel: attachmentLabelForKind(kind),
-      taskName: special.taskGroupTitle || special.taskName || special.taskTitle || '',
-      taskTitle: special.taskGroupTitle || special.taskTitle || special.taskName || '',
-      title: special.taskGroupTitle || special.title || special.taskName || special.taskTitle || '',
-      name: special.taskGroupTitle || special.title || special.taskName || special.taskTitle || '',
+      taskName: special.customTaskName || special.userTaskName || special.taskGroupTitle || special.taskName || special.taskTitle || '',
+      taskTitle: special.customTaskName || special.userTaskName || special.taskGroupTitle || special.taskTitle || special.taskName || '',
+      title: special.customTaskName || special.userTaskName || special.taskGroupTitle || special.title || special.taskName || special.taskTitle || '',
+      name: special.customTaskName || special.userTaskName || special.taskGroupTitle || special.title || special.taskName || special.taskTitle || '',
+      customTaskName: special.customTaskName || special.userTaskName || '',
+      userTaskName: special.userTaskName || special.customTaskName || '',
       taskGroupId: special.taskGroupId || special.assignmentGroupId || '',
       assignmentGroupId: special.taskGroupId || special.assignmentGroupId || '',
       allSelectedCars: special.allSelectedCars || special.selectedCars || [],
@@ -4422,11 +4469,13 @@ function initCreateTaskFromTemplate() {
           deliverables: [deliverable],
           selectedDeliverables: [deliverable],
           requiredText: singleSpecial.requiredText || '',
-          taskName: singleSpecial.taskName || singleSpecial.taskTitle || '',
-          taskTitle: singleSpecial.taskTitle || singleSpecial.taskName || '',
-          title: singleSpecial.title || singleSpecial.taskName || '',
+          taskName: singleSpecial.customTaskName || singleSpecial.userTaskName || singleSpecial.taskName || singleSpecial.taskTitle || '',
+          taskTitle: singleSpecial.customTaskName || singleSpecial.userTaskName || singleSpecial.taskTitle || singleSpecial.taskName || '',
+          title: singleSpecial.customTaskName || singleSpecial.userTaskName || singleSpecial.title || singleSpecial.taskName || '',
+          customTaskName: singleSpecial.customTaskName || singleSpecial.userTaskName || '',
+          userTaskName: singleSpecial.userTaskName || singleSpecial.customTaskName || '',
           taskGroupId: singleSpecial.taskGroupId || '',
-          taskGroupTitle: singleSpecial.taskGroupTitle || singleSpecial.taskName || '',
+          taskGroupTitle: singleSpecial.customTaskName || singleSpecial.userTaskName || singleSpecial.taskGroupTitle || singleSpecial.taskName || '',
           allSelectedCars: singleSpecial.allSelectedCars || singleSpecial.selectedCars || [],
           contentType: singleSpecial.contentType || '',
           carType: singleSpecial.carType || '',

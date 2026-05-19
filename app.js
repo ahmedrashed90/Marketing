@@ -2367,60 +2367,46 @@ function initCreateTaskFromTemplate() {
     if (!budgetItemsList) return;
     const itemIndex = budgetItemsList.querySelectorAll('[data-budget-item]').length + 1;
     const item = document.createElement('article');
-    item.className = 'budget-item-accordion is-open budget-item-simple';
+    item.className = 'budget-item-accordion is-open budget-item-simple budget-item-compact';
     item.dataset.budgetItem = String(itemIndex);
     const platformName = data.platformName || data.platform || data.platforms?.[0]?.name || '';
     const amount = data.value || data.amount || data.itemTotal || data.platforms?.[0]?.amount || '';
     item.innerHTML = `
-      <div class="budget-item-head">
-        <button class="budget-item-toggle" type="button" data-budget-toggle>
-          <strong>ميزانية ${itemIndex}</strong>
-          <small data-budget-item-summary>اختار Funnel والمنتج والمنصة والقيمة</small>
-        </button>
-        <button class="soft-danger-btn" type="button" data-remove-budget-item>مسح</button>
-      </div>
-
-      <div class="budget-item-body" data-budget-body>
-        <div class="create-task-grid budget-fields-grid budget-funnel-grid">
+      <div class="budget-item-body budget-item-body-compact" data-budget-body>
+        <div class="budget-compact-row">
+          <strong class="budget-compact-title">ميزانية ${itemIndex}</strong>
           <label class="mzj-field">
             <span>Funnel</span>
             <select data-budget-funnel>${renderBudgetFunnelOptions(data.funnel || data.funnelName || '')}</select>
           </label>
-
-          <div class="budget-new-funnel-box">
-            <label class="mzj-field">
-              <span>إضافة Funnel جديد</span>
-              <input type="text" data-new-budget-funnel placeholder="اكتب Funnel جديد">
-            </label>
-            <button class="soft-btn" type="button" data-save-budget-funnel>حفظ Funnel</button>
-          </div>
-
+          <label class="mzj-field budget-new-funnel-inline">
+            <span>Funnel جديد</span>
+            <input type="text" data-new-budget-funnel placeholder="اكتب Funnel">
+          </label>
+          <button class="soft-btn budget-save-funnel-inline" type="button" data-save-budget-funnel>حفظ</button>
           <label class="mzj-field">
             <span>المنتج</span>
             <select data-budget-product>${renderBudgetProductOptions(data.product || data.productName || data.adName || '')}</select>
           </label>
-
           <label class="mzj-field">
             <span>المنصة</span>
             <select data-budget-platform>${renderBudgetPlatformOptions(platformName)}</select>
           </label>
-
           <label class="mzj-field">
             <span>القيمة</span>
-            <input type="number" min="0" step="1" data-budget-value placeholder="اكتب القيمة" value="${escapeHTML(amount || '')}">
+            <input type="number" min="0" step="1" data-budget-value placeholder="القيمة" value="${escapeHTML(amount || '')}">
           </label>
-        </div>
-
-        <div class="budget-total-box budget-item-total-box">
-          <span>إجمالي هذا البند</span>
-          <strong data-budget-item-total>0</strong>
+          <div class="budget-total-box budget-item-total-box budget-total-inline">
+            <span>الإجمالي</span>
+            <strong data-budget-item-total>0</strong>
+          </div>
+          <button class="soft-danger-btn" type="button" data-remove-budget-item>مسح</button>
         </div>
       </div>
     `;
     budgetItemsList.appendChild(item);
     updateBudgetTotal();
   }
-
   function collectBudgetItem(item) {
     const platformSelect = item.querySelector('[data-budget-platform]');
     const platformOption = platformSelect?.selectedOptions?.[0];
@@ -5198,7 +5184,8 @@ initCreateTaskFromTemplate();
     shooting: ['تصوير','التصوير','photography','shooting'],
     content: ['محتوى','المحتوى','content'],
     design: ['تصميم','التصميم','design'],
-    montage: ['مونتاج','المونتاج','montage']
+    montage: ['مونتاج','المونتاج','montage'],
+    publish: ['نشر','النشر','publish','publishing']
   };
   const PUBLISH_STEPS = [
     { label: 'التجهيز 1', value: 35 },
@@ -5434,13 +5421,41 @@ initCreateTaskFromTemplate();
     const done = depts.filter((d) => Boolean(d.receivedConfirmed || d.received || d.receivedAt)).length;
     return Math.round((done / depts.length) * 100);
   }
+
+  function dashboardTodayISO(){
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  }
+  function publishDepartments(task){
+    return (task.departmentTasks || []).filter((dept) => deptKey(dept.departmentName) === 'publish');
+  }
+  function ensurePublishReadyDate(task){
+    const readyWithoutPublish = (task.departmentTasks || []).filter((d) => d && d.enabled !== false && deptKey(d.departmentName) !== 'publish');
+    const readyPercent = readyWithoutPublish.length
+      ? Math.round(readyWithoutPublish.reduce((sum, d, index) => sum + taskDeptProgress(task, d, (task.departmentTasks || []).indexOf(d)), 0) / readyWithoutPublish.length)
+      : taskReadiness(task);
+    if (readyPercent < 100) return false;
+    const date = task.publishReadyDate || dashboardTodayISO();
+    let changed = false;
+    task.publishReadyDate = date;
+    publishDepartments(task).forEach((dept) => {
+      if (!dept.receiveDate) { dept.receiveDate = date; changed = true; }
+      if (!dept.receivedAt) { dept.receivedAt = date; changed = true; }
+      dept.received = true;
+      dept.receivedConfirmed = true;
+    });
+    return changed;
+  }
   function deptIdentity(dept){
     return [dept.departmentId || dept.departmentKey || dept.departmentName || '', dept.userId || dept.uid || dept.assigneeUid || dept.userEmail || dept.userName || ''].map(v => String(v || '').trim()).filter(Boolean).join('::');
   }
   function autoStage(task){
     if (!task.stage) task.stage = 'required';
     const ready = taskReadiness(task);
-    if (task.stage !== 'archive' && ready >= 100) task.stage = 'publish';
+    if (task.stage !== 'archive' && ready >= 100) {
+      task.stage = 'publish';
+      ensurePublishReadyDate(task);
+    }
     if ((task.publishSteps || []).length >= PUBLISH_STEPS.length) task.stage = 'archive';
     return task;
   }
@@ -5552,17 +5567,24 @@ initCreateTaskFromTemplate();
     </article>`;
   }
   function publishCard(task){
+    ensurePublishReadyDate(task);
     const done = Array.isArray(task.publishSteps) ? task.publishSteps : [];
     const percent = Math.min(100, PUBLISH_STEPS.reduce((sum, step, i) => sum + (done.includes(i) ? Number(step.value || 0) : 0), 0));
-    const publishDept = (task.departmentTasks || []).find((d) => deptKey(d.departmentName) === 'publish') || {};
+    const publishDepts = publishDepartments(task);
+    const publishDept = publishDepts[0] || {};
+    const receiveDate = publishDept.receiveDate || task.publishReadyDate || (publishDept.receivedAt ? String(publishDept.receivedAt).slice(0,10) : '--');
+    const deliveryDate = publishDept.deliveryDate || publishDept.publishDate || task.publishStartDate || '--';
     const publishInfo = publishDept.departmentName ? `<div class="publish-info-box">
-      <strong>${esc(task.taskTypeLabel || 'حملة')} — كود الحملة: ${esc(task.campaignCode || '--')} — تاريخ نزول الحملة: ${esc(task.launchDate || task.campaignStartDate || '--')}</strong>
-      <small>اسم المسئول / ${esc(publishDept.userDisplayName || publishDept.userName || publishDept.userEmail || '--')}، تاريخ الاستلام / ${esc(publishDept.receiveDate || (publishDept.receivedAt ? String(publishDept.receivedAt).slice(0,10) : '--'))}، التاريخ المطلوب / ${esc(publishDept.requiredDate || '--')}، تاريخ النشر / ${esc(publishDept.deliveryDate || publishDept.publishDate || '--')}</small>
+      <strong>${esc(task.taskTypeLabel || 'حملة')} — كود الحملة: ${esc(task.campaignCode || '--')} — تاريخ جاهزية المطلوب: ${esc(receiveDate)}</strong>
+      <small>اسم المسئول / ${esc(deptAssigneeLabel(publishDept))}، تاريخ الاستلام / ${esc(receiveDate)}، التاريخ المطلوب / ${esc(publishDept.requiredDate || '--')}، تاريخ التسليم / ${esc(deliveryDate)}</small>
     </div>` : '';
     return `<article class="dept-card-template dynamic-dashboard-card" data-dash-task-id="${esc(task.id)}">
       <div class="task-template-top"><strong>${esc(taskTitle(task))}</strong><span>${meta(task)} — جاهزية النشر ${percent}%</span></div>
       ${publishInfo}
       <div class="mini-progress"><span style="width:${percent}%"></span></div>
+      <div class="task-card-actions publish-start-row">
+        <button class="primary-btn ${deliveryDate !== '--' ? 'is-done' : ''}" type="button" data-start-publish data-task-id="${esc(task.id)}" ${!userIsAdmin()?'disabled':''}>${deliveryDate !== '--' ? 'تم بدء النشر' : 'بدء النشر'}</button>
+      </div>
       <div class="publish-actions-grid">
         ${PUBLISH_STEPS.map((step,i)=>`<button type="button" class="task-step-btn ${done.includes(i) ? 'is-done' : ''}" data-publish-step data-task-id="${esc(task.id)}" data-step-index="${i}" ${!userIsAdmin()?'disabled':''}><span>${esc(step.label)}</span><small>${esc(step.value)}%</small></button>`).join('')}
       </div><div class="task-card-actions"><button class="danger-btn" type="button" data-delete-task="${esc(task.id)}" data-admin-only>مسح الحملة</button></div>
@@ -5672,6 +5694,24 @@ initCreateTaskFromTemplate();
   };
 
   document.addEventListener('click', function(event){
+    const startPublish = event.target.closest('[data-start-publish]');
+    if (startPublish) {
+      if (!userIsAdmin()) return;
+      const tasks = readTasks();
+      const task = tasks.find(t => String(t.id) === String(startPublish.dataset.taskId));
+      if (!task) return;
+      const date = dashboardTodayISO();
+      task.publishStartDate = task.publishStartDate || date;
+      publishDepartments(task).forEach((dept) => {
+        dept.deliveryDate = dept.deliveryDate || date;
+        dept.publishDate = dept.publishDate || date;
+      });
+      task.stage = 'publish';
+      autoStage(task);
+      saveTaskToFirestore(task).then(() => window.renderDashboardTasks()).catch((error) => alert('فشل بدء النشر في Firebase: ' + (error?.message || error?.code || error)));
+      return;
+    }
+
     const toggleReadiness = event.target.closest('[data-toggle-readiness-details]');
     if (toggleReadiness) {
       const card = toggleReadiness.closest('.compact-readiness-card');

@@ -6089,9 +6089,8 @@ body:has(#taskDetailsModal.is-open){
 }
 .universal-content-type-card span{
   color:var(--brown-900,#3e2420);
-  font-weight:800;
-  line-height:1.35;
-  font-size:.86rem;
+  font-weight:900;
+  line-height:1.6;
 }
 .universal-content-type-card small{
   color:#8e766c;
@@ -6204,9 +6203,8 @@ body:has(#taskDetailsModal.is-open){
 .task-campaign-info-grid strong{
   display:block;
   color:#3e2420;
-  font-weight:800;
-  line-height:1.35;
-  font-size:.86rem;
+  font-weight:900;
+  line-height:1.6;
 }
 
 
@@ -6633,458 +6631,42 @@ body:has(#taskDetailsModal.is-open){
   filter:grayscale(.2);
 }
 
-/* Create task: multi car and multi user controls */
-.universal-car-choice-wrap{
-  display:grid;
-  gap:10px;
-  grid-column:1/-1 !important;
+/* Dashboard create-task unified assignment updates */
+.department-task-core-grid{
+  grid-template-columns:minmax(240px,1fr) minmax(280px,1.4fr)!important;
 }
-.universal-car-choice-grid{
-  display:grid;
-  grid-template-columns:repeat(auto-fill,minmax(150px,1fr));
-  gap:8px;
-  max-height:190px;
-  overflow:auto;
-  padding:2px;
-}
-.universal-car-choice-card{
-  position:relative;
-  display:grid;
-  align-items:center;
-  min-height:44px;
-  border:1px solid rgba(62,36,32,.12);
-  border-radius:14px;
-  background:#fff;
-  padding:8px 10px;
-  cursor:pointer;
-  transition:.15s ease;
-  user-select:none;
-}
-.universal-car-choice-card input{
-  position:absolute;
-  opacity:0;
-  pointer-events:none;
-}
-.universal-car-choice-card span{
-  color:var(--brown-900,#3e2420);
-  font-weight:800;
-  line-height:1.35;
-  font-size:.86rem;
-}
-.universal-car-choice-card:hover{
-  transform:translateY(-1px);
-  box-shadow:0 12px 24px rgba(62,36,32,.08);
-}
-.universal-car-choice-card.is-checked,
-.universal-car-choice-card:has(input:checked){
-  background:var(--brown-900,#3e2420);
-  border-color:var(--brown-900,#3e2420);
-  box-shadow:0 14px 28px rgba(62,36,32,.16);
-}
-.universal-car-choice-card.is-checked span,
-.universal-car-choice-card:has(input:checked) span{
-  color:#fff;
-}
-.department-task-core-grid select[data-user-select][multiple]{
-  min-height:142px;
+.department-task-core-grid select[multiple]{
+  min-height:138px;
   padding:10px;
+  border-radius:16px;
 }
-.field-hint{
-  display:block;
-  margin-top:6px;
-  color:#8e766c;
+.universal-required-item textarea[data-universal-required-text]{
+  width:100%;
+  min-height:92px;
+  resize:vertical;
+  font-family:inherit;
   font-weight:800;
-  line-height:1.5;
 }
-
-/* Unified create-task builder */
-#departmentTaskList .unified-task-builder{
-  border:1px solid rgba(17,24,39,.12);
-  border-radius:22px;
-  background:#fff;
-  box-shadow:0 12px 32px rgba(15,23,42,.08);
-  overflow:hidden;
+.stock-car-choice-grid{
+  max-height:260px;
+  overflow:auto;
+  padding-inline-end:4px;
 }
-#departmentTaskList .unified-builder-head{
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  gap:12px;
-  padding:18px 20px;
-  background:linear-gradient(135deg,rgba(17,24,39,.04),rgba(17,24,39,.01));
+.stock-car-choice-card{
+  min-height:56px;
 }
-#departmentTaskList .unified-builder-head strong{font-size:1.15rem;display:block;margin-bottom:4px;}
-#departmentTaskList .unified-builder-head small{color:#64748b;}
-#departmentTaskList .unified-builder-body{display:block!important;padding:18px;}
-.unified-departments-box{margin-top:18px;padding:16px;border:1px solid rgba(148,163,184,.28);border-radius:18px;background:#f8fafc;}
-.unified-departments-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;margin-top:12px;}
-.unified-department-target{border:1px solid rgba(148,163,184,.32);border-radius:16px;background:#fff;padding:12px;transition:.18s ease;}
-.unified-department-target.is-checked{border-color:#111827;box-shadow:0 10px 24px rgba(15,23,42,.09);}
-.unified-dept-check{display:flex;align-items:center;gap:10px;font-weight:800;cursor:pointer;margin-bottom:10px;}
-.unified-dept-check input{width:18px;height:18px;accent-color:#111827;}
-.unified-user-select-wrap select{min-height:118px;}
-@media(max-width:760px){.unified-departments-grid{grid-template-columns:1fr}.unified-builder-head{align-items:flex-start;flex-direction:column}}
-
-/* V5 readable user task details */
-.readable-task-details{
-  display:grid;
-  gap:14px;
-}
-.readable-task-summary{
-  display:grid;
-  grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
-  gap:10px;
-}
-.readable-task-summary span{
-  background:#fff;
-  border:1px solid rgba(75,36,31,.08);
-  border-radius:18px;
-  padding:12px 14px;
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  gap:10px;
-}
-.readable-task-summary small,
-.readable-task-main-head small,
-.readable-detail-item small{
-  color:#9a7d70;
-  font-weight:900;
-  font-size:12px;
-}
-.readable-task-summary strong{
-  color:#4b241f;
-  font-size:18px;
-  font-weight:900;
-}
-.readable-task-main{
-  background:#fff;
-  border:1px solid rgba(75,36,31,.09);
-  border-radius:24px;
-  padding:16px;
-  display:grid;
-  gap:14px;
-}
-.readable-task-main-head{
-  display:grid;
-  gap:6px;
-  border-bottom:1px solid rgba(75,36,31,.08);
-  padding-bottom:12px;
-}
-.readable-task-main-head strong{
-  color:#321713;
-  font-size:22px;
-  font-weight:950;
-  line-height:1.6;
-}
-.readable-detail-grid{
-  display:grid;
-  grid-template-columns:repeat(auto-fit,minmax(260px,1fr));
-  gap:12px;
-}
-.readable-detail-item{
-  background:#fffaf6;
-  border:1px solid rgba(75,36,31,.08);
-  border-radius:20px;
-  padding:14px;
-  display:grid;
-  gap:10px;
-  align-content:start;
-}
-.readable-detail-wide{
-  grid-column:1/-1;
-}
-.readable-chip-row{
-  display:flex;
-  flex-wrap:wrap;
-  gap:8px;
-}
-.readable-chip-row span{
-  display:inline-flex;
-  align-items:center;
-  min-height:34px;
-  padding:7px 12px;
-  border-radius:999px;
-  background:#f4e7dd;
-  color:#4b241f;
+.stock-car-choice-card span{
   font-size:13px;
-  font-weight:900;
-  line-height:1.45;
-  white-space:normal;
-  overflow-wrap:anywhere;
-  word-break:break-word;
-  text-align:right;
 }
-.readable-chip-row.car-chips span{
-  background:#fff;
-  border:1px solid rgba(75,36,31,.10);
+.publish-choice-empty{
+  margin:0;
+  padding:12px;
+  border-radius:14px;
+  background:rgba(73,36,30,.06);
+  color:var(--muted);
+  font-weight:800;
+  line-height:1.7;
 }
-.readable-chip-row.content-type-chips span{
-  background:#4b241f;
-  color:#fff8ef;
-}
-.readable-empty{
-  color:#b39b90;
-  font-style:normal;
-  font-weight:900;
-}
-#taskDetailsModal .assignment-step-required .readable-task-main-head strong{
-  font-size:18px;
-}
-#taskDetailsModal .assignment-step-required .readable-task-summary{
-  grid-template-columns:repeat(auto-fit,minmax(120px,1fr));
-}
-
-/* V6 clear task details for unified assignments */
-.readable-task-details-v6{
-  gap:16px;
-}
-.readable-task-hero{
-  display:grid;
-  gap:14px;
-  background:linear-gradient(135deg,#fffaf6,#fff);
-  border:1px solid rgba(75,36,31,.10);
-  border-radius:26px;
-  padding:18px;
-  box-shadow:0 16px 34px rgba(75,36,31,.06);
-}
-.readable-task-hero small,
-.readable-task-hero-meta small{
-  display:block;
-  color:#9a7d70;
-  font-weight:950;
-  font-size:12px;
-  margin-bottom:4px;
-}
-.readable-task-hero strong{
-  color:#321713;
-  font-size:28px;
-  font-weight:950;
-  line-height:1.45;
-}
-.readable-task-hero-meta{
-  display:grid;
-  grid-template-columns:repeat(auto-fit,minmax(190px,1fr));
-  gap:10px;
-}
-.readable-task-hero-meta span{
-  background:#fff;
-  border:1px solid rgba(75,36,31,.08);
-  border-radius:18px;
-  padding:12px 14px;
-}
-.readable-task-hero-meta b{
-  color:#4b241f;
-  font-weight:950;
-}
-.readable-task-summary-v6 span{
-  min-height:72px;
-}
-.readable-task-summary-v6 strong{
-  font-size:16px;
-  line-height:1.45;
-  text-align:end;
-}
-.readable-task-main-v6{
-  padding:0;
-  border:0;
-  background:transparent;
-}
-.readable-detail-grid-v6{
-  grid-template-columns:repeat(2,minmax(240px,1fr));
-}
-.readable-detail-grid-v6 .readable-detail-item{
-  background:#fff;
-  border-color:rgba(75,36,31,.10);
-  box-shadow:0 10px 24px rgba(75,36,31,.04);
-}
-.readable-detail-grid-v6 .readable-detail-wide{
-  grid-column:1/-1;
-}
-.readable-detail-grid-v6 .readable-chip-row.car-chips span{
-  min-height:32px;
-  padding:7px 11px;
-  border-radius:12px;
-  background:#fffaf6;
-  max-width:100%;
-}
-.readable-fallback-text .campaign-task-details-list{
-  display:grid;
-  grid-template-columns:1fr;
-  gap:8px;
-}
-.universal-car-choice-grid{
-  grid-template-columns:repeat(auto-fill,minmax(120px,1fr));
-  max-height:150px;
-  gap:6px;
-}
-.universal-car-choice-card{
-  min-height:36px;
-  border-radius:12px;
-  padding:6px 8px;
-}
-.universal-car-choice-card span{
-  font-size:.78rem;
-  line-height:1.25;
-}
-@media(max-width:760px){
-  .readable-detail-grid-v6{grid-template-columns:1fr;}
-  .readable-task-hero strong{font-size:22px;}
-}
-
-
-/* v9 cleanup: hide campaign-contribution UI and show long car names clearly */
-.department-progress-row-under-title,
-.assignment-modal-progress-row,
-.assignment-card-total-percent,
-.department-progress-box:has([data-modal-campaign-percent]),
-.assignment-step-progress div:has([data-assignment-campaign-percent]) {
-  display: none !important;
-}
-.user-task-meta-clean .meta-cars {
-  grid-column: 1 / -1 !important;
-}
-.readable-chip-row.car-chips span,
-.user-task-meta-clean .meta-cars strong {
-  max-width: none !important;
-  white-space: normal !important;
-  overflow-wrap: anywhere !important;
-  word-break: normal !important;
-  text-align: right !important;
-}
-.assignment-step-title span,
-.assignment-step-title strong {
-  white-space: normal !important;
-  overflow-wrap: anywhere !important;
-}
-
-
-/* v11 task details cleanup */
-.assignment-step-required {
-  display: none !important;
-}
-.assignment-switch-btn span,
-.assignment-switch-btn small,
-.assignment-step-title span,
-.assignment-step-title strong,
-.user-task-card-clean .task-template-top strong,
-.readable-chip-row.car-chips span {
-  white-space: normal !important;
-  overflow-wrap: anywhere !important;
-  word-break: normal !important;
-  text-align: right !important;
-}
-.assignment-switcher-buttons {
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)) !important;
-}
-.assignment-switch-btn {
-  min-height: 150px !important;
-  align-items: flex-start !important;
-}
-.assignment-switch-btn small {
-  display: block !important;
-  line-height: 1.7 !important;
-}
-.user-task-meta-clean .meta-cars {
-  grid-column: 1 / -1 !important;
-}
-.user-task-meta-clean .meta-cars strong,
-.readable-task-summary-v6 strong {
-  white-space: normal !important;
-  overflow-wrap: anywhere !important;
-}
-.universal-car-choice-card span {
-  white-space: normal !important;
-  overflow-wrap: anywhere !important;
-  line-height: 1.35 !important;
-}
-
-
-/* v12 redesigned user task details: show exactly the create-task choices */
-.fresh-task-details {
-  display: grid !important;
-  gap: 16px !important;
-  padding: 18px !important;
-  border-radius: 24px !important;
-  background: #fffaf6 !important;
-  border: 1px solid rgba(75,36,31,.10) !important;
-  box-shadow: 0 16px 36px rgba(75,36,31,.05) !important;
-}
-.fresh-task-header {
-  padding-bottom: 14px !important;
-  border-bottom: 1px solid rgba(75,36,31,.08) !important;
-}
-.fresh-task-header small,
-.fresh-task-meta-grid small,
-.fresh-task-cars small {
-  display: block !important;
-  color: #a57d6c !important;
-  font-weight: 900 !important;
-  margin-bottom: 6px !important;
-}
-.fresh-task-header h2 {
-  margin: 0 !important;
-  color: #2d100c !important;
-  font-size: clamp(24px, 3vw, 38px) !important;
-  line-height: 1.25 !important;
-}
-.fresh-task-meta-grid {
-  display: grid !important;
-  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-  gap: 12px !important;
-}
-.fresh-task-meta-grid > div,
-.fresh-task-cars {
-  background: #fff !important;
-  border: 1px solid rgba(75,36,31,.10) !important;
-  border-radius: 18px !important;
-  padding: 14px 16px !important;
-}
-.fresh-task-meta-grid strong {
-  display: block !important;
-  color: #2d100c !important;
-  font-size: 16px !important;
-  line-height: 1.5 !important;
-  overflow-wrap: anywhere !important;
-}
-.fresh-car-list {
-  display: grid !important;
-  gap: 8px !important;
-}
-.fresh-car-list span {
-  display: block !important;
-  padding: 10px 12px !important;
-  border-radius: 14px !important;
-  background: #fff8ef !important;
-  border: 1px solid rgba(75,36,31,.10) !important;
-  color: #2d100c !important;
-  font-weight: 900 !important;
-  line-height: 1.6 !important;
-  white-space: normal !important;
-  overflow-wrap: anywhere !important;
-}
-.assignment-step-required {
-  display: none !important;
-}
-.assignment-switcher-buttons {
-  align-items: stretch !important;
-}
-.assignment-switch-btn span,
-.assignment-switch-btn small,
-.assignment-step-title span,
-.assignment-step-title strong,
-.user-task-meta-clean .meta-cars strong {
-  white-space: normal !important;
-  overflow-wrap: anywhere !important;
-  word-break: normal !important;
-}
-.universal-car-choice-card span {
-  white-space: normal !important;
-  overflow-wrap: anywhere !important;
-  line-height: 1.4 !important;
-}
-@media (max-width: 700px) {
-  .fresh-task-meta-grid {
-    grid-template-columns: 1fr !important;
-  }
+@media(max-width:900px){
+  .department-task-core-grid{grid-template-columns:1fr!important}
 }

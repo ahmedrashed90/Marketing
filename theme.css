@@ -6008,3 +6008,41 @@ body:has(#taskDetailsModal.is-open){
     grid-template-columns:1fr;
   }
 }
+
+
+/* Unified required fields in create task */
+.universal-required-fields{
+  display:grid;
+  gap:14px;
+}
+.universal-required-list{
+  display:grid;
+  gap:14px;
+}
+.universal-required-item{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:12px;
+  border:1px dashed rgba(62,36,32,.16);
+  border-radius:22px;
+  padding:14px;
+  background:#fffaf6;
+}
+.universal-required-item .full-width-field:first-child{
+  grid-column:1/-1;
+}
+.universal-print-size-field{
+  grid-column:1/-1;
+}
+.universal-required-item .soft-danger-btn{
+  justify-self:start;
+}
+@media(max-width:900px){
+  .universal-required-item{
+    grid-template-columns:1fr;
+  }
+  .universal-required-item .full-width-field:first-child,
+  .universal-print-size-field{
+    grid-column:auto;
+  }
+}

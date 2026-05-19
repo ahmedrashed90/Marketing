@@ -1955,6 +1955,40 @@ function renderRequiredContentCards(kind, attrName) {
   `).join('');
 }
 
+
+function isOfflinePrintContent(value) {
+  const text = String(value || '').toLowerCase();
+  return (
+    text.includes('مطبوعات اوفلاين') ||
+    text.includes('مطبوعات أوفلاين') ||
+    text.includes('مطبوعات offline') ||
+    text.includes('offline print') ||
+    text.includes('print offline')
+  );
+}
+
+function renderUniversalRequiredItem(kind, removable = false) {
+  return `
+    <article class="universal-required-item" data-universal-required-item>
+      <label class="mzj-field full-width-field">
+        <span>المطلوب</span>
+        <textarea data-universal-required-text rows="3" placeholder="اكتب المطلوب من القسم"></textarea>
+      </label>
+      <label class="mzj-field full-width-field">
+        <span>السيارة من الاستوك</span>
+        <input type="text" list="stockCarsDatalist" data-universal-car-type placeholder="اختياري - اختار السيارة من حصر الاستوك">
+      </label>
+      <label class="mzj-field full-width-field">
+        <span>نوع المحتوى</span>
+        <select data-universal-content-type>${renderRequiredContentOptions(kind)}</select>
+      </label>
+      <label class="mzj-field full-width-field universal-print-size-field" data-universal-print-size-wrap hidden>
+        <span>المقاس</span>
+        <input type="text" data-universal-print-size placeholder="اكتب المقاس المطلوب">
+      </label>
+      ${removable ? '<button class="soft-danger-btn" type="button" data-remove-universal-required>مسح المطلوب</button>' : ''}
+    </article>`;
+}
 function buildSpecialDepartmentFields(kind) {
   const kindLabel = ({
     photography: 'التصوير',
@@ -1964,94 +1998,16 @@ function buildSpecialDepartmentFields(kind) {
     publish: 'النشر'
   })[kind] || 'القسم';
 
-  if (kind === 'photography') {
-    return `
-      <div class="dept-special-fields" data-special-kind="photography">
-        <div class="dept-special-head">
-          <strong>المحتوى المطلوب</strong>
-          <button class="soft-btn" type="button" data-add-photo-item>+ إضافة مطلوب</button>
-        </div>
-        <div class="required-content-note">اختيارات نوع المحتوى هنا جاية من صفحة المحتوى المطلوب وتظهر لكل الأقسام.</div>
-        <div class="photo-items-list" data-photo-items-list>
-          <article class="photo-item-row" data-photo-item>
-            <label class="mzj-field"><span>نوع السيارة</span><input type="text" list="stockCarsDatalist" data-photo-car-type placeholder="اختار من حصر الماركات والمواصفات والألوان"></label>
-            <label class="mzj-field"><span>نوع المحتوى</span><select data-photo-content-type>${renderRequiredContentOptions('photography')}</select></label>
-          </article>
-        </div>
-        <label class="mzj-field full-width-field"><span>ملاحظات مؤقتة</span><textarea data-required-text rows="3" placeholder="اكتب أي تفاصيل لحين اعتماد شكل المطلوب النهائي"></textarea></label>
-      </div>`;
-  }
-
-  if (kind === 'content') {
-    return `
-      <div class="dept-special-fields" data-special-kind="content">
-        <div class="dept-special-head">
-          <strong>المحتوى المطلوب</strong>
-          <button class="soft-btn" type="button" data-add-content-item>+ إضافة مطلوب</button>
-        </div>
-        <div class="required-content-note">اختيارات نوع المحتوى هنا جاية من صفحة المحتوى المطلوب وتظهر لكل الأقسام.</div>
-        <div class="content-items-list" data-content-items-list>
-          <article class="content-item-row" data-content-item>
-            <label class="mzj-field full-width-field">
-              <span>نوع المحتوى</span>
-              <select data-content-type>${renderRequiredContentOptions('content')}</select>
-            </label>
-            <label class="mzj-field full-width-field">
-              <span>السيارة المطلوبة من الاستوك</span>
-              <input type="text" list="stockCarsDatalist" data-content-car-type placeholder="اختياري - ابحث بالماركة / المواصفة">
-            </label>
-            <label class="mzj-field full-width-field">
-              <span>ملاحظات مؤقتة</span>
-              <textarea data-content-required-text rows="3" placeholder="اكتب أي تفاصيل لحين اعتماد شكل المطلوب النهائي"></textarea>
-            </label>
-          </article>
-        </div>
-      </div>`;
-  }
-
-  if (kind === 'design') {
-    return `
-      <div class="dept-special-fields" data-special-kind="design">
-        <div class="dept-special-head">
-          <strong>المحتوى المطلوب</strong>
-          <span class="department-hint-inline">الاختيارات من صفحة المحتوى المطلوب</span>
-        </div>
-        <div class="multi-choice-grid" data-design-choices>
-          ${renderRequiredContentCards('design', 'data-design-deliverable')}
-        </div>
-        <label class="mzj-field full-width-field design-print-size-field" data-design-print-size-wrap hidden>
-          <span>مقاس مطبوعات أونلاين</span>
-          <input type="text" data-design-print-size placeholder="مثال: 1080x1080 / A4 / 1920x1080">
-        </label>
-        <label class="mzj-field full-width-field"><span>ملاحظات مؤقتة</span><textarea data-required-text rows="3" placeholder="اكتب أي تفاصيل لحين اعتماد شكل المطلوب النهائي"></textarea></label>
-      </div>`;
-  }
-
-  if (kind === 'montage') {
-    return `
-      <div class="dept-special-fields" data-special-kind="montage">
-        <div class="dept-special-head">
-          <strong>المحتوى المطلوب</strong>
-          <span class="department-hint-inline">الاختيارات من صفحة المحتوى المطلوب</span>
-        </div>
-        <div class="multi-choice-grid" data-montage-choices>
-          ${renderRequiredContentCards('montage', 'data-montage-deliverable')}
-        </div>
-        <label class="mzj-field full-width-field"><span>ملاحظات مؤقتة</span><textarea data-required-text rows="3" placeholder="اكتب أي تفاصيل لحين اعتماد شكل المطلوب النهائي"></textarea></label>
-      </div>`;
-  }
-
   return `
-    <div class="dept-special-fields" data-special-kind="${escapeHTML(kind)}">
-      <div class="dept-special-head"><strong>المحتوى المطلوب - قسم ${escapeHTML(kindLabel)}</strong></div>
-      <label class="mzj-field full-width-field">
-        <span>نوع المحتوى</span>
-        <select data-generic-content-type>${renderRequiredContentOptions(kind)}</select>
-      </label>
-      <label class="mzj-field full-width-field">
-        <span>ملاحظات مؤقتة</span>
-        <textarea data-required-text rows="3" placeholder="اكتب أي تفاصيل لحين اعتماد شكل المطلوب النهائي"></textarea>
-      </label>
+    <div class="dept-special-fields universal-required-fields" data-special-kind="${escapeHTML(kind)}">
+      <div class="dept-special-head">
+        <strong>المحتوى المطلوب - قسم ${escapeHTML(kindLabel)}</strong>
+        <button class="soft-btn" type="button" data-add-universal-required>+ إضافة مطلوب</button>
+      </div>
+      <div class="required-content-note">اكتب المطلوب، اختار السيارة من الاستوك، واختار نوع المحتوى من صفحة المحتوى المطلوب.</div>
+      <div class="universal-required-list" data-universal-required-list>
+        ${renderUniversalRequiredItem(kind)}
+      </div>
     </div>`;
 }
 
@@ -2513,6 +2469,21 @@ function initCreateTaskFromTemplate() {
   function getPublishChoiceLabels() {
     const labels = [];
     departmentsList?.querySelectorAll('[data-department-assignment-row]').forEach((row) => {
+      const deptRow = row.closest('.department-task-row');
+      const kind = deptRow?.dataset.departmentKind || '';
+      if (kind === 'design' || kind === 'montage') {
+        row.querySelectorAll('[data-universal-required-item]').forEach((item) => {
+          const select = item.querySelector('[data-universal-content-type]');
+          const title = templateCellText(select?.value || '');
+          const desc = templateCellText(select?.selectedOptions?.[0]?.dataset.desc || '');
+          const car = templateCellText(item.querySelector('[data-universal-car-type]')?.value || '');
+          const size = templateCellText(item.querySelector('[data-universal-print-size]')?.value || '');
+          const note = templateCellText(item.querySelector('[data-universal-required-text]')?.value || '');
+          const label = [title, car ? `السيارة: ${car}` : '', size ? `المقاس: ${size}` : '', desc || note].filter(Boolean).join(' — ');
+          if (label && !labels.includes(label)) labels.push(label);
+        });
+      }
+
       row.querySelectorAll('[data-design-deliverable]:checked, [data-montage-deliverable]:checked').forEach((input) => {
         const title = templateCellText(input.dataset.title || input.value || '');
         const desc = templateCellText(input.dataset.desc || '');
@@ -3945,75 +3916,46 @@ function initCreateTaskFromTemplate() {
   }
 
   function collectSpecialDepartmentDetails(row, kind) {
-    if (kind === 'photography') {
-      const items = Array.from(row.querySelectorAll('[data-photo-item]')).map((item) => ({
-        carType: item.querySelector('[data-photo-car-type]')?.value.trim() || '',
-        contentType: item.querySelector('[data-photo-content-type]')?.value || ''
-      })).filter((item) => item.carType || item.contentType);
-      const notes = row.querySelector('[data-required-text]')?.value.trim() || '';
-      const itemText = items.map((item) => [item.carType ? `نوع السيارة: ${item.carType}` : '', item.contentType ? `نوع المحتوى: ${item.contentType}` : ''].filter(Boolean).join(' — ')).join(' | ');
+    const items = Array.from(row.querySelectorAll('[data-universal-required-item]')).map((item) => {
+      const select = item.querySelector('[data-universal-content-type]');
+      const option = select?.selectedOptions?.[0];
       return {
-        kind,
-        items,
-        notes,
-        requiredText: [itemText, notes].filter(Boolean).join(' — ')
+        requiredText: item.querySelector('[data-universal-required-text]')?.value.trim() || '',
+        carType: item.querySelector('[data-universal-car-type]')?.value.trim() || '',
+        contentType: select?.value.trim() || '',
+        contentTypeId: option?.dataset.id || '',
+        details: option?.dataset.desc || '',
+        printSize: item.querySelector('[data-universal-print-size]')?.value.trim() || ''
       };
-    }
-    if (kind === 'content') {
-      const items = Array.from(row.querySelectorAll('[data-content-item]')).map((item) => ({
-        contentType: item.querySelector('[data-content-type]')?.value.trim() || '',
-        carType: item.querySelector('[data-content-car-type]')?.value.trim() || '',
-        requiredText: item.querySelector('[data-content-required-text]')?.value.trim() || ''
-      })).filter((item) => item.contentType || item.carType || item.requiredText);
-      const requiredText = items.map((item, index) => [
-        `مطلوب ${index + 1}`,
-        item.contentType ? `نوع المحتوى: ${item.contentType}` : '',
-        item.carType ? `السيارة المطلوبة: ${item.carType}` : '',
-        item.requiredText ? `ملاحظات: ${item.requiredText}` : ''
-      ].filter(Boolean).join(' — ')).join(' | ');
-      return {
-        kind,
-        items,
-        contentType: items.map((item) => item.contentType).filter(Boolean).join('، '),
-        carType: items.map((item) => item.carType).filter(Boolean).join('، '),
-        notes: items.map((item) => item.requiredText).filter(Boolean).join(' | '),
-        requiredText
-      };
-    }
-    if (kind === 'design') {
-      const printSize = row.querySelector('[data-design-print-size]')?.value.trim() || '';
-      const selected = Array.from(row.querySelectorAll('[data-design-deliverable]:checked')).map((item) => ({
-        title: item.dataset.title || item.value || '',
-        details: item.dataset.title === 'مطبوعات أونلاين' && printSize ? `المقاس: ${printSize}` : (item.dataset.desc || '')
-      })).filter((item) => item.title || item.details);
-      const notes = row.querySelector('[data-required-text]')?.value.trim() || '';
-      return {
-        kind,
-        deliverables: selected,
-        deliverable: selected.map((item) => item.title).join('، '),
-        printSize,
-        deliveryDetails: selected.map((item) => [item.title, item.details].filter(Boolean).join(': ')).join(' | '),
-        notes,
-        requiredText: [selected.map((item) => [item.title, item.details].filter(Boolean).join(': ')).join(' | '), notes].filter(Boolean).join(' — ')
-      };
-    }
-    if (kind === 'montage') {
-      const selected = Array.from(row.querySelectorAll('[data-montage-deliverable]:checked')).map((item) => ({
-        title: item.dataset.title || item.value || '',
-        details: item.dataset.desc || ''
-      })).filter((item) => item.title || item.details);
-      const notes = row.querySelector('[data-required-text]')?.value.trim() || '';
-      return {
-        kind,
-        deliverables: selected,
-        deliverable: selected.map((item) => item.title).join('، '),
-        deliveryDetails: selected.map((item) => [item.title, item.details].filter(Boolean).join(': ')).join(' | '),
-        notes,
-        requiredText: [selected.map((item) => [item.title, item.details].filter(Boolean).join(': ')).join(' | '), notes].filter(Boolean).join(' — ')
-      };
-    }
-    const notes = row.querySelector('[data-required-text]')?.value.trim() || '';
-    return { kind, notes, requiredText: notes };
+    }).filter((item) => item.requiredText || item.carType || item.contentType || item.printSize);
+
+    const requiredText = items.map((item, index) => [
+      `مطلوب ${index + 1}`,
+      item.requiredText ? `المطلوب: ${item.requiredText}` : '',
+      item.carType ? `السيارة: ${item.carType}` : '',
+      item.contentType ? `نوع المحتوى: ${item.contentType}` : '',
+      item.printSize ? `المقاس: ${item.printSize}` : ''
+    ].filter(Boolean).join(' — ')).join(' | ');
+
+    const deliverables = items.map((item) => ({
+      title: item.contentType || item.requiredText || 'مطلوب',
+      details: [item.details, item.carType ? `السيارة: ${item.carType}` : '', item.printSize ? `المقاس: ${item.printSize}` : '', item.requiredText].filter(Boolean).join(' — '),
+      carType: item.carType,
+      printSize: item.printSize,
+      requiredText: item.requiredText,
+      contentTypeId: item.contentTypeId
+    })).filter((item) => item.title || item.details);
+
+    return {
+      kind,
+      items,
+      deliverables,
+      contentType: items.map((item) => item.contentType).filter(Boolean).join('، '),
+      carType: items.map((item) => item.carType).filter(Boolean).join('، '),
+      printSize: items.map((item) => item.printSize).filter(Boolean).join('، '),
+      notes: items.map((item) => item.requiredText).filter(Boolean).join(' | '),
+      requiredText
+    };
   }
 
   function collectDepartmentTasks() {
@@ -4060,8 +4002,9 @@ function initCreateTaskFromTemplate() {
           requiredText,
           requiredDetails: special,
           photoItems: kind === 'photography' ? (special.items || []) : [],
-          contentItems: kind === 'content' ? (special.items || []) : [],
+          contentItems: special.items || [],
           selectedDeliverables: special.deliverables || [],
+          contentType: special.contentType || '',
           carType: special.carType || '',
           printSize: special.printSize || ''
         };
@@ -4258,6 +4201,25 @@ function initCreateTaskFromTemplate() {
       }
       return;
     }
+    const addUniversal = event.target.closest('[data-add-universal-required]');
+    if (addUniversal) {
+      const fields = addUniversal.closest('[data-special-kind]');
+      const kind = fields?.dataset.specialKind || 'generic';
+      const list = fields?.querySelector('[data-universal-required-list]');
+      if (list) {
+        list.insertAdjacentHTML('beforeend', renderUniversalRequiredItem(kind, true));
+      }
+      return;
+    }
+
+    const removeUniversal = event.target.closest('[data-remove-universal-required]');
+    if (removeUniversal) {
+      removeUniversal.closest('[data-universal-required-item]')?.remove();
+      refreshPublishCalendarOptions();
+      refreshBudgetDropdownOptions();
+      return;
+    }
+
     const addContent = event.target.closest('[data-add-content-item]');
     if (addContent) {
       const list = addContent.closest('.dept-special-fields')?.querySelector('[data-content-items-list]');
@@ -4310,6 +4272,20 @@ function initCreateTaskFromTemplate() {
   });
 
   departmentsList.addEventListener('change', (event) => {
+    const universalSelect = event.target.closest('[data-universal-content-type]');
+    if (universalSelect) {
+      const item = universalSelect.closest('[data-universal-required-item]');
+      const wrap = item?.querySelector('[data-universal-print-size-wrap]');
+      const input = item?.querySelector('[data-universal-print-size]');
+      const selectedText = universalSelect.value || universalSelect.selectedOptions?.[0]?.textContent || '';
+      const shouldShowSize = isOfflinePrintContent(selectedText);
+      if (wrap) wrap.hidden = !shouldShowSize;
+      if (!shouldShowSize && input) input.value = '';
+      refreshPublishCalendarOptions();
+      refreshBudgetDropdownOptions();
+      return;
+    }
+
     const choice = event.target.closest('[data-design-deliverable], [data-montage-deliverable]');
     if (choice) {
       choice.closest('.multi-choice-card')?.classList.toggle('is-checked', choice.checked);
@@ -4329,7 +4305,7 @@ function initCreateTaskFromTemplate() {
   });
 
   departmentsList.addEventListener('input', (event) => {
-    if (event.target.closest('[data-design-print-size]')) {
+    if (event.target.closest('[data-design-print-size], [data-universal-print-size], [data-universal-required-text], [data-universal-car-type]')) {
       refreshPublishCalendarOptions();
       refreshBudgetDropdownOptions();
     }

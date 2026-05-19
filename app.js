@@ -1967,6 +1967,20 @@ function isOfflinePrintContent(value) {
   );
 }
 
+function renderUniversalContentChoiceCards(kind) {
+  const items = requiredContentTypesForKind(kind);
+  if (!items.length) {
+    return `<div class="required-content-empty">لا توجد أنواع محتوى مضافة. افتح صفحة المحتوى المطلوب وأضف الأنواع.</div>`;
+  }
+  return items.map((item, index) => `
+    <label class="universal-content-type-card">
+      <input type="radio" name="universal-content-${Date.now()}-${Math.random().toString(16).slice(2)}" data-universal-content-type value="${escapeHTML(item.title)}" data-desc="${escapeHTML(item.details || '')}" data-id="${escapeHTML(item.id)}">
+      <span>${escapeHTML(item.title)}</span>
+      ${item.details ? `<small>${escapeHTML(item.details)}</small>` : ''}
+    </label>
+  `).join('');
+}
+
 function renderUniversalRequiredItem(kind, removable = false) {
   return `
     <article class="universal-required-item" data-universal-required-item>
@@ -1975,13 +1989,15 @@ function renderUniversalRequiredItem(kind, removable = false) {
         <textarea data-universal-required-text rows="3" placeholder="اكتب المطلوب من القسم"></textarea>
       </label>
       <label class="mzj-field full-width-field">
-        <span>السيارة من الاستوك</span>
-        <input type="text" list="stockCarsDatalist" data-universal-car-type placeholder="اختياري - اختار السيارة من حصر الاستوك">
+        <span>السيارة المطلوبة</span>
+        <input type="text" list="stockCarsDatalist" data-universal-car-type placeholder="اختار من الاستوك أو اكتب السيارة يدويًا">
       </label>
-      <label class="mzj-field full-width-field">
-        <span>نوع المحتوى</span>
-        <select data-universal-content-type>${renderRequiredContentOptions(kind)}</select>
-      </label>
+      <div class="universal-content-type-wrap full-width-field">
+        <div class="universal-content-type-head">نوع المحتوى</div>
+        <div class="universal-content-type-grid" data-universal-content-type-grid>
+          ${renderUniversalContentChoiceCards(kind)}
+        </div>
+      </div>
       <label class="mzj-field full-width-field universal-print-size-field" data-universal-print-size-wrap hidden>
         <span>المقاس</span>
         <input type="text" data-universal-print-size placeholder="اكتب المقاس المطلوب">
@@ -2473,9 +2489,9 @@ function initCreateTaskFromTemplate() {
       const kind = deptRow?.dataset.departmentKind || '';
       if (kind === 'design' || kind === 'montage') {
         row.querySelectorAll('[data-universal-required-item]').forEach((item) => {
-          const select = item.querySelector('[data-universal-content-type]');
-          const title = templateCellText(select?.value || '');
-          const desc = templateCellText(select?.selectedOptions?.[0]?.dataset.desc || '');
+          const selectedType = item.querySelector('[data-universal-content-type]:checked');
+          const title = templateCellText(selectedType?.value || '');
+          const desc = templateCellText(selectedType?.dataset.desc || '');
           const car = templateCellText(item.querySelector('[data-universal-car-type]')?.value || '');
           const size = templateCellText(item.querySelector('[data-universal-print-size]')?.value || '');
           const note = templateCellText(item.querySelector('[data-universal-required-text]')?.value || '');
@@ -3917,14 +3933,13 @@ function initCreateTaskFromTemplate() {
 
   function collectSpecialDepartmentDetails(row, kind) {
     const items = Array.from(row.querySelectorAll('[data-universal-required-item]')).map((item) => {
-      const select = item.querySelector('[data-universal-content-type]');
-      const option = select?.selectedOptions?.[0];
+      const selectedType = item.querySelector('[data-universal-content-type]:checked');
       return {
         requiredText: item.querySelector('[data-universal-required-text]')?.value.trim() || '',
         carType: item.querySelector('[data-universal-car-type]')?.value.trim() || '',
-        contentType: select?.value.trim() || '',
-        contentTypeId: option?.dataset.id || '',
-        details: option?.dataset.desc || '',
+        contentType: selectedType?.value.trim() || '',
+        contentTypeId: selectedType?.dataset.id || '',
+        details: selectedType?.dataset.desc || '',
         printSize: item.querySelector('[data-universal-print-size]')?.value.trim() || ''
       };
     }).filter((item) => item.requiredText || item.carType || item.contentType || item.printSize);
@@ -4275,9 +4290,13 @@ function initCreateTaskFromTemplate() {
     const universalSelect = event.target.closest('[data-universal-content-type]');
     if (universalSelect) {
       const item = universalSelect.closest('[data-universal-required-item]');
+      item?.querySelectorAll('.universal-content-type-card').forEach((card) => {
+        const input = card.querySelector('[data-universal-content-type]');
+        card.classList.toggle('is-checked', Boolean(input?.checked));
+      });
       const wrap = item?.querySelector('[data-universal-print-size-wrap]');
       const input = item?.querySelector('[data-universal-print-size]');
-      const selectedText = universalSelect.value || universalSelect.selectedOptions?.[0]?.textContent || '';
+      const selectedText = universalSelect.value || '';
       const shouldShowSize = isOfflinePrintContent(selectedText);
       if (wrap) wrap.hidden = !shouldShowSize;
       if (!shouldShowSize && input) input.value = '';

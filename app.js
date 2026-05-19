@@ -294,6 +294,16 @@ function getTaskDetailsSteps(deptKeyValue) {
 function formatDepartmentRequirement(deptTask) {
   if (!deptTask) return 'لا يوجد مطلوب مكتوب';
   const kind = deptKindFromName(deptTask.departmentName);
+  const detail = deptTask.requiredDetails || {};
+  if (detail && (detail.taskName || detail.carType || detail.contentType || detail.printSize || detail.details)) {
+    return [
+      detail.taskName ? `اسم التاسك: ${detail.taskName}` : '',
+      detail.carType ? `السيارة: ${detail.carType}` : '',
+      detail.contentType ? `نوع المحتوى: ${detail.contentType}` : '',
+      detail.printSize ? `المقاس: ${detail.printSize}` : '',
+      detail.details ? `التفاصيل: ${detail.details}` : ''
+    ].filter(Boolean).join(' | ') || deptTask.requiredText || 'لا يوجد مطلوب مكتوب';
+  }
   if (kind === 'photography' && Array.isArray(deptTask.photoItems) && deptTask.photoItems.length) {
     return deptTask.photoItems.map((item, index) => `مطلوب ${index + 1}: نوع السيارة: ${item.carType || '—'} — نوع المحتوى: ${item.contentType || '—'}`).join(' | ');
   }
@@ -974,26 +984,9 @@ function openTaskDetails(button) {
   const clickedDeptIndex = clickedIndex >= 0 ? clickedIndex : 0;
   const clickedDept = clickedIndex >= 0 ? departmentTasks[clickedIndex] : (deptDataFromButton || {});
 
-  const sameUserValues = [
-    clickedDept.userId, clickedDept.userUid, clickedDept.uid, clickedDept.assigneeUid,
-    clickedDept.userEmail, clickedDept.assigneeEmail, clickedDept.email,
-    clickedDept.userName, clickedDept.userDisplayName, clickedDept.assigneeName, clickedDept.responsible
-  ].map((value) => String(value || '').trim().toLowerCase()).filter(Boolean);
+  const relatedAssignments = [{ dept: clickedDept, index: clickedDeptIndex }];
 
-  const relatedAssignments = departmentTasks
-    .map((dept, index) => ({ dept, index }))
-    .filter(({ dept }) => {
-      if (mzjDetailsDeptKey(dept.departmentName) !== deptKeyValue) return false;
-      const deptValues = [
-        dept.userId, dept.userUid, dept.uid, dept.assigneeUid,
-        dept.userEmail, dept.assigneeEmail, dept.email,
-        dept.userName, dept.userDisplayName, dept.assigneeName, dept.responsible
-      ].map((value) => String(value || '').trim().toLowerCase()).filter(Boolean);
-      if (!sameUserValues.length) return String(mzjDetailsDeptIdentity(dept)) === String(clickedIdentity);
-      return deptValues.some((value) => sameUserValues.includes(value));
-    });
-
-  const assignments = relatedAssignments.length ? relatedAssignments : [{ dept: clickedDept, index: clickedDeptIndex }];
+  const assignments = relatedAssignments;
 
   activeTaskDetailsMeta = {
     taskId,
@@ -2109,7 +2102,7 @@ function renderUniversalRequiredItem(kind, removable = false) {
         <span>المقاس</span>
         <input type="text" data-universal-print-size placeholder="اكتب المقاس المطلوب">
       </label>
-      ${removable ? '<button class="soft-danger-btn" type="button" data-remove-universal-required>مسح المطلوب</button>' : ''}
+      ${removable ? '<button class="soft-danger-btn" type="button" data-remove-universal-required>مسح التكليف</button>' : ''}
     </article>`;
 }
 function buildSpecialDepartmentFields(kind) {
@@ -2125,9 +2118,9 @@ function buildSpecialDepartmentFields(kind) {
     <div class="dept-special-fields universal-required-fields" data-special-kind="${escapeHTML(kind)}">
       <div class="dept-special-head">
         <strong>المحتوى المطلوب - قسم ${escapeHTML(kindLabel)}</strong>
-        <button class="soft-btn" type="button" data-add-universal-required>+ إضافة مطلوب</button>
+        <button class="soft-btn" type="button" data-add-universal-required>+ تكليف</button>
       </div>
-      <div class="required-content-note">اكتب المطلوب، اختار السيارة من الاستوك، واختار نوع المحتوى من صفحة المحتوى المطلوب.</div>
+      <div class="required-content-note">اكتب التكليف، اختار السيارة من الاستوك، واختار نوع المحتوى من صفحة المحتوى المطلوب.</div>
       <div class="universal-required-list" data-universal-required-list>
         ${renderUniversalRequiredItem(kind)}
       </div>
@@ -2354,17 +2347,17 @@ function initCreateTaskFromTemplate() {
         <div class="department-row-head unified-builder-head">
           <div>
             <strong>قسم المحتوى</strong>
-            <small>هنا المكان الواحد لإنشاء المطلوب: اكتب اسم التاسك، اختار السيارات، نوع المحتوى، الأقسام، واليوزرات.</small>
+            <small>هنا المكان الواحد لإنشاء التكليفات: اكتب اسم التاسك، اختار السيارات، نوع المحتوى، الأقسام، واليوزرات.</small>
           </div>
           <span class="department-source-label">مكان واحد</span>
         </div>
         <div class="department-task-body unified-builder-body" data-department-body>
           <div class="dept-special-fields universal-required-fields" data-special-kind="content">
             <div class="dept-special-head">
-              <strong>المحتوى المطلوب</strong>
-              <button class="soft-btn" type="button" data-add-universal-required>+ إضافة مطلوب</button>
+              <strong>التكليفات</strong>
+              <button class="soft-btn" type="button" data-add-universal-required>+ تكليف</button>
             </div>
-            <div class="required-content-note">ابدأ من المحتوى: اسم التاسك اللي اليوزر هيشوفه، السيارة، نوع المحتوى، وبعدها اختار الأقسام واليوزرات.</div>
+            <div class="required-content-note">ابدأ من المحتوى: كل + تكليف يعتبر تاسك مستقل، اختار السيارة ونوع المحتوى وبعدها الأقسام واليوزرات.</div>
             <div class="universal-required-list" data-universal-required-list>
               ${renderUniversalRequiredItem('content')}
             </div>
@@ -2625,6 +2618,25 @@ function initCreateTaskFromTemplate() {
 
   function getPublishChoiceLabels() {
     const labels = [];
+    const addLabel = (label) => {
+      const clean = templateCellText(label || '');
+      if (clean && !labels.includes(clean)) labels.push(clean);
+    };
+
+    const unified = departmentsList?.querySelector('[data-unified-task-builder]');
+    if (unified) {
+      const selectedKinds = new Set(Array.from(unified.querySelectorAll('[data-unified-department-target]')).filter((target) => {
+        return target.querySelector('[data-unified-department-check]')?.checked;
+      }).map((target) => target.dataset.departmentKind || '').filter(Boolean));
+      if (selectedKinds.has('design') || selectedKinds.has('montage')) {
+        const special = collectSpecialDepartmentDetails(unified, 'content');
+        special.items.forEach((item) => {
+          addLabel([item.taskName || item.contentType || 'تكليف', item.carType ? `السيارة: ${item.carType}` : '', item.contentType ? `نوع المحتوى: ${item.contentType}` : '', item.printSize ? `المقاس: ${item.printSize}` : ''].filter(Boolean).join(' — '));
+        });
+      }
+      return labels;
+    }
+
     departmentsList?.querySelectorAll('[data-department-assignment-row]').forEach((row) => {
       const deptRow = row.closest('.department-task-row');
       const kind = deptRow?.dataset.departmentKind || '';
@@ -2640,8 +2652,7 @@ function initCreateTaskFromTemplate() {
           const size = templateCellText(item.querySelector('[data-universal-print-size]')?.value || '');
           const note = templateCellText(item.querySelector('[data-universal-required-text]')?.value || '');
           selectedTypes.forEach((type) => {
-            const label = [type.title, cars.length ? `السيارة: ${cars.join(' + ')}` : '', size ? `المقاس: ${size}` : '', type.desc || note].filter(Boolean).join(' — ');
-            if (label && !labels.includes(label)) labels.push(label);
+            addLabel([type.title, cars.length ? `السيارة: ${cars.join(' + ')}` : '', size ? `المقاس: ${size}` : '', type.desc || note].filter(Boolean).join(' — '));
           });
         });
       }
@@ -2650,8 +2661,7 @@ function initCreateTaskFromTemplate() {
         const title = templateCellText(input.dataset.title || input.value || '');
         const desc = templateCellText(input.dataset.desc || '');
         const size = input.dataset.title === 'مطبوعات أونلاين' ? templateCellText(row.querySelector('[data-design-print-size]')?.value || '') : '';
-        const label = [title, size ? `المقاس: ${size}` : desc].filter(Boolean).join(' — ');
-        if (label && !labels.includes(label)) labels.push(label);
+        addLabel([title, size ? `المقاس: ${size}` : desc].filter(Boolean).join(' — '));
       });
     });
     return labels;
@@ -4100,50 +4110,79 @@ function initCreateTaskFromTemplate() {
   }
 
   function collectSpecialDepartmentDetails(row, kind) {
-    const items = Array.from(row.querySelectorAll('[data-universal-required-item]')).map((item) => {
+    const uniqueClean = (values) => {
+      const seen = new Set();
+      return (values || []).map((value) => templateCellText(value || '')).filter(Boolean).filter((value) => {
+        const key = value.toLowerCase();
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+    };
+
+    const items = [];
+    Array.from(row.querySelectorAll('[data-universal-required-item]')).forEach((item, itemIndex) => {
       const selectedTypes = Array.from(item.querySelectorAll('[data-universal-content-type]:checked')).map((input) => ({
-        title: input.value.trim(),
+        title: templateCellText(input.value || ''),
         id: input.dataset.id || '',
-        details: input.dataset.desc || ''
+        details: templateCellText(input.dataset.desc || '')
       })).filter((entry) => entry.title);
-      const selectedCars = Array.from(item.querySelectorAll('[data-universal-car-choice]:checked')).map((input) => input.value.trim()).filter(Boolean);
-      const taskName = item.querySelector('[data-universal-task-name]')?.value.trim() || '';
-      const manualText = item.querySelector('[data-universal-car-type]')?.value.trim() || '';
-      const carOrRequired = [...selectedCars, manualText].filter(Boolean).join('، ');
-      return {
-        taskName,
-        taskTitle: taskName,
-        title: taskName,
-        name: taskName,
-        requiredText: manualText || carOrRequired,
-        carType: carOrRequired,
-        selectedCars,
-        contentTypes: selectedTypes,
-        contentType: selectedTypes.map((entry) => entry.title).join('، '),
-        contentTypeId: selectedTypes.map((entry) => entry.id).filter(Boolean).join(','),
-        details: selectedTypes.map((entry) => entry.details).filter(Boolean).join(' | '),
-        printSize: item.querySelector('[data-universal-print-size]')?.value.trim() || ''
-      };
-    }).filter((item) => item.taskName || item.requiredText || item.carType || item.contentType || item.printSize);
+      const selectedCars = uniqueClean(Array.from(item.querySelectorAll('[data-universal-car-choice]:checked')).map((input) => input.value));
+      const taskName = templateCellText(item.querySelector('[data-universal-task-name]')?.value || '');
+      const manualText = templateCellText(item.querySelector('[data-universal-car-type]')?.value || '');
+      const printSize = templateCellText(item.querySelector('[data-universal-print-size]')?.value || '');
+      const cars = uniqueClean([...selectedCars, manualText]);
+      const typeList = selectedTypes.length ? selectedTypes : [{ title: '', id: '', details: '' }];
+
+      typeList.forEach((type, typeIndex) => {
+        const contentTitle = type.title || '';
+        const title = taskName || contentTitle || cars.join('، ') || `تكليف ${items.length + 1}`;
+        const requiredParts = [
+          cars.length ? `السيارة: ${cars.join('، ')}` : '',
+          contentTitle ? `نوع المحتوى: ${contentTitle}` : '',
+          printSize ? `المقاس: ${printSize}` : '',
+          manualText && !selectedCars.length ? `ملاحظة: ${manualText}` : ''
+        ].filter(Boolean);
+        if (!title && !requiredParts.length) return;
+        const single = {
+          itemIndex,
+          typeIndex,
+          taskName: title,
+          taskTitle: title,
+          title,
+          name: title,
+          requiredText: requiredParts.join(' — ') || title,
+          carType: cars.join('، '),
+          selectedCars,
+          contentTypes: contentTitle ? [type] : [],
+          contentType: contentTitle,
+          contentTypeId: type.id || '',
+          details: type.details || '',
+          printSize
+        };
+        items.push(single);
+      });
+    });
 
     const requiredText = items.map((item, index) => [
-      item.taskName ? `اسم التاسك: ${item.taskName}` : `مطلوب ${index + 1}`,
-      item.requiredText ? `المطلوب: ${item.requiredText}` : '',
-      item.carType ? `السيارة / المطلوب: ${item.carType}` : '',
+      item.taskName ? `اسم التاسك: ${item.taskName}` : `تكليف ${index + 1}`,
+      item.carType ? `السيارة: ${item.carType}` : '',
       item.contentType ? `نوع المحتوى: ${item.contentType}` : '',
-      item.printSize ? `المقاس: ${item.printSize}` : ''
+      item.printSize ? `المقاس: ${item.printSize}` : '',
+      item.details ? `التفاصيل: ${item.details}` : ''
     ].filter(Boolean).join(' — ')).join(' | ');
 
     const deliverables = items.map((item) => ({
-      title: item.taskName || item.contentType || item.requiredText || 'مطلوب',
+      title: item.taskName || item.contentType || item.requiredText || 'تكليف',
       taskName: item.taskName,
-      taskTitle: item.taskName,
-      name: item.taskName,
-      details: [item.details, item.carType ? `السيارة / المطلوب: ${item.carType}` : '', item.printSize ? `المقاس: ${item.printSize}` : '', item.requiredText].filter(Boolean).join(' — '),
+      taskTitle: item.taskTitle,
+      name: item.name,
+      details: [item.contentType ? `نوع المحتوى: ${item.contentType}` : '', item.details, item.carType ? `السيارة: ${item.carType}` : '', item.printSize ? `المقاس: ${item.printSize}` : ''].filter(Boolean).join(' — '),
       carType: item.carType,
       selectedCars: item.selectedCars || [],
       printSize: item.printSize,
       requiredText: item.requiredText,
+      contentType: item.contentType,
       contentTypeId: item.contentTypeId
     })).filter((item) => item.title || item.details);
 
@@ -4151,13 +4190,13 @@ function initCreateTaskFromTemplate() {
       kind,
       items,
       deliverables,
-      contentType: items.map((item) => item.contentType).filter(Boolean).join('، '),
-      carType: items.map((item) => item.carType).filter(Boolean).join('، '),
-      printSize: items.map((item) => item.printSize).filter(Boolean).join('، '),
-      taskName: items.map((item) => item.taskName).filter(Boolean).join('، '),
-      taskTitle: items.map((item) => item.taskName).filter(Boolean).join('، '),
-      title: items.map((item) => item.taskName).filter(Boolean).join('، '),
-      notes: items.map((item) => item.requiredText).filter(Boolean).join(' | '),
+      contentType: uniqueClean(items.map((item) => item.contentType)).join('، '),
+      carType: uniqueClean(items.map((item) => item.carType)).join('، '),
+      printSize: uniqueClean(items.map((item) => item.printSize)).join('، '),
+      taskName: uniqueClean(items.map((item) => item.taskName)).join('، '),
+      taskTitle: uniqueClean(items.map((item) => item.taskTitle)).join('، '),
+      title: uniqueClean(items.map((item) => item.title)).join('، '),
+      notes: uniqueClean(items.map((item) => item.requiredText)).join(' | '),
       requiredText
     };
   }
@@ -4170,6 +4209,7 @@ function initCreateTaskFromTemplate() {
     const selectedId = selectedOption?.dataset.userId || selectedOption?.dataset.userUid || selectedEmail || selectedName;
     return {
       enabled: true,
+      assignmentId: special.assignmentId || special.linkKey || '',
       departmentId: department?.id || '',
       departmentKind: kind,
       departmentName: department?.name || '',
@@ -4211,18 +4251,44 @@ function initCreateTaskFromTemplate() {
 
   function collectUnifiedDepartmentTasks(builderRow) {
     const tasks = [];
-    const special = collectSpecialDepartmentDetails(builderRow, 'content');
-    const requiredText = special.requiredText || '';
-    if (!requiredText && !special.contentType && !special.taskName) return tasks;
+    const specialGroup = collectSpecialDepartmentDetails(builderRow, 'content');
+    if (!specialGroup.items.length) return tasks;
     Array.from(builderRow.querySelectorAll('[data-unified-department-target]')).forEach((target, deptIndex) => {
       if (!target.querySelector('[data-unified-department-check]')?.checked) return;
       const departmentId = target.dataset.departmentId || '';
       const department = departmentsCache.find((dept) => String(dept.id) === String(departmentId));
       const kind = target.dataset.departmentKind || deptKindFromName(department?.name || '');
       const selectedOptions = Array.from(target.querySelector('[data-user-select]')?.selectedOptions || []).filter((opt) => opt.value);
-      selectedOptions.forEach((selectedOption, userOffset) => {
-        const item = buildDepartmentTaskItem({ department, kind, selectedOption, requiredText, special, assignmentNo: deptIndex + 1, userOffset });
-        if (item.departmentId || item.userName || item.requiredText) tasks.push(item);
+      specialGroup.items.forEach((singleSpecial, specialIndex) => {
+        const deliverable = specialGroup.deliverables[specialIndex] || {};
+        const special = {
+          ...singleSpecial,
+          kind,
+          items: [singleSpecial],
+          deliverables: [deliverable],
+          selectedDeliverables: [deliverable],
+          requiredText: singleSpecial.requiredText || '',
+          taskName: singleSpecial.taskName || singleSpecial.taskTitle || '',
+          taskTitle: singleSpecial.taskTitle || singleSpecial.taskName || '',
+          title: singleSpecial.title || singleSpecial.taskName || '',
+          contentType: singleSpecial.contentType || '',
+          carType: singleSpecial.carType || '',
+          printSize: singleSpecial.printSize || ''
+        };
+        selectedOptions.forEach((selectedOption, userOffset) => {
+          const selectedId = selectedOption?.dataset.userUid || selectedOption?.dataset.userId || selectedOption?.dataset.userEmail || selectedOption?.value || '';
+          const baseId = [departmentId, selectedId, kind, special.contentType, special.carType, specialIndex].map((value) => String(value || '').replace(/\s+/g, '_')).join('__');
+          const item = buildDepartmentTaskItem({
+            department,
+            kind,
+            selectedOption,
+            requiredText: special.requiredText || '',
+            special: { ...special, assignmentId: baseId },
+            assignmentNo: specialIndex + 1,
+            userOffset
+          });
+          if (item.departmentId || item.userName || item.requiredText) tasks.push(item);
+        });
       });
     });
     return tasks;
@@ -4548,6 +4614,8 @@ function initCreateTaskFromTemplate() {
       const userWrap = target?.querySelector('.unified-user-select-wrap');
       if (userWrap) userWrap.hidden = !deptCheck.checked;
       target?.classList.toggle('is-checked', deptCheck.checked);
+      refreshPublishCalendarOptions();
+      refreshBudgetDropdownOptions();
       return;
     }
 
@@ -5995,21 +6063,13 @@ initCreateTaskFromTemplate();
           }
         }
 
-        const visibleGroups = new Map();
         (task.departmentTasks || []).forEach((dept, deptIndex) => {
           const visible = assignedToCurrentUser(dept, current);
           if (!visible) return;
           const listKey = deptKey(dept.departmentName);
-          const userKey = String(dept.userId || dept.userUid || dept.assigneeUid || dept.userEmail || dept.assigneeEmail || dept.userName || dept.userDisplayName || '').trim() || deptIdentity(dept);
-          const groupKey = `${listKey}::${userKey}`;
-          if (!visibleGroups.has(groupKey)) visibleGroups.set(groupKey, { listKey, dept, indexes: [], depts: [] });
-          visibleGroups.get(groupKey).indexes.push(deptIndex);
-          visibleGroups.get(groupKey).depts.push(dept);
-        });
-        visibleGroups.forEach((group) => {
-          const targetList = userLists[group.listKey];
+          const targetList = userLists[listKey];
           if (!targetList) return;
-          appendCard(targetList, userDeptCard(task, group.dept, group.indexes[0], group.depts, group.indexes));
+          appendCard(targetList, userDeptCard(task, dept, deptIndex));
         });
       } catch (error) {
         console.warn('dashboard task card render failed:', task?.id, error);

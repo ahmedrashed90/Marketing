@@ -6089,8 +6089,9 @@ body:has(#taskDetailsModal.is-open){
 }
 .universal-content-type-card span{
   color:var(--brown-900,#3e2420);
-  font-weight:900;
-  line-height:1.6;
+  font-weight:800;
+  line-height:1.35;
+  font-size:.86rem;
 }
 .universal-content-type-card small{
   color:#8e766c;
@@ -6203,8 +6204,9 @@ body:has(#taskDetailsModal.is-open){
 .task-campaign-info-grid strong{
   display:block;
   color:#3e2420;
-  font-weight:900;
-  line-height:1.6;
+  font-weight:800;
+  line-height:1.35;
+  font-size:.86rem;
 }
 
 
@@ -6639,9 +6641,9 @@ body:has(#taskDetailsModal.is-open){
 }
 .universal-car-choice-grid{
   display:grid;
-  grid-template-columns:repeat(auto-fill,minmax(210px,1fr));
-  gap:10px;
-  max-height:260px;
+  grid-template-columns:repeat(auto-fill,minmax(150px,1fr));
+  gap:8px;
+  max-height:190px;
   overflow:auto;
   padding:2px;
 }
@@ -6649,11 +6651,11 @@ body:has(#taskDetailsModal.is-open){
   position:relative;
   display:grid;
   align-items:center;
-  min-height:64px;
+  min-height:44px;
   border:1px solid rgba(62,36,32,.12);
-  border-radius:18px;
+  border-radius:14px;
   background:#fff;
-  padding:12px 14px;
+  padding:8px 10px;
   cursor:pointer;
   transition:.15s ease;
   user-select:none;
@@ -6665,8 +6667,9 @@ body:has(#taskDetailsModal.is-open){
 }
 .universal-car-choice-card span{
   color:var(--brown-900,#3e2420);
-  font-weight:900;
-  line-height:1.6;
+  font-weight:800;
+  line-height:1.35;
+  font-size:.86rem;
 }
 .universal-car-choice-card:hover{
   transform:translateY(-1px);

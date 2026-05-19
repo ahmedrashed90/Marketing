@@ -6957,3 +6957,44 @@ body:has(#taskDetailsModal.is-open){
   white-space: normal !important;
   overflow-wrap: anywhere !important;
 }
+
+
+/* v11 task details cleanup */
+.assignment-step-required {
+  display: none !important;
+}
+.assignment-switch-btn span,
+.assignment-switch-btn small,
+.assignment-step-title span,
+.assignment-step-title strong,
+.user-task-card-clean .task-template-top strong,
+.readable-chip-row.car-chips span {
+  white-space: normal !important;
+  overflow-wrap: anywhere !important;
+  word-break: normal !important;
+  text-align: right !important;
+}
+.assignment-switcher-buttons {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)) !important;
+}
+.assignment-switch-btn {
+  min-height: 150px !important;
+  align-items: flex-start !important;
+}
+.assignment-switch-btn small {
+  display: block !important;
+  line-height: 1.7 !important;
+}
+.user-task-meta-clean .meta-cars {
+  grid-column: 1 / -1 !important;
+}
+.user-task-meta-clean .meta-cars strong,
+.readable-task-summary-v6 strong {
+  white-space: normal !important;
+  overflow-wrap: anywhere !important;
+}
+.universal-car-choice-card span {
+  white-space: normal !important;
+  overflow-wrap: anywhere !important;
+  line-height: 1.35 !important;
+}

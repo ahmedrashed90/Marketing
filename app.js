@@ -533,6 +533,17 @@ function mzjCollectTaskCars(deptTask) {
   ]);
 }
 
+
+function mzjTaskExplicitName(deptTask) {
+  const details = deptTask?.requiredDetails && typeof deptTask.requiredDetails === 'object' ? deptTask.requiredDetails : {};
+  const rawFallback = mzjCleanTaskText(deptTask?.requiredText || deptTask?.required || details.requiredText || '');
+  const labeled = mzjFirstLabeledValue(rawFallback, ['اسم التاسك']);
+  return mzjCleanTaskText(
+    details.customTaskName || details.userTaskName || deptTask?.customTaskName || deptTask?.userTaskName ||
+    details.taskGroupTitle || deptTask?.taskGroupTitle || labeled || ''
+  );
+}
+
 function mzjCollectTaskContentTypes(deptTask) {
   const details = deptTask?.requiredDetails && typeof deptTask.requiredDetails === 'object' ? deptTask.requiredDetails : {};
   const contentItems = [];
@@ -567,16 +578,11 @@ function renderReadableDepartmentRequirement(deptTask, deptKeyValue) {
   const rawFallback = mzjCleanTaskText(deptTask?.requiredText || deptTask?.required || details.requiredText || '');
   const cars = mzjCollectTaskCars(deptTask);
   const rawContentTypes = mzjCollectTaskContentTypes(deptTask);
-  const labelTaskName = mzjFirstLabeledValue(rawFallback, ['اسم التاسك']);
-  const explicitTitle = mzjCleanTaskText(
-    details.customTaskName || details.userTaskName || details.taskGroupTitle ||
-    deptTask?.customTaskName || deptTask?.userTaskName || deptTask?.taskGroupTitle ||
-    labelTaskName ||
-    details.taskName || details.taskTitle || deptTask?.taskName || deptTask?.taskTitle || deptTask?.title || deptTask?.name || ''
-  );
-  const finalTitle = (rawContentTypes.includes(explicitTitle) && !details.taskGroupTitle && !deptTask?.taskGroupTitle)
-    ? 'تكليف مطلوب'
-    : (explicitTitle || departmentTaskShortName(deptTask) || 'تكليف مطلوب');
+  const explicitTitle = mzjTaskExplicitName(deptTask);
+  const possibleTitle = explicitTitle || mzjCleanTaskText(details.taskName || details.taskTitle || deptTask?.taskName || deptTask?.taskTitle || deptTask?.title || deptTask?.name || '');
+  const finalTitle = (rawContentTypes.includes(possibleTitle) && !explicitTitle)
+    ? (departmentTaskShortName(deptTask) || 'تكليف مطلوب')
+    : (possibleTitle || departmentTaskShortName(deptTask) || 'تكليف مطلوب');
   const contentTypes = rawContentTypes.filter((value) => value !== finalTitle && !/^مطلوب\s*\d+/i.test(value));
   const printSizes = mzjUniqueTaskValues([deptTask?.printSize, details.printSize]);
   const extraDetails = mzjUniqueTaskValues([details.details, details.desc, details.description, deptTask?.deliveryDetails])
@@ -1190,8 +1196,15 @@ function openTaskDetails(button) {
     const base = depts[0] || clickedDept || {};
     const cars = mzjUniqueTaskValues(depts.flatMap((dept) => mzjCollectTaskCars(dept)));
     const contentTypes = mzjUniqueTaskValues(depts.flatMap((dept) => mzjCollectTaskContentTypes(dept)));
+    const groupTaskName = mzjCleanTaskText(depts.map((dept) => mzjTaskExplicitName(dept)).find(Boolean) || mzjTaskExplicitName(base) || '');
     return {
       ...base,
+      taskName: groupTaskName || base.taskName || base.taskTitle || base.title || '',
+      taskTitle: groupTaskName || base.taskTitle || base.taskName || base.title || '',
+      title: groupTaskName || base.title || base.taskName || base.taskTitle || '',
+      customTaskName: groupTaskName || base.customTaskName || '',
+      userTaskName: groupTaskName || base.userTaskName || '',
+      taskGroupTitle: groupTaskName || base.taskGroupTitle || '',
       allSelectedCars: cars,
       selectedCars: cars,
       carType: cars.join('، '),
@@ -1199,6 +1212,9 @@ function openTaskDetails(button) {
       contentTypes: contentTypes.map((title) => ({ title })),
       requiredDetails: {
         ...(base.requiredDetails || {}),
+        customTaskName: groupTaskName || base.requiredDetails?.customTaskName || '',
+        userTaskName: groupTaskName || base.requiredDetails?.userTaskName || '',
+        taskGroupTitle: groupTaskName || base.requiredDetails?.taskGroupTitle || '',
         allSelectedCars: cars,
         selectedCars: cars,
         carType: cars.join('، '),
@@ -1230,14 +1246,17 @@ function openTaskDetails(button) {
       </div>
       <div class="assignment-switcher-buttons">
         ${assignments.map(({ dept }, index) => {
+          const carName = mzjCollectTaskCars(dept)[0] || `سيارة ${index + 1}`;
+          const contentName = mzjCollectTaskContentTypes(dept)[0] || '';
+          const taskName = mzjTaskExplicitName(dept) || dept.taskName || dept.taskTitle || departmentTaskShortName(dept);
           const shortTitle = [
-            dept.carType ? `السيارة: ${dept.carType}` : '',
-            dept.contentType ? `نوع المحتوى: ${dept.contentType}` : '',
-            (dept.taskName || dept.taskTitle || departmentTaskShortName(dept)) ? `التاسك: ${dept.taskName || dept.taskTitle || departmentTaskShortName(dept)}` : ''
+            carName ? `السيارة: ${carName}` : '',
+            contentName ? `نوع المحتوى: ${contentName}` : '',
+            taskName ? `اسم التاسك: ${taskName}` : ''
           ].filter(Boolean).join(' — ');
           return `<button type="button" class="assignment-switch-btn ${index === 0 ? 'is-active' : ''}" data-switch-assignment="${index}">
             <b>${index + 1}</b>
-            <span>سيارة ${index + 1}</span>
+            <span>${escapeHTML(carName)}</span>
             ${shortTitle ? `<small>${escapeHTML(shortTitle)}</small>` : '<small>مطلوب مستقل</small>'}
           </button>`;
         }).join('')}
@@ -1266,8 +1285,10 @@ function openTaskDetails(button) {
     const assignmentContentTypes = mzjCollectTaskContentTypes(dept);
     const assignmentCar = assignmentCars[0] || '';
     const assignmentContentType = assignmentContentTypes[0] || '';
+    const assignmentTaskName = mzjTaskExplicitName(dept) || dept.taskName || dept.taskTitle || dept.title || departmentTaskShortName(dept);
     const assignmentTitle = [
-      assignmentCar ? `السيارة: ${assignmentCar}` : (dept.taskName || dept.taskTitle || dept.title || departmentTaskShortName(dept)),
+      assignmentTaskName ? `اسم التاسك: ${assignmentTaskName}` : '',
+      assignmentCar ? `السيارة: ${assignmentCar}` : '',
       assignmentContentType ? `نوع المحتوى: ${assignmentContentType}` : '',
       dept.requiredDate ? `مطلوب: ${dept.requiredDate}` : ''
     ].filter(Boolean).join(' — ');
@@ -1377,10 +1398,7 @@ document.addEventListener('click', (event) => {
       block.hidden = !isSelected;
       block.classList.toggle('is-active', isSelected);
     });
-    const selectedMeta = activeTaskDetailsMeta?.relatedAssignments?.[index];
-    if (selectedMeta?.deptData && taskDetailsRequired) {
-      taskDetailsRequired.innerHTML = renderReadableDepartmentRequirement(selectedMeta.deptData, activeTaskDetailsMeta?.deptKey || '');
-    }
+    // تفاصيل التكليف تظل ملخص المجموعة كاملة، والتبديل يغير خطوات السيارة فقط.
     syncTaskProgress();
     return;
   }
@@ -2238,13 +2256,25 @@ function renderUniversalContentChoiceCards(kind) {
   `).join('');
 }
 
+
+function mzjStockCarFullLabel(car, index = 0) {
+  const clean = (value) => templateCellText(value || '');
+  const name = clean(car?.carName || car?.name || car?.title || '');
+  const statement = clean(car?.statement || car?.description || '');
+  const model = clean(car?.model || car?.year || '');
+  const fallback = clean(car?.display || car?.label || '');
+  const main = [name, statement].filter(Boolean).join(' - ');
+  const full = [main, model].filter(Boolean).join(' , ');
+  return full || fallback || ('سيارة ' + (index + 1));
+}
+
 function renderStockCarChoiceCards() {
   const stockCarsCache = Array.isArray(window.MZJStockCarsCache) ? window.MZJStockCarsCache : [];
   if (!stockCarsCache.length) {
     return '<div class="required-content-empty">لا توجد سيارات متاحة من الاستوك حاليًا. اكتب المطلوب يدويًا في الخانة أسفل الاختيارات.</div>';
   }
   return stockCarsCache.map((car, index) => {
-    const label = car.display || car.carName || car.statement || car.model || ('سيارة ' + (index + 1));
+    const label = mzjStockCarFullLabel(car, index);
     return `<label class="universal-car-choice-card">
       <input type="checkbox" data-universal-car-choice value="${escapeHTML(label)}" data-car-id="${escapeHTML(car.docId || car.id || '')}">
       <span>${escapeHTML(label)}</span>
@@ -3565,11 +3595,7 @@ function initCreateTaskFromTemplate() {
       const exterior = Array.from(item.exteriorColors).sort((a, b) => a.localeCompare(b, 'ar', { numeric: true })).join(' / ');
       const interior = Array.from(item.interiorColors).sort((a, b) => a.localeCompare(b, 'ar', { numeric: true })).join(' / ');
       const statuses = Array.from(item.statuses.entries()).sort((a, b) => b[1] - a[1]).map(([status, count]) => `${status}: ${count}`).join(' / ');
-      const display = [
-        item.carName,
-        item.statement,
-        item.model
-      ].filter(Boolean).join(' | ');
+      const display = mzjStockCarFullLabel(item);
       return { ...item, display };
     }).filter((item) => item.display).sort((a, b) => {
       if (b.count !== a.count) return b.count - a.count;
@@ -6216,7 +6242,7 @@ initCreateTaskFromTemplate();
     const departmentShare = Math.round((groupDepts.length / Math.max((task.departmentTasks||[]).length,1)) * 10000) / 100;
     const summaryCars = mzjUniqueTaskValues(groupDepts.flatMap((d) => mzjCollectTaskCars(d)));
     const summaryContent = mzjUniqueTaskValues(groupDepts.flatMap((d) => mzjCollectTaskContentTypes(d)));
-    const summaryTitle = deptTask.taskName || deptTask.taskTitle || deptTask.title || departmentTaskShortName(deptTask);
+    const summaryTitle = mzjTaskExplicitName(deptTask) || deptTask.customTaskName || deptTask.userTaskName || deptTask.taskGroupTitle || deptTask.taskName || deptTask.taskTitle || deptTask.title || departmentTaskShortName(deptTask);
     const groupKey = dashboardTaskGroupKey(deptTask, deptIndex);
     return `<article class="department-task-card dynamic-dashboard-card user-task-card-clean" data-dept-task-card data-task-id="${esc(task.id)}" data-task-type="${esc(task.taskTypeLabel || task.taskType || '')}" data-campaign-code="${esc(task.campaignCode || '')}" data-readiness-key="${esc(key)}" data-legacy-readiness-key="${esc(legacyDeptReadinessKey(deptTask))}" data-dept-identity="${esc(deptIdentity(deptTask))}" data-dept-key="${esc(dkey)}" data-task-group-key="${esc(groupKey)}" data-department-share="${esc(departmentShare)}" data-completed-steps="${esc(selected)}">
       <div class="task-template-top user-task-title-only"><strong>${esc(summaryTitle)}</strong><span class="user-task-short-name">${esc(summaryContent[0] || departmentTaskShortName(deptTask))}</span></div>

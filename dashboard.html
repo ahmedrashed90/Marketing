@@ -521,6 +521,11 @@
               <span id="campaignEndDateLabel">تاريخ نهاية الحملة</span>
               <input type="date" id="campaignEndDate" name="campaignEndDate">
             </label>
+
+            <label class="mzj-field full-width-field">
+              <span>شرح تحت نهاية الحملة</span>
+              <textarea id="campaignEndDescription" name="campaignEndDescription" rows="3" placeholder="اكتب شرح أو ملاحظات تظهر مع نهاية الحملة"></textarea>
+            </label>
           </div>
 
           <div class="template-preview-box is-hidden" id="createTaskTemplatePreview" hidden></div>
@@ -551,6 +556,7 @@
 
           <p class="admin-only-note">مش شرط تختار كل الأقسام. الأقسام واليوزرات بتتقرأ من صفحة الأقسام ومسار Firebase: <strong>departments</strong>، واليوزرات من <strong>users</strong>.</p>
           <div class="department-task-list" id="departmentTaskList"></div>
+          <datalist id="stockCarsDatalist"></datalist>
         </section>
 
         <section class="create-task-section publish-budget-section">

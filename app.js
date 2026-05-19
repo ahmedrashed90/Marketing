@@ -1546,7 +1546,8 @@ const DESIGN_DELIVERABLES = [
   ['ثامبنيل', 'YouTube / Reels / Video Cover'],
   ['إيديت صور سيارات', 'موقع / سوشيال / حملات'],
   ['ملفات مفتوحة', 'عند الحاجة للأرشفة أو التعديل لاحقًا'],
-  ['نسخة نشر نهائية', 'JPG / PNG / PDF حسب المطلوب']
+  ['نسخة نشر نهائية', 'JPG / PNG / PDF حسب المطلوب'],
+  ['مطبوعات أونلاين', 'اكتب المقاس المطلوب']
 ];
 const MONTAGE_DELIVERABLES = [
   ['مونتاج أجندة عادي', 'Reel 1080x1920 + نسخة نهائية للنشر'],
@@ -1591,11 +1592,28 @@ function buildSpecialDepartmentFields(kind) {
         </div>
         <div class="photo-items-list" data-photo-items-list>
           <article class="photo-item-row" data-photo-item>
-            <label class="mzj-field"><span>نوع السيارة</span><input type="text" data-photo-car-type placeholder="مثال: هيونداي / النترا"></label>
+            <label class="mzj-field"><span>نوع السيارة</span><input type="text" list="stockCarsDatalist" data-photo-car-type placeholder="اختار من حصر الماركات والمواصفات والألوان"></label>
             <label class="mzj-field"><span>نوع المحتوى</span><select data-photo-content-type>${PHOTOGRAPHY_CONTENT_TYPES.map(t => `<option value="${escapeHTML(t)}">${escapeHTML(t)}</option>`).join('')}</select></label>
           </article>
         </div>
         <label class="mzj-field full-width-field"><span>ملاحظات / تفاصيل التصوير</span><textarea data-required-text rows="3" placeholder="اكتب تفاصيل التصوير من التاسك"></textarea></label>
+      </div>`;
+  }
+  if (kind === 'content') {
+    return `
+      <div class="dept-special-fields" data-special-kind="content">
+        <div class="dept-special-head">
+          <strong>المطلوب</strong>
+          <span class="department-hint-inline">اختار السيارة من حصر الاستوك واكتب المطلوب من المحتوى</span>
+        </div>
+        <label class="mzj-field full-width-field">
+          <span>السيارة المطلوبة من حصر الماركات والمواصفات والألوان</span>
+          <input type="text" list="stockCarsDatalist" data-content-car-type placeholder="ابحث بالماركة / المواصفة / اللون">
+        </label>
+        <label class="mzj-field full-width-field">
+          <span>المطلوب من قسم المحتوى</span>
+          <textarea data-required-text rows="3" placeholder="اكتب المطلوب من قسم المحتوى"></textarea>
+        </label>
       </div>`;
   }
   if (kind === 'design') {
@@ -1608,6 +1626,10 @@ function buildSpecialDepartmentFields(kind) {
         <div class="multi-choice-grid" data-design-choices>
           ${renderMultiChoicePairs(DESIGN_DELIVERABLES, 'design', 'data-design-deliverable')}
         </div>
+        <label class="mzj-field full-width-field design-print-size-field" data-design-print-size-wrap hidden>
+          <span>مقاس مطبوعات أونلاين</span>
+          <input type="text" data-design-print-size placeholder="مثال: 1080x1080 / A4 / 1920x1080">
+        </label>
         <label class="mzj-field full-width-field"><span>ملاحظات إضافية</span><textarea data-required-text rows="3" placeholder="اكتب أي تفاصيل إضافية للتصميم"></textarea></label>
       </div>`;
   }
@@ -2284,6 +2306,8 @@ function initCreateTaskFromTemplate() {
       input.closest('.multi-choice-card')?.classList.remove('is-checked');
     });
     assignmentRow.querySelectorAll('[data-required-text]').forEach((textarea) => { textarea.value = ''; });
+    assignmentRow.querySelectorAll('[data-content-car-type], [data-design-print-size]').forEach((input) => { input.value = ''; });
+    assignmentRow.querySelectorAll('[data-design-print-size-wrap]').forEach((wrap) => { wrap.hidden = true; });
     const photoList = assignmentRow.querySelector('[data-photo-items-list]');
     if (photoList) photoList.innerHTML = '';
   }
@@ -2635,6 +2659,19 @@ function initCreateTaskFromTemplate() {
   function renderStockCarsDatalist() {
     if (!stockCarsCache.length) return '<datalist id="stockCarsDatalist"></datalist>';
     return `<datalist id="stockCarsDatalist">${stockCarsCache.map((car) => `<option value="${escapeHTML(car.display)}"></option>`).join('')}</datalist>`;
+  }
+
+  function refreshStockCarsDatalist() {
+    const html = renderStockCarsDatalist();
+    const current = document.getElementById('stockCarsDatalist');
+    if (current) {
+      const wrap = document.createElement('div');
+      wrap.innerHTML = html;
+      const next = wrap.firstElementChild;
+      if (next) current.replaceWith(next);
+    } else if (form) {
+      form.insertAdjacentHTML('beforeend', html);
+    }
   }
 
   function renderContentTypeLinkAssignmentRow() {
@@ -3247,6 +3284,7 @@ function initCreateTaskFromTemplate() {
     try {
       await ensureDepartments();
       await loadStockCarsForDropdown();
+      refreshStockCarsDatalist();
       const buffer = await file.arrayBuffer();
       const workbook = XLSX.read(buffer, { type: 'array', cellDates: true });
       const sheetName = findAgendaContentSheetName(workbook);
@@ -3267,6 +3305,7 @@ function initCreateTaskFromTemplate() {
     try {
       await ensureDepartments();
       await loadStockCarsForDropdown();
+      refreshStockCarsDatalist();
       const buffer = await file.arrayBuffer();
       const workbook = XLSX.read(buffer, { type: 'array', cellDates: true });
       const sheetName = pickCampaignContentSheetName(workbook);
@@ -3307,16 +3346,28 @@ function initCreateTaskFromTemplate() {
         requiredText: [itemText, notes].filter(Boolean).join(' — ')
       };
     }
+    if (kind === 'content') {
+      const carType = row.querySelector('[data-content-car-type]')?.value.trim() || '';
+      const notes = row.querySelector('[data-required-text]')?.value.trim() || '';
+      return {
+        kind,
+        carType,
+        notes,
+        requiredText: [carType ? `السيارة المطلوبة: ${carType}` : '', notes].filter(Boolean).join(' — ')
+      };
+    }
     if (kind === 'design') {
+      const printSize = row.querySelector('[data-design-print-size]')?.value.trim() || '';
       const selected = Array.from(row.querySelectorAll('[data-design-deliverable]:checked')).map((item) => ({
         title: item.dataset.title || item.value || '',
-        details: item.dataset.desc || ''
+        details: item.dataset.title === 'مطبوعات أونلاين' && printSize ? `المقاس: ${printSize}` : (item.dataset.desc || '')
       })).filter((item) => item.title || item.details);
       const notes = row.querySelector('[data-required-text]')?.value.trim() || '';
       return {
         kind,
         deliverables: selected,
         deliverable: selected.map((item) => item.title).join('، '),
+        printSize,
         deliveryDetails: selected.map((item) => [item.title, item.details].filter(Boolean).join(': ')).join(' | '),
         notes,
         requiredText: [selected.map((item) => [item.title, item.details].filter(Boolean).join(': ')).join(' | '), notes].filter(Boolean).join(' — ')
@@ -3383,7 +3434,11 @@ function initCreateTaskFromTemplate() {
           receivedBy: '',
           attachmentLabel: attachmentLabelForKind(kind),
           requiredText,
-          requiredDetails: special
+          requiredDetails: special,
+          photoItems: special.items || [],
+          selectedDeliverables: special.deliverables || [],
+          carType: special.carType || '',
+          printSize: special.printSize || ''
         };
         if (item.departmentId || item.userName || item.requiredText) tasks.push(item);
       });
@@ -3391,11 +3446,28 @@ function initCreateTaskFromTemplate() {
     return tasks;
   }
 
+  function todayISODate() {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }
+
+  function setAutomaticTaskDate(force = false) {
+    const taskDateInput = document.getElementById('taskDate');
+    if (taskDateInput) {
+      if (force || !taskDateInput.value) taskDateInput.value = todayISODate();
+      taskDateInput.readOnly = true;
+      taskDateInput.title = 'التاريخ يتم تحديده تلقائيًا';
+    }
+  }
+
   function openCreateTaskModal() {
-    ensureDepartments().then(() => {
+    ensureDepartments().then(async () => {
       fillTemplateOptions();
       applyDateLabels();
       ensureGeneratedCode();
+      setAutomaticTaskDate();
+      await loadStockCarsForDropdown();
+      refreshStockCarsDatalist();
       modal.classList.add('is-open');
       modal.setAttribute('aria-hidden', 'false');
     });
@@ -3416,6 +3488,7 @@ function initCreateTaskFromTemplate() {
       }
       await ensureDepartments();
       await loadStockCarsForDropdown();
+      refreshStockCarsDatalist();
       fillTemplateOptions();
       applyImportedTemplateRows(rows, review.fileName || 'حملة تحت المراجعة', review.sheetName || 'محتوي الحمله');
       modal.classList.add('is-open');
@@ -3435,6 +3508,7 @@ function initCreateTaskFromTemplate() {
     fillTemplateOptions();
     applyDateLabels();
     ensureGeneratedCode(true);
+    setAutomaticTaskDate(true);
   });
 
   [agendaMonthSelect, agendaYearSelect].forEach((select) => {
@@ -3511,6 +3585,7 @@ function initCreateTaskFromTemplate() {
       preview.hidden = true;
       preview.innerHTML = '';
     }
+    setAutomaticTaskDate(true);
     renderTemplateFieldInputs(null);
   });
 
@@ -3544,7 +3619,7 @@ function initCreateTaskFromTemplate() {
         item.className = 'photo-item-row';
         item.dataset.photoItem = 'true';
         item.innerHTML = `
-          <label class="mzj-field"><span>نوع السيارة</span><input type="text" data-photo-car-type placeholder="مثال: هيونداي / النترا"></label>
+          <label class="mzj-field"><span>نوع السيارة</span><input type="text" list="stockCarsDatalist" data-photo-car-type placeholder="اختار من حصر الماركات والمواصفات والألوان"></label>
           <label class="mzj-field"><span>نوع المحتوى</span><select data-photo-content-type>${PHOTOGRAPHY_CONTENT_TYPES.map(t => `<option value="${escapeHTML(t)}">${escapeHTML(t)}</option>`).join('')}</select></label>
           <button class="soft-danger-btn" type="button" data-remove-photo-item>مسح</button>
         `;
@@ -3575,6 +3650,16 @@ function initCreateTaskFromTemplate() {
     const choice = event.target.closest('[data-design-deliverable], [data-montage-deliverable]');
     if (choice) {
       choice.closest('.multi-choice-card')?.classList.toggle('is-checked', choice.checked);
+      if (choice.matches('[data-design-deliverable]')) {
+        const assignmentRow = choice.closest('[data-department-assignment-row]');
+        const wrap = assignmentRow?.querySelector('[data-design-print-size-wrap]');
+        const hasPrint = !!assignmentRow?.querySelector('[data-design-deliverable][data-title="مطبوعات أونلاين"]:checked');
+        if (wrap) wrap.hidden = !hasPrint;
+        if (!hasPrint) {
+          const input = assignmentRow?.querySelector('[data-design-print-size]');
+          if (input) input.value = '';
+        }
+      }
     }
   });
 
@@ -3686,6 +3771,8 @@ function initCreateTaskFromTemplate() {
       campaignGoal: taskType === 'agenda' ? 'تفاعلي' : (formData.get('campaignGoal') || ''),
       campaignStartDate: formData.get('campaignStartDate') || '',
       campaignEndDate: formData.get('campaignEndDate') || '',
+      campaignEndDescription: formData.get('campaignEndDescription') || '',
+      campaignDescription: formData.get('campaignEndDescription') || '',
       launchDate: formData.get('campaignStartDate') || '',
       endDate: formData.get('campaignEndDate') || '',
       departmentTasks,

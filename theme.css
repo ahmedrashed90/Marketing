@@ -6942,3 +6942,87 @@ body:has(#taskDetailsModal.is-open){
 @media(max-width:900px){
   #createTaskModal .distribution-grid{grid-template-columns:1fr!important;}
 }
+
+/* Professional chip picker for create task distribution */
+#createTaskModal .distribution-pro-picker{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:16px;
+  margin-top:14px;
+}
+#createTaskModal .pro-picker-column{
+  padding:16px;
+  border-radius:22px;
+  background:rgba(255,255,255,.74);
+  border:1px solid rgba(73,36,30,.08);
+  box-shadow:0 12px 28px rgba(75,36,31,.045);
+}
+#createTaskModal .pro-chip-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(180px,1fr));
+  gap:10px;
+  margin-top:12px;
+  max-height:260px;
+  overflow:auto;
+  padding:4px;
+}
+#createTaskModal .pro-select-chip{
+  border:1px solid rgba(73,36,30,.10);
+  border-radius:18px;
+  background:linear-gradient(180deg,#fff,rgba(255,248,239,.72));
+  padding:12px 14px;
+  cursor:pointer;
+  display:grid;
+  gap:5px;
+  text-align:right;
+  font:inherit;
+  color:var(--brown-900,#3e2420);
+  min-height:70px;
+  transition:transform .16s ease, box-shadow .16s ease, border-color .16s ease, background .16s ease;
+}
+#createTaskModal .pro-select-chip:hover{
+  transform:translateY(-1px);
+  box-shadow:0 12px 24px rgba(75,36,31,.08);
+  border-color:rgba(73,36,30,.22);
+}
+#createTaskModal .pro-select-chip span{
+  font-weight:900;
+  line-height:1.35;
+}
+#createTaskModal .pro-select-chip small{
+  color:rgba(75,36,31,.58);
+  font-weight:800;
+}
+#createTaskModal .pro-select-chip.is-selected{
+  background:linear-gradient(135deg,var(--brown-900,#3e2420),#6c4037);
+  color:var(--cream,#fff7ec);
+  border-color:transparent;
+  box-shadow:0 16px 34px rgba(75,36,31,.18);
+}
+#createTaskModal .pro-select-chip.is-selected small{
+  color:rgba(255,248,239,.72);
+}
+#createTaskModal .pro-select-chip.user-chip.is-selected{
+  background:linear-gradient(135deg,#5b3a32,#8b695f);
+}
+#createTaskModal .assignment-distribution-panel{
+  border-top:1px dashed rgba(73,36,30,.12);
+  padding-top:18px;
+}
+#createTaskModal .assignment-distribution-head{
+  display:grid;
+  gap:6px;
+  margin-bottom:10px;
+}
+#createTaskModal .assignment-distribution-head strong{
+  font-size:20px;
+  color:var(--brown-900,#3e2420);
+}
+#createTaskModal .assignment-distribution-head small{
+  color:var(--muted,#7f6b64);
+  font-weight:800;
+}
+@media(max-width:900px){
+  #createTaskModal .distribution-pro-picker{grid-template-columns:1fr;}
+  #createTaskModal .pro-chip-grid{grid-template-columns:1fr;max-height:none;}
+}

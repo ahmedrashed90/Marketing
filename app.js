@@ -2371,6 +2371,53 @@ function initCreateTaskFromTemplate() {
     return { rows: [], flat: [] };
   }
 
+
+  function selectedValuesFromSelect(select) {
+    return Array.from(select?.selectedOptions || []).map((option) => option.value).filter(Boolean);
+  }
+
+  function renderDepartmentChipPicker(assignmentRow) {
+    const select = assignmentRow?.querySelector('select[data-target-department-select]');
+    const grid = assignmentRow?.querySelector('[data-department-chip-grid]');
+    if (!select || !grid) return;
+    select.innerHTML = renderDepartmentTargetOptions(selectedValuesFromSelect(select));
+    const selected = new Set(selectedValuesFromSelect(select));
+    grid.innerHTML = Array.from(select.options).filter((option) => option.value).map((option) => {
+      const kind = deptKindFromName(option.dataset.departmentKind || option.dataset.departmentName || option.textContent || '');
+      const active = selected.has(option.value);
+      return `<button class="pro-select-chip ${active ? 'is-selected' : ''}" type="button" data-department-chip value="${escapeHTML(option.value)}" data-kind="${escapeHTML(kind)}">
+        <span>${escapeHTML(option.textContent || option.value)}</span>
+        <small>${active ? 'مختار' : 'اضغط للاختيار'}</small>
+      </button>`;
+    }).join('') || '<p class="required-content-empty">لا توجد أقسام محفوظة.</p>';
+  }
+
+  function renderUserChipPicker(assignmentRow) {
+    const deptSelect = assignmentRow?.querySelector('select[data-target-department-select]');
+    const userSelect = assignmentRow?.querySelector('select[data-user-select]');
+    const grid = assignmentRow?.querySelector('[data-user-chip-grid]');
+    if (!deptSelect || !userSelect || !grid) return;
+    const selectedDeptIds = selectedValuesFromSelect(deptSelect);
+    const selectedUsers = selectedValuesFromSelect(userSelect);
+    userSelect.innerHTML = renderUserOptionsForDepartmentIds(selectedDeptIds, selectedUsers);
+    const active = new Set(selectedValuesFromSelect(userSelect));
+    const options = Array.from(userSelect.options).filter((option) => option.value);
+    grid.innerHTML = options.length ? options.map((option) => {
+      const isActive = active.has(option.value);
+      return `<button class="pro-select-chip user-chip ${isActive ? 'is-selected' : ''}" type="button" data-user-chip value="${escapeHTML(option.value)}">
+        <span>${escapeHTML(option.textContent || option.value)}</span>
+        <small>${isActive ? 'مختار' : 'اختيار اليوزر'}</small>
+      </button>`;
+    }).join('') : '<p class="required-content-empty">اختار قسم الأول علشان تظهر اليوزرات.</p>';
+  }
+
+  function hydrateAssignmentPickers(scope = departmentsList) {
+    scope?.querySelectorAll?.('[data-department-assignment-row]').forEach((assignmentRow) => {
+      renderDepartmentChipPicker(assignmentRow);
+      renderUserChipPicker(assignmentRow);
+    });
+  }
+
   function createDepartmentAssignmentHTML(dept, index = 1) {
     const kind = 'content';
     return `
@@ -2399,27 +2446,22 @@ function initCreateTaskFromTemplate() {
             <strong>الأقسام واليوزرات</strong>
             <small>اختار الأقسام المطلوبة الأول، وبعدها هتظهر اليوزرات الخاصة بالأقسام المختارة.</small>
           </div>
-          <div class="department-task-grid department-task-core-grid professional-core-grid distribution-grid">
-            <div class="field-panel">
+          <div class="distribution-pro-picker" data-distribution-pro-picker>
+            <select data-target-department-select multiple hidden>${renderDepartmentTargetOptions()}</select>
+            <select data-user-select multiple hidden>${renderUserOptionsForDepartmentIds([])}</select>
+            <div class="pro-picker-column">
               <div class="field-panel-head">
                 <strong>الأقسام المطلوبة</strong>
-                <small>ينفع تختار أكثر من قسم</small>
+                <small>اختيار بكروت بدل القائمة القديمة</small>
               </div>
-              <label class="mzj-field multi-select-shell">
-                <select data-target-department-select multiple size="5">${renderDepartmentTargetOptions()}</select>
-                <span class="multi-select-tip">اختار الأقسام اللي هيوصل لها نفس المطلوب.</span>
-              </label>
+              <div class="pro-chip-grid" data-department-chip-grid></div>
             </div>
-
-            <div class="field-panel">
+            <div class="pro-picker-column">
               <div class="field-panel-head">
                 <strong>اليوزرات / المسؤولين</strong>
-                <small>حسب الأقسام المختارة</small>
+                <small>بيظهروا حسب الأقسام المختارة</small>
               </div>
-              <label class="mzj-field multi-select-shell">
-                <select data-user-select multiple size="5">${renderUserOptionsForDepartmentIds([])}</select>
-                <span class="multi-select-tip">ينفع تختار أكثر من يوزر من الأقسام اللي اخترتها.</span>
-              </label>
+              <div class="pro-chip-grid" data-user-chip-grid></div>
             </div>
           </div>
         </div>
@@ -2446,7 +2488,9 @@ function initCreateTaskFromTemplate() {
     const nextIndex = list.querySelectorAll('[data-department-assignment-row]').length + 1;
     list.insertAdjacentHTML('beforeend', createDepartmentAssignmentHTML(dept, nextIndex));
     refreshDepartmentAssignmentNumbers(deptRow);
-    return list.querySelector('[data-department-assignment-row]:last-child');
+    const added = list.querySelector('[data-department-assignment-row]:last-child');
+    hydrateAssignmentPickers(added);
+    return added;
   }
 
   function getFirstDepartmentAssignment(row) {
@@ -2486,6 +2530,7 @@ function initCreateTaskFromTemplate() {
       </div>
     `;
     departmentsList.appendChild(row);
+    hydrateAssignmentPickers(row);
   }
 
   function renderAllDepartments() {
@@ -2656,28 +2701,36 @@ function initCreateTaskFromTemplate() {
 
   function getPublishChoiceLabels() {
     const labels = [];
+    const pushLabel = (label) => {
+      const clean = templateCellText(label || '');
+      if (clean && !labels.includes(clean)) labels.push(clean);
+    };
     departmentsList?.querySelectorAll('[data-department-assignment-row]').forEach((row) => {
-      const deptRow = row.closest('.department-task-row');
-      const kind = deptRow?.dataset.departmentKind || '';
-      if (kind === 'design' || kind === 'montage') {
-        row.querySelectorAll('[data-universal-required-item]').forEach((item) => {
-          const selectedType = item.querySelector('[data-universal-content-type]:checked');
+      const selectedDeptKinds = selectedValuesFromSelect(row.querySelector('select[data-target-department-select]')).map((deptId) => {
+        const option = row.querySelector(`select[data-target-department-select] option[value="${CSS.escape(deptId)}"]`);
+        const dept = (departmentsCache || []).find((item) => String(item.id || item.name || '') === String(deptId));
+        return deptKindFromName(dept?.name || option?.dataset.departmentKind || option?.dataset.departmentName || option?.textContent || deptId);
+      });
+      const shouldPublish = selectedDeptKinds.includes('design') || selectedDeptKinds.includes('montage');
+      if (!shouldPublish) return;
+      row.querySelectorAll('[data-universal-required-item]').forEach((item) => {
+        const selectedTypes = Array.from(item.querySelectorAll('[data-universal-content-type]:checked'));
+        const cars = Array.from(item.querySelectorAll('[data-universal-car-choice]:checked')).map((input) => templateCellText(input.value)).filter(Boolean).join('، ') || templateCellText(item.querySelector('[data-universal-car-type]')?.value || '');
+        const size = templateCellText(item.querySelector('[data-universal-print-size]')?.value || '');
+        const note = templateCellText(item.querySelector('[data-universal-required-text]')?.value || '');
+        selectedTypes.forEach((selectedType) => {
           const title = templateCellText(selectedType?.value || '');
           const desc = templateCellText(selectedType?.dataset.desc || '');
-          const car = Array.from(item.querySelectorAll('[data-universal-car-choice]:checked')).map((input) => templateCellText(input.value)).filter(Boolean).join('، ') || templateCellText(item.querySelector('[data-universal-car-type]')?.value || '');
-          const size = templateCellText(item.querySelector('[data-universal-print-size]')?.value || '');
-          const note = templateCellText(item.querySelector('[data-universal-required-text]')?.value || '');
-          const label = [title, car ? `السيارة: ${car}` : '', size ? `المقاس: ${size}` : '', desc || note].filter(Boolean).join(' — ');
-          if (label && !labels.includes(label)) labels.push(label);
+          const label = [
+            selectedDeptKinds.includes('design') ? 'تصميم' : '',
+            selectedDeptKinds.includes('montage') ? 'مونتاج' : '',
+            title,
+            cars ? `السيارة: ${cars}` : '',
+            size ? `المقاس: ${size}` : '',
+            desc || note
+          ].filter(Boolean).join(' — ');
+          pushLabel(label);
         });
-      }
-
-      row.querySelectorAll('[data-design-deliverable]:checked, [data-montage-deliverable]:checked').forEach((input) => {
-        const title = templateCellText(input.dataset.title || input.value || '');
-        const desc = templateCellText(input.dataset.desc || '');
-        const size = input.dataset.title === 'مطبوعات أونلاين' ? templateCellText(row.querySelector('[data-design-print-size]')?.value || '') : '';
-        const label = [title, size ? `المقاس: ${size}` : desc].filter(Boolean).join(' — ');
-        if (label && !labels.includes(label)) labels.push(label);
       });
     });
     return labels;
@@ -4445,6 +4498,30 @@ function initCreateTaskFromTemplate() {
       return;
     }
 
+    const deptChip = event.target.closest('[data-department-chip]');
+    if (deptChip) {
+      const assignmentRow = deptChip.closest('[data-department-assignment-row]');
+      const select = assignmentRow?.querySelector('select[data-target-department-select]');
+      const value = deptChip.getAttribute('value') || '';
+      const option = Array.from(select?.options || []).find((item) => item.value === value);
+      if (option) option.selected = !option.selected;
+      renderDepartmentChipPicker(assignmentRow);
+      renderUserChipPicker(assignmentRow);
+      refreshPublishCalendarOptions();
+      refreshBudgetDropdownOptions();
+      return;
+    }
+    const userChip = event.target.closest('[data-user-chip]');
+    if (userChip) {
+      const assignmentRow = userChip.closest('[data-department-assignment-row]');
+      const select = assignmentRow?.querySelector('select[data-user-select]');
+      const value = userChip.getAttribute('value') || '';
+      const option = Array.from(select?.options || []).find((item) => item.value === value);
+      if (option) option.selected = !option.selected;
+      renderUserChipPicker(assignmentRow);
+      return;
+    }
+
     const addAssignment = event.target.closest('[data-add-department-assignment]');
     if (addAssignment) {
       const deptRow = addAssignment.closest('.department-task-row');
@@ -4550,13 +4627,15 @@ function initCreateTaskFromTemplate() {
   });
 
   departmentsList.addEventListener('change', (event) => {
-    const targetDepartmentSelect = event.target.closest('[data-target-department-select]');
+    const targetDepartmentSelect = event.target.closest('select[data-target-department-select]');
     if (targetDepartmentSelect) {
       const assignmentRow = targetDepartmentSelect.closest('[data-department-assignment-row]');
       const userSelect = assignmentRow?.querySelector('[data-user-select]');
       const selectedDeptIds = Array.from(targetDepartmentSelect.selectedOptions || []).map((option) => option.value).filter(Boolean);
       const selectedUsers = Array.from(userSelect?.selectedOptions || []).map((option) => option.value).filter(Boolean);
       if (userSelect) userSelect.innerHTML = renderUserOptionsForDepartmentIds(selectedDeptIds, selectedUsers);
+      renderDepartmentChipPicker(assignmentRow);
+      renderUserChipPicker(assignmentRow);
       return;
     }
 

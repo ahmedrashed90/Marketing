@@ -2042,6 +2042,10 @@ function initCreateTaskFromTemplate() {
     return ['الأحد','الاثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت'][date.getDay()];
   }
 
+  function arabicMonthName(date) {
+    return date.toLocaleDateString('ar-EG', { month: 'long', year: 'numeric' });
+  }
+
   function getPublishChoiceLabels() {
     const labels = [];
     departmentsList?.querySelectorAll('[data-department-assignment-row]').forEach((row) => {
@@ -2062,24 +2066,32 @@ function initCreateTaskFromTemplate() {
     return values.map((value) => `<option value="${escapeHTML(value)}" ${selected.includes(value) ? 'selected' : ''}>${escapeHTML(value)}</option>`).join('');
   }
 
-  function createPublishScheduleRow(data = {}) {
-    if (!publishScheduleRows) return;
-    const row = document.createElement('article');
-    row.className = 'publish-schedule-row publish-calendar-day';
-    const selected = Array.isArray(data.items) ? data.items : (data.content ? String(data.content).split(' + ').map(x => x.trim()).filter(Boolean) : []);
-    row.innerHTML = `
-      <div class="publish-calendar-day-head">
-        <strong>${escapeHTML(data.day || '')}</strong>
-        <span>${escapeHTML(data.date || '')}</span>
-      </div>
-      <input type="hidden" data-schedule-day value="${escapeHTML(data.day || '')}">
-      <input type="hidden" data-schedule-date value="${escapeHTML(data.date || '')}">
-      <label class="mzj-field full-width-field">
-        <span>اختار ما سيتم نشره في اليوم ده</span>
-        <select data-schedule-content multiple size="4">${renderPublishChoicesOptions(selected)}</select>
-      </label>
-    `;
-    publishScheduleRows.appendChild(row);
+  function renderPublishCalendarDay(date, items = [], isOutOfRange = false) {
+    const iso = formatDateISO(date);
+    const selected = Array.isArray(items) ? items : [];
+    const summary = selected.length ? selected.map((item) => `<span>${escapeHTML(item)}</span>`).join('') : '<em>اضغط لاختيار النشر</em>';
+    return `
+      <article class="publish-schedule-row publish-calendar-cell ${isOutOfRange ? 'is-muted' : ''}" data-publish-calendar-cell data-date="${escapeHTML(iso)}">
+        <button class="publish-calendar-date-btn" type="button" data-open-publish-day ${isOutOfRange ? 'disabled' : ''}>
+          <span class="publish-calendar-weekday">${escapeHTML(arabicDayName(date))}</span>
+          <strong>${date.getDate()}</strong>
+          <small>${escapeHTML(iso)}</small>
+          <div class="publish-calendar-summary">${summary}</div>
+        </button>
+        <div class="publish-day-editor" data-publish-day-editor hidden>
+          <input type="hidden" data-schedule-day value="${escapeHTML(arabicDayName(date))}">
+          <input type="hidden" data-schedule-date value="${escapeHTML(iso)}">
+          <label class="mzj-field full-width-field">
+            <span>اختار ما سيتم نشره في اليوم ده</span>
+            <select data-schedule-content multiple size="5">${renderPublishChoicesOptions(selected)}</select>
+          </label>
+          <small class="admin-only-note">تقدر تختار أكتر من عنصر للنشر في نفس اليوم.</small>
+        </div>
+      </article>`;
+  }
+
+  function monthKey(date) {
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
   }
 
   function buildPublishCalendar(force = false) {
@@ -2091,8 +2103,6 @@ function initCreateTaskFromTemplate() {
     let startValue = campaignStartDateInput?.value || '';
     let endValue = campaignEndDateInput?.value || '';
 
-    // لو المستخدم ضغط الزر قبل ما يكتب التواريخ، نخلي التقويم يشتغل بدل ما يسكت.
-    // يقدر بعدها يعدل تاريخ البداية والنهاية ويضغط إنشاء / تحديث التقويم تاني.
     if (!startValue) {
       startValue = document.getElementById('taskDate')?.value || todayISODate();
       if (campaignStartDateInput) campaignStartDateInput.value = startValue;
@@ -2106,7 +2116,7 @@ function initCreateTaskFromTemplate() {
     let endDate = new Date(endValue + 'T00:00:00');
 
     if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
-      if (note) note.textContent = '⚠️ تاريخ بداية أو نهاية الحملة غير صحيح.';
+      if (note) note.textContent = '⚠️ تاريخ بداية أو نهاية النشر غير صحيح.';
       return false;
     }
 
@@ -2118,42 +2128,77 @@ function initCreateTaskFromTemplate() {
     }
 
     const previous = new Map();
-    publishScheduleRows.querySelectorAll('.publish-schedule-row').forEach((row) => {
-      const date = row.querySelector('[data-schedule-date]')?.value || '';
+    publishScheduleRows.querySelectorAll('[data-publish-calendar-cell], .publish-schedule-row').forEach((row) => {
+      const date = row.querySelector('[data-schedule-date]')?.value || row.dataset.date || '';
       const selected = Array.from(row.querySelectorAll('[data-schedule-content] option:checked')).map((opt) => opt.value).filter(Boolean);
       if (date) previous.set(date, selected);
     });
 
-    publishScheduleRows.innerHTML = '';
+    const months = new Map();
     for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
-      const date = formatDateISO(d);
-      createPublishScheduleRow({ day: arabicDayName(d), date, items: previous.get(date) || [] });
+      const key = monthKey(d);
+      if (!months.has(key)) months.set(key, []);
+      months.get(key).push(new Date(d));
     }
-    if (note) note.textContent = `✅ تم إنشاء تقويم النشر من ${startValue} إلى ${endValue}.`;
+
+    publishScheduleRows.innerHTML = '';
+    publishScheduleRows.classList.add('publish-calendar-board');
+
+    months.forEach((days) => {
+      const monthStart = new Date(days[0].getFullYear(), days[0].getMonth(), 1);
+      const blanks = monthStart.getDay(); // الأحد = 0
+      const monthWrap = document.createElement('section');
+      monthWrap.className = 'publish-calendar-month';
+      monthWrap.innerHTML = `
+        <div class="publish-calendar-month-head">
+          <h5>${escapeHTML(arabicMonthName(days[0]))}</h5>
+          <small>اضغط على أي يوم واختار ما سيتم نشره</small>
+        </div>
+        <div class="publish-calendar-week-header">
+          ${['الأحد','الاثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت'].map((day) => `<span>${day}</span>`).join('')}
+        </div>
+        <div class="publish-calendar-grid"></div>
+      `;
+      const grid = monthWrap.querySelector('.publish-calendar-grid');
+      for (let i = 0; i < blanks; i += 1) {
+        const blank = document.createElement('div');
+        blank.className = 'publish-calendar-blank';
+        grid.appendChild(blank);
+      }
+      days.forEach((day) => {
+        const iso = formatDateISO(day);
+        grid.insertAdjacentHTML('beforeend', renderPublishCalendarDay(day, previous.get(iso) || []));
+      });
+      publishScheduleRows.appendChild(monthWrap);
+    });
+
+    if (note) note.textContent = `✅ تم إنشاء تقويم النشر من ${startValue} إلى ${endValue}. اضغط على اليوم لاختيار المحتوى.`;
     return true;
   }
 
   function refreshPublishCalendarOptions() {
     if (!publishScheduleRows) return;
-    if (!publishScheduleRows.querySelector('.publish-schedule-row')) {
+    if (!publishScheduleRows.querySelector('[data-publish-calendar-cell]')) {
       buildPublishCalendar(false);
       return;
     }
-    publishScheduleRows.querySelectorAll('.publish-schedule-row').forEach((row) => {
+    publishScheduleRows.querySelectorAll('[data-publish-calendar-cell]').forEach((row) => {
       const select = row.querySelector('[data-schedule-content]');
       if (!select) return;
       const selected = Array.from(select.selectedOptions || []).map((opt) => opt.value).filter(Boolean);
       select.innerHTML = renderPublishChoicesOptions(selected);
+      const summary = row.querySelector('.publish-calendar-summary');
+      if (summary) summary.innerHTML = selected.length ? selected.map((item) => `<span>${escapeHTML(item)}</span>`).join('') : '<em>اضغط لاختيار النشر</em>';
     });
   }
 
   function collectPublishScheduleDetails() {
     if (!publishScheduleRows) return [];
-    return Array.from(publishScheduleRows.querySelectorAll('.publish-schedule-row')).map((row) => {
+    return Array.from(publishScheduleRows.querySelectorAll('[data-publish-calendar-cell]')).map((row) => {
       const items = Array.from(row.querySelectorAll('[data-schedule-content] option:checked')).map((opt) => opt.value).filter(Boolean);
       return {
         day: row.querySelector('[data-schedule-day]')?.value || '',
-        date: row.querySelector('[data-schedule-date]')?.value || '',
+        date: row.querySelector('[data-schedule-date]')?.value || row.dataset.date || '',
         items,
         content: items.join(' + ')
       };
@@ -3865,9 +3910,28 @@ function initCreateTaskFromTemplate() {
 
   if (publishScheduleRows) {
     publishScheduleRows.addEventListener('click', (event) => {
-      const removeBtn = event.target.closest('[data-remove-schedule-row]');
-      if (!removeBtn) return;
-      removeBtn.closest('.publish-schedule-row')?.remove();
+      const dayBtn = event.target.closest('[data-open-publish-day]');
+      if (!dayBtn) return;
+      const cell = dayBtn.closest('[data-publish-calendar-cell]');
+      const editor = cell?.querySelector('[data-publish-day-editor]');
+      if (!cell || !editor) return;
+      const isOpen = cell.classList.contains('is-open');
+      publishScheduleRows.querySelectorAll('[data-publish-calendar-cell].is-open').forEach((item) => {
+        if (item !== cell) {
+          item.classList.remove('is-open');
+          item.querySelector('[data-publish-day-editor]')?.setAttribute('hidden', '');
+        }
+      });
+      cell.classList.toggle('is-open', !isOpen);
+      editor.hidden = isOpen;
+    });
+    publishScheduleRows.addEventListener('change', (event) => {
+      const select = event.target.closest('[data-schedule-content]');
+      if (!select) return;
+      const cell = select.closest('[data-publish-calendar-cell]');
+      const summary = cell?.querySelector('.publish-calendar-summary');
+      const selected = Array.from(select.selectedOptions || []).map((opt) => opt.value).filter(Boolean);
+      if (summary) summary.innerHTML = selected.length ? selected.map((item) => `<span>${escapeHTML(item)}</span>`).join('') : '<em>اضغط لاختيار النشر</em>';
     });
   }
 

@@ -1749,13 +1749,12 @@ function renderUserOptions(users, departmentId = '', allowFallback = true) {
 
 // Shared caches used by the create-task modal helpers.
 // They must be global here because some helper functions are defined outside initCreateTaskModal().
-var departmentsCache = Array.isArray(window.MZJ_DEPARTMENTS_FALLBACK) ? window.MZJ_DEPARTMENTS_FALLBACK : [];
+var departmentsCache = Array.isArray(MZJ_DEPARTMENTS_FALLBACK) ? MZJ_DEPARTMENTS_FALLBACK : [];
 var usersCache = [];
 
 function renderDepartmentTargetOptions(selectedIds = []) {
   const selectedSet = new Set((Array.isArray(selectedIds) ? selectedIds : [selectedIds]).map((id) => String(id || '')));
-  const list = (departmentsCache || []).filter(Boolean);
-  if (!list.length) return '<option value="">لا توجد أقسام محفوظة</option>';
+  const list = ((departmentsCache || []).filter(Boolean).length ? (departmentsCache || []) : MZJ_DEPARTMENTS_FALLBACK).filter(Boolean);
   return list.map((dept) => `<option value="${escapeHTML(dept.id || dept.name || '')}" data-department-name="${escapeHTML(dept.name || '')}" data-department-kind="${escapeHTML(deptKindFromName(dept.name || ''))}" ${selectedSet.has(String(dept.id || dept.name || '')) ? 'selected' : ''}>${escapeHTML(dept.name || dept.id || 'قسم')}</option>`).join('');
 }
 
@@ -2380,7 +2379,7 @@ function initCreateTaskFromTemplate() {
           <div class="assignment-title-group">
             <span class="assignment-number-chip">تكليف ${escapeHTML(index)}</span>
             <strong>قسم المحتوى</strong>
-            <small>اكتب المطلوب مرة واحدة ثم وزعه على الأقسام واليوزرات المناسبة.</small>
+            <small>اكتب اسم التاسك وتفاصيل المطلوب، وبعد اختيار نوع المحتوى وزّعه على الأقسام واليوزرات.</small>
           </div>
           <button class="soft-danger-btn" type="button" data-remove-department-assignment>مسح التكليف</button>
         </div>
@@ -2390,31 +2389,40 @@ function initCreateTaskFromTemplate() {
             <span>اسم التاسك</span>
             <input type="text" data-assignment-task-name placeholder="مثال: تجهيز محتوى إعلان عرض الجمعة">
           </label>
-
-          <div class="field-panel">
-            <div class="field-panel-head">
-              <strong>الأقسام المطلوبة</strong>
-              <small>ينفع تختار أكثر من قسم</small>
-            </div>
-            <label class="mzj-field multi-select-shell">
-              <select data-target-department-select multiple size="5">${renderDepartmentTargetOptions()}</select>
-              <span class="multi-select-tip">اختار الأقسام اللي هيوصل لها نفس المطلوب.</span>
-            </label>
-          </div>
-
-          <div class="field-panel">
-            <div class="field-panel-head">
-              <strong>اليوزرات / المسؤولين</strong>
-              <small>حسب الأقسام المختارة</small>
-            </div>
-            <label class="mzj-field multi-select-shell">
-              <select data-user-select multiple size="5">${renderUserOptionsForDepartmentIds([])}</select>
-              <span class="multi-select-tip">ينفع تختار أكثر من يوزر من الأقسام اللي اخترتها.</span>
-            </label>
-          </div>
         </div>
 
         ${buildSpecialDepartmentFields(kind)}
+
+        <div class="assignment-distribution-panel" data-assignment-distribution-panel>
+          <div class="assignment-distribution-head">
+            <span class="content-box-eyebrow">التوزيع بعد نوع المحتوى</span>
+            <strong>الأقسام واليوزرات</strong>
+            <small>اختار الأقسام المطلوبة الأول، وبعدها هتظهر اليوزرات الخاصة بالأقسام المختارة.</small>
+          </div>
+          <div class="department-task-grid department-task-core-grid professional-core-grid distribution-grid">
+            <div class="field-panel">
+              <div class="field-panel-head">
+                <strong>الأقسام المطلوبة</strong>
+                <small>ينفع تختار أكثر من قسم</small>
+              </div>
+              <label class="mzj-field multi-select-shell">
+                <select data-target-department-select multiple size="5">${renderDepartmentTargetOptions()}</select>
+                <span class="multi-select-tip">اختار الأقسام اللي هيوصل لها نفس المطلوب.</span>
+              </label>
+            </div>
+
+            <div class="field-panel">
+              <div class="field-panel-head">
+                <strong>اليوزرات / المسؤولين</strong>
+                <small>حسب الأقسام المختارة</small>
+              </div>
+              <label class="mzj-field multi-select-shell">
+                <select data-user-select multiple size="5">${renderUserOptionsForDepartmentIds([])}</select>
+                <span class="multi-select-tip">ينفع تختار أكثر من يوزر من الأقسام اللي اخترتها.</span>
+              </label>
+            </div>
+          </div>
+        </div>
       </article>
     `;
   }

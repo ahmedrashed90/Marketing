@@ -6911,3 +6911,34 @@ body:has(#taskDetailsModal.is-open){
   #createTaskModal .department-task-core-grid,
   #createTaskModal .professional-core-grid{grid-template-columns:1fr!important;}
 }
+
+/* Distribution block placed under content type choices */
+#createTaskModal .assignment-distribution-panel{
+  margin-top:16px;
+  padding:18px;
+  border-radius:22px;
+  border:1px solid rgba(73,36,30,.08);
+  background:linear-gradient(180deg, rgba(255,255,255,.96), rgba(255,248,239,.72));
+  box-shadow:0 12px 30px rgba(75,36,31,.05);
+}
+#createTaskModal .assignment-distribution-head{
+  display:grid;
+  gap:7px;
+  margin-bottom:14px;
+}
+#createTaskModal .assignment-distribution-head strong{
+  color:var(--brown-900);
+  font-size:20px;
+  font-weight:900;
+}
+#createTaskModal .assignment-distribution-head small{
+  color:var(--muted);
+  font-weight:800;
+  line-height:1.7;
+}
+#createTaskModal .distribution-grid{
+  grid-template-columns:repeat(2,minmax(0,1fr))!important;
+}
+@media(max-width:900px){
+  #createTaskModal .distribution-grid{grid-template-columns:1fr!important;}
+}

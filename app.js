@@ -2066,12 +2066,31 @@ function renderUniversalContentChoiceCards(kind) {
   `).join('');
 }
 
+function renderStockCarChoiceCards() {
+  if (!stockCarsCache.length) {
+    return '<div class="required-content-empty">لا توجد سيارات متاحة من الاستوك حاليًا. اكتب المطلوب يدويًا في الخانة أسفل الاختيارات.</div>';
+  }
+  return stockCarsCache.map((car, index) => {
+    const label = car.display || car.carName || car.statement || car.model || ('سيارة ' + (index + 1));
+    return `<label class="universal-car-choice-card">
+      <input type="checkbox" data-universal-car-choice value="${escapeHTML(label)}" data-car-id="${escapeHTML(car.docId || car.id || '')}">
+      <span>${escapeHTML(label)}</span>
+    </label>`;
+  }).join('');
+}
+
 function renderUniversalRequiredItem(kind, removable = false) {
   return `
     <article class="universal-required-item" data-universal-required-item>
+      <div class="universal-car-choice-wrap full-width-field">
+        <div class="universal-content-type-head">اختيار السيارة</div>
+        <div class="universal-car-choice-grid" data-universal-car-choice-grid>
+          ${renderStockCarChoiceCards()}
+        </div>
+      </div>
       <label class="mzj-field full-width-field">
-        <span>السيارة / المطلوب</span>
-        <input type="text" list="stockCarsDatalist" data-universal-car-type placeholder="اختار من الاستوك أو اكتب السيارة / المطلوب يدويًا">
+        <span>مطلوب يدوي / ملاحظة إضافية</span>
+        <input type="text" data-universal-car-type placeholder="اختياري - اكتب سيارة غير موجودة أو تفاصيل المطلوب">
       </label>
       <div class="universal-content-type-wrap full-width-field">
         <div class="universal-content-type-head">نوع المحتوى</div>
@@ -2250,6 +2269,7 @@ function initCreateTaskFromTemplate() {
     funnelsCache = await loadMarketingFunnels();
     requiredContentTypesCache = await loadRequiredContentTypes();
     window.MZJRequiredContentTypesCache = requiredContentTypesCache;
+    await loadStockCarsForDropdown();
     await refreshCampaignTypes();
     try { await loadTaskTemplatesFromFirebase(); } catch (error) { if (note) note.textContent = '⚠️ فشل قراءة قوالب Firebase: ' + (error?.message || error?.code || error); }
     applyDateLabels();
@@ -2309,17 +2329,13 @@ function initCreateTaskFromTemplate() {
         <div class="department-task-grid department-task-core-grid">
           <label class="mzj-field">
             <span>\u0627\u0644\u064a\u0648\u0632\u0631 / \u0627\u0644\u0645\u0633\u0624\u0648\u0644</span>
-            <select data-user-select>${renderUserOptions(usersForDepartment(dept, usersCache), '', false)}</select>
+            <select data-user-select multiple size="4">${renderUserOptions(usersForDepartment(dept, usersCache), '', false)}</select>
+            <small class="field-hint">\u062a\u0642\u062f\u0631 \u062a\u062e\u062a\u0627\u0631 \u0623\u0643\u062a\u0631 \u0645\u0646 \u064a\u0648\u0632\u0631 \u0645\u0646 \u0646\u0641\u0633 \u0627\u0644\u0642\u0633\u0645.</small>
           </label>
 
           <label class="mzj-field">
-            <span>\u0627\u0644\u062a\u0627\u0631\u064a\u062e \u0627\u0644\u0645\u0637\u0644\u0648\u0628</span>
+            <span>${kind === 'publish' ? '\u062a\u0627\u0631\u064a\u062e \u0627\u0644\u0627\u0637\u0644\u0627\u0639' : '\u0627\u0644\u062a\u0627\u0631\u064a\u062e \u0627\u0644\u0645\u0637\u0644\u0648\u0628'}</span>
             <input type="date" data-required-date>
-          </label>
-
-          <label class="mzj-field">
-            <span>${kind === 'publish' ? '\u062a\u0627\u0631\u064a\u062e \u0627\u0644\u0646\u0634\u0631' : '\u062a\u0627\u0631\u064a\u062e \u0627\u0644\u062a\u0633\u0644\u064a\u0645'}</span>
-            <input type="date" data-delivery-date>
           </label>
         </div>
 
@@ -2556,14 +2572,19 @@ function initCreateTaskFromTemplate() {
       const kind = deptRow?.dataset.departmentKind || '';
       if (kind === 'design' || kind === 'montage') {
         row.querySelectorAll('[data-universal-required-item]').forEach((item) => {
-          const selectedType = item.querySelector('[data-universal-content-type]:checked');
-          const title = templateCellText(selectedType?.value || '');
-          const desc = templateCellText(selectedType?.dataset.desc || '');
-          const car = templateCellText(item.querySelector('[data-universal-car-type]')?.value || '');
+          const selectedTypes = Array.from(item.querySelectorAll('[data-universal-content-type]:checked')).map((input) => ({
+            title: templateCellText(input.value || ''),
+            desc: templateCellText(input.dataset.desc || '')
+          })).filter((entry) => entry.title);
+          const selectedCars = Array.from(item.querySelectorAll('[data-universal-car-choice]:checked')).map((input) => templateCellText(input.value || '')).filter(Boolean);
+          const manualCar = templateCellText(item.querySelector('[data-universal-car-type]')?.value || '');
+          const cars = [...selectedCars, manualCar].filter(Boolean);
           const size = templateCellText(item.querySelector('[data-universal-print-size]')?.value || '');
           const note = templateCellText(item.querySelector('[data-universal-required-text]')?.value || '');
-          const label = [title, car ? `السيارة: ${car}` : '', size ? `المقاس: ${size}` : '', desc || note].filter(Boolean).join(' — ');
-          if (label && !labels.includes(label)) labels.push(label);
+          selectedTypes.forEach((type) => {
+            const label = [type.title, cars.length ? `السيارة: ${cars.join(' + ')}` : '', size ? `المقاس: ${size}` : '', type.desc || note].filter(Boolean).join(' — ');
+            if (label && !labels.includes(label)) labels.push(label);
+          });
         });
       }
 
@@ -2578,9 +2599,24 @@ function initCreateTaskFromTemplate() {
     return labels;
   }
 
-  function renderPublishChoicesChecklist(selected = []) {
-    const values = getPublishChoiceLabels();
-    if (!values.length) return '<p class="publish-choice-empty">اختار من قسم التصميم أو المونتاج الأول، وبعدها ارجع لليوم ده.</p>';
+  function publishScheduleTakenValues(currentDate = '') {
+    const taken = new Set();
+    if (!publishScheduleRows) return taken;
+    publishScheduleRows.querySelectorAll('[data-publish-calendar-cell]').forEach((row) => {
+      const date = row.querySelector('[data-schedule-date]')?.value || row.dataset.date || '';
+      if (String(date) === String(currentDate)) return;
+      row.querySelectorAll('[data-schedule-content]:checked').forEach((input) => {
+        if (input.value) taken.add(input.value);
+      });
+    });
+    return taken;
+  }
+
+  function renderPublishChoicesChecklist(selected = [], currentDate = '') {
+    const selectedSet = new Set(selected || []);
+    const taken = publishScheduleTakenValues(currentDate);
+    const values = getPublishChoiceLabels().filter((value) => selectedSet.has(value) || !taken.has(value));
+    if (!values.length) return '<p class="publish-choice-empty">كل عناصر النشر المختارة محجوزة في أيام أخرى أو لم يتم اختيار محتوى من التصميم/المونتاج بعد.</p>';
     return values.map((value, index) => {
       const id = `publish-choice-${Date.now()}-${index}-${Math.random().toString(16).slice(2)}`;
       return `<label class="publish-choice-checkpoint">
@@ -2607,7 +2643,7 @@ function initCreateTaskFromTemplate() {
           <input type="hidden" data-schedule-date value="${escapeHTML(iso)}">
           <div class="publish-choice-box">
             <strong>اختار ما سيتم نشره في اليوم ده</strong>
-            <div class="publish-choice-list" data-publish-choice-list>${renderPublishChoicesChecklist(selected)}</div>
+            <div class="publish-choice-list" data-publish-choice-list>${renderPublishChoicesChecklist(selected, iso)}</div>
           </div>
           <small class="admin-only-note">تقدر تختار أكتر من عنصر للنشر في نفس اليوم.</small>
         </div>
@@ -2710,7 +2746,7 @@ function initCreateTaskFromTemplate() {
       const list = row.querySelector('[data-publish-choice-list]');
       if (!list) return;
       const selected = Array.from(row.querySelectorAll('[data-schedule-content]:checked')).map((input) => input.value).filter(Boolean);
-      list.innerHTML = renderPublishChoicesChecklist(selected);
+      list.innerHTML = renderPublishChoicesChecklist(selected, row.querySelector('[data-schedule-date]')?.value || row.dataset.date || '');
       const summary = row.querySelector('.publish-calendar-summary');
       if (summary) summary.innerHTML = selected.length ? selected.map((item) => `<span>${escapeHTML(item)}</span>`).join('') : '<em>اضغط لاختيار النشر</em>';
     });
@@ -2810,7 +2846,8 @@ function initCreateTaskFromTemplate() {
       return text === normalized || val === normalized || text.includes(normalized) || normalized.includes(text);
     });
     if (match) {
-      select.value = match.value;
+      if (select.multiple) match.selected = true;
+      else select.value = match.value;
       select.dispatchEvent(new Event('change', { bubbles: true }));
       return;
     }
@@ -2819,7 +2856,8 @@ function initCreateTaskFromTemplate() {
       option.value = value;
       option.textContent = value;
       select.appendChild(option);
-      select.value = value;
+      if (select.multiple) option.selected = true;
+      else select.value = value;
       select.dispatchEvent(new Event('change', { bubbles: true }));
     }
   }
@@ -2837,7 +2875,8 @@ function initCreateTaskFromTemplate() {
       return text.includes(normalized) || normalized.includes(text) || email === normalized || name.includes(normalized) || normalized.includes(name);
     });
     if (option) {
-      select.value = option.value;
+      if (select.multiple) option.selected = true;
+      else select.value = option.value;
       select.dispatchEvent(new Event('change', { bubbles: true }));
     }
   }
@@ -3511,7 +3550,8 @@ function initCreateTaskFromTemplate() {
       return val === wanted || email === wanted || name === wanted || text.includes(wanted);
     });
     if (option) {
-      select.value = option.value;
+      if (select.multiple) option.selected = true;
+      else select.value = option.value;
       select.dispatchEvent(new Event('change', { bubbles: true }));
     }
   }
@@ -4005,10 +4045,13 @@ function initCreateTaskFromTemplate() {
         id: input.dataset.id || '',
         details: input.dataset.desc || ''
       })).filter((entry) => entry.title);
-      const carOrRequired = item.querySelector('[data-universal-car-type]')?.value.trim() || '';
+      const selectedCars = Array.from(item.querySelectorAll('[data-universal-car-choice]:checked')).map((input) => input.value.trim()).filter(Boolean);
+      const manualText = item.querySelector('[data-universal-car-type]')?.value.trim() || '';
+      const carOrRequired = [...selectedCars, manualText].filter(Boolean).join('، ');
       return {
-        requiredText: carOrRequired,
+        requiredText: manualText || carOrRequired,
         carType: carOrRequired,
+        selectedCars,
         contentTypes: selectedTypes,
         contentType: selectedTypes.map((entry) => entry.title).join('، '),
         contentTypeId: selectedTypes.map((entry) => entry.id).filter(Boolean).join(','),
@@ -4029,6 +4072,7 @@ function initCreateTaskFromTemplate() {
       title: item.contentType || item.requiredText || 'مطلوب',
       details: [item.details, item.carType ? `السيارة / المطلوب: ${item.carType}` : '', item.printSize ? `المقاس: ${item.printSize}` : '', item.requiredText].filter(Boolean).join(' — '),
       carType: item.carType,
+      selectedCars: item.selectedCars || [],
       printSize: item.printSize,
       requiredText: item.requiredText,
       contentTypeId: item.contentTypeId
@@ -4057,46 +4101,53 @@ function initCreateTaskFromTemplate() {
       Array.from(deptRow.querySelectorAll('[data-department-assignment-row]')).forEach((assignmentRow, assignmentIndex) => {
         const special = collectSpecialDepartmentDetails(assignmentRow, kind);
         const requiredText = special.requiredText || '';
-        const selectedUser = assignmentRow.querySelector('[data-user-select]')?.value || '';
-        const selectedOption = assignmentRow.querySelector('[data-user-select] option:checked');
-        const optionText = selectedOption?.textContent || '';
-        const selectedName = selectedOption?.dataset.userName || (selectedUser ? optionText : '');
-        const selectedEmail = selectedOption?.dataset.userEmail || selectedUser;
-        const selectedId = selectedOption?.dataset.userId || selectedOption?.dataset.userUid || selectedEmail || selectedName;
+        const userSelect = assignmentRow.querySelector('[data-user-select]');
+        const selectedOptions = Array.from(userSelect?.selectedOptions || []).filter((opt) => opt.value);
+        const userOptions = selectedOptions.length ? selectedOptions : [userSelect?.querySelector('option:checked')].filter(Boolean);
         const assignmentNo = assignmentIndex + 1;
-        const item = {
-          enabled,
-          departmentId,
-          departmentKind: kind,
-          departmentName: department?.name || '',
-          assignmentIndex: assignmentNo,
-          assignmentLabel: (department?.name || '') + ' - ' + '\u062a\u0643\u0644\u064a\u0641 ' + assignmentNo,
-          userId: selectedId,
-          userUid: selectedOption?.dataset.userUid || selectedId,
-          userName: selectedName,
-          userDisplayName: selectedName,
-          userEmail: selectedEmail,
-          assigneeUid: selectedOption?.dataset.userUid || selectedId,
-          assigneeEmail: selectedEmail,
-          assigneeName: selectedName,
-          receiveDate: '',
-          requiredDate: assignmentRow.querySelector('[data-required-date]')?.value || '',
-          deliveryDate: assignmentRow.querySelector('[data-delivery-date]')?.value || '',
-          receivedConfirmed: false,
-          received: false,
-          receivedAt: '',
-          receivedBy: '',
-          attachmentLabel: attachmentLabelForKind(kind),
-          requiredText,
-          requiredDetails: special,
-          photoItems: kind === 'photography' ? (special.items || []) : [],
-          contentItems: special.items || [],
-          selectedDeliverables: special.deliverables || [],
-          contentType: special.contentType || '',
-          carType: special.carType || '',
-          printSize: special.printSize || ''
-        };
-        if (item.departmentId || item.userName || item.requiredText) tasks.push(item);
+        userOptions.forEach((selectedOption, userOffset) => {
+          const selectedUser = selectedOption?.value || '';
+          const optionText = selectedOption?.textContent || '';
+          const selectedName = selectedOption?.dataset.userName || (selectedUser ? optionText : '');
+          const selectedEmail = selectedOption?.dataset.userEmail || selectedUser;
+          const selectedId = selectedOption?.dataset.userId || selectedOption?.dataset.userUid || selectedEmail || selectedName;
+          const item = {
+            enabled,
+            departmentId,
+            departmentKind: kind,
+            departmentName: department?.name || '',
+            assignmentIndex: assignmentNo,
+            assignmentUserIndex: userOffset + 1,
+            assignmentLabel: (department?.name || '') + ' - ' + 'تكليف ' + assignmentNo + (userOptions.length > 1 ? ' / يوزر ' + (userOffset + 1) : ''),
+            userId: selectedId,
+            userUid: selectedOption?.dataset.userUid || selectedId,
+            userName: selectedName,
+            userDisplayName: selectedName,
+            userEmail: selectedEmail,
+            assigneeUid: selectedOption?.dataset.userUid || selectedId,
+            assigneeEmail: selectedEmail,
+            assigneeName: selectedName,
+            receiveDate: '',
+            requiredDate: assignmentRow.querySelector('[data-required-date]')?.value || '',
+            deliveryDate: '',
+            publishDate: '',
+            viewedDate: '',
+            receivedConfirmed: false,
+            received: false,
+            receivedAt: '',
+            receivedBy: '',
+            attachmentLabel: attachmentLabelForKind(kind),
+            requiredText,
+            requiredDetails: special,
+            photoItems: kind === 'photography' ? (special.items || []) : [],
+            contentItems: special.items || [],
+            selectedDeliverables: special.deliverables || [],
+            contentType: special.contentType || '',
+            carType: special.carType || '',
+            printSize: special.printSize || ''
+          };
+          if (item.departmentId || item.userName || item.requiredText) tasks.push(item);
+        });
       });
     });
     return tasks;
@@ -4380,6 +4431,14 @@ function initCreateTaskFromTemplate() {
   });
 
   departmentsList.addEventListener('change', (event) => {
+    const carChoice = event.target.closest('[data-universal-car-choice]');
+    if (carChoice) {
+      carChoice.closest('.universal-car-choice-card')?.classList.toggle('is-checked', carChoice.checked);
+      refreshPublishCalendarOptions();
+      refreshBudgetDropdownOptions();
+      return;
+    }
+
     const universalSelect = event.target.closest('[data-universal-content-type]');
     if (universalSelect) {
       const item = universalSelect.closest('[data-universal-required-item]');
@@ -4417,7 +4476,7 @@ function initCreateTaskFromTemplate() {
   });
 
   departmentsList.addEventListener('input', (event) => {
-    if (event.target.closest('[data-design-print-size], [data-universal-print-size], [data-universal-car-type]')) {
+    if (event.target.closest('[data-design-print-size], [data-universal-print-size], [data-universal-car-type], [data-universal-car-choice]')) {
       refreshPublishCalendarOptions();
       refreshBudgetDropdownOptions();
     }
@@ -4524,6 +4583,7 @@ function initCreateTaskFromTemplate() {
       const summary = cell?.querySelector('.publish-calendar-summary');
       const selected = Array.from(cell?.querySelectorAll('[data-schedule-content]:checked') || []).map((input) => input.value).filter(Boolean);
       if (summary) summary.innerHTML = selected.length ? selected.map((item) => `<span>${escapeHTML(item)}</span>`).join('') : '<em>اضغط لاختيار النشر</em>';
+      refreshPublishCalendarOptions();
     });
   }
 
@@ -5683,11 +5743,11 @@ initCreateTaskFromTemplate();
       <div class="publish-details-panel" data-publish-details hidden>
         <div class="publish-compact-meta">
           <span>استلام: ${esc(receiveDate)}</span>
-          <span>تسليم: ${esc(deliveryDate)}</span>
+          <span>اطلاع: ${esc(deliveryDate)}</span>
           <span>المسؤول: ${esc(publishDept.departmentName ? deptAssigneeLabel(publishDept) : '--')}</span>
         </div>
         <div class="publish-compact-actions">
-          <button class="primary-btn ${deliveryDate !== '--' ? 'is-done' : ''}" type="button" data-start-publish data-task-id="${esc(task.id)}" ${!userIsAdmin()?'disabled':''}>${deliveryDate !== '--' ? 'تم بدء النشر' : 'بدء النشر'}</button>
+          <button class="primary-btn ${deliveryDate !== '--' ? 'is-done' : ''}" type="button" data-start-publish data-task-id="${esc(task.id)}" ${!userIsAdmin()?'disabled':''}>${deliveryDate !== '--' ? 'تم الاطلاع' : 'تأكيد الاطلاع'}</button>
           ${PUBLISH_STEPS.map((step,i)=>`<button type="button" class="task-step-btn publish-mini-step ${done.includes(i) ? 'is-done' : ''}" data-publish-step data-task-id="${esc(task.id)}" data-step-index="${i}" ${!userIsAdmin()?'disabled':''}>${esc(step.label)} <small>${esc(step.value)}%</small></button>`).join('')}
           <button class="danger-btn publish-mini-delete" type="button" data-delete-task="${esc(task.id)}" data-admin-only>مسح</button>
         </div>
@@ -5758,7 +5818,7 @@ initCreateTaskFromTemplate();
         <span class="meta-person"><small>المسؤول</small><strong>${esc(deptTask.userDisplayName || deptTask.userName || deptTask.userEmail || 'بدون مسؤول')}</strong></span>
         <span class="meta-receive"><small>تاريخ الاستلام</small><strong>${esc(deptTask.receiveDate || (deptTask.receivedAt ? String(deptTask.receivedAt).slice(0,10) : '—'))}</strong></span>
         <span class="meta-date meta-required"><small>التاريخ المطلوب</small><strong>${esc(deptTask.requiredDate || '—')}</strong></span>
-        <span class="meta-date meta-delivery"><small>${dkey === 'publish' ? 'تاريخ النشر' : 'تاريخ التسليم'}</small><strong>${esc(deptTask.deliveryDate || deptTask.publishDate || '—')}</strong></span>
+        <span class="meta-date meta-delivery"><small>${dkey === 'publish' ? 'تاريخ الاطلاع' : 'تاريخ التسليم'}</small><strong>${esc(deptTask.deliveryDate || deptTask.publishDate || '—')}</strong></span>
         <span class="meta-status"><small>حالة الاستلام</small><strong>${(deptTask.receivedConfirmed || deptTask.received || deptTask.receivedAt) ? 'تم الاستلام' : 'لم يتم الاستلام'}</strong></span>
       </div>
       <div class="department-progress-row"><div class="department-progress-box"><small>اكتمال التاسك</small><strong data-task-percent>${p}%</strong></div><div class="department-progress-box"><small>نسبة الحملة</small><strong data-campaign-percent>${groupCampaignPercent}%</strong></div></div>
@@ -5901,6 +5961,30 @@ initCreateTaskFromTemplate();
     }
   });
 
+  function markCompletedDatesFromReadiness(task, block, selected) {
+    if (!task || !block) return;
+    const departmentTasks = Array.isArray(task.departmentTasks) ? task.departmentTasks : [];
+    const readinessKey = block.dataset.readinessKey || '';
+    const legacyKey = block.dataset.legacyReadinessKey || '';
+    const deptIndex = Number(block.dataset.deptIndex || -1);
+    let dept = Number.isInteger(deptIndex) && deptIndex >= 0 ? departmentTasks[deptIndex] : null;
+    if (!dept && readinessKey) dept = departmentTasks.find((d, index) => String(dashboardDeptReadinessKey(d, index)) === readinessKey || String(mzjDetailsReadinessKey(d, index)) === readinessKey);
+    if (!dept && legacyKey) dept = departmentTasks.find((d) => String(legacyDeptReadinessKey(d)) === legacyKey || String(mzjDetailsLegacyReadinessKey(d)) === legacyKey);
+    if (!dept) return;
+    const buttons = Array.from(block.querySelectorAll('.task-step-btn'));
+    const lastIndex = buttons.length - 1;
+    if (lastIndex < 0 || !selected.includes(lastIndex)) return;
+    const today = dashboardTodayISO();
+    if (deptKey(dept.departmentName) === 'publish') {
+      dept.viewedDate = dept.viewedDate || today;
+      dept.publishDate = dept.publishDate || today;
+      dept.deliveryDate = dept.deliveryDate || today;
+    } else {
+      dept.deliveryDate = dept.deliveryDate || today;
+      dept.deliveredAt = dept.deliveredAt || today;
+    }
+  }
+
   document.addEventListener('click', function(event){
     const step = event.target.closest('#taskStepButtons .task-step-btn');
     if (!step || !activeTaskCard || !activeTaskCard.dataset.taskId) return;
@@ -5918,12 +6002,15 @@ initCreateTaskFromTemplate();
           const selected = Array.from(block.querySelectorAll('.task-step-btn.is-done')).map((btn) => Number(btn.dataset.stepIndex)).filter((value) => !Number.isNaN(value));
           if (legacyKey && legacyKey !== key) delete task.readiness[legacyKey];
           if (key) task.readiness[key] = selected;
+          markCompletedDatesFromReadiness(task, block, selected);
         });
       } else {
         const key = activeTaskCard.dataset.readinessKey || '';
         const legacyKey = activeTaskDetailsMeta?.legacyReadinessKey || '';
         if (legacyKey && legacyKey !== key) delete task.readiness[legacyKey];
         task.readiness[key] = (activeTaskCard.dataset.completedSteps || '').split(',').filter(Boolean).map(Number);
+        const activeBlock = taskStepButtons?.querySelector('[data-assignment-step-block].is-active') || taskStepButtons?.querySelector('[data-assignment-step-block]');
+        markCompletedDatesFromReadiness(task, activeBlock, task.readiness[key] || []);
       }
 
       autoStage(task);

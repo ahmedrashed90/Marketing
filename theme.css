@@ -6630,3 +6630,66 @@ body:has(#taskDetailsModal.is-open){
   opacity:.55;
   filter:grayscale(.2);
 }
+
+/* Create task: multi car and multi user controls */
+.universal-car-choice-wrap{
+  display:grid;
+  gap:10px;
+  grid-column:1/-1 !important;
+}
+.universal-car-choice-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(210px,1fr));
+  gap:10px;
+  max-height:260px;
+  overflow:auto;
+  padding:2px;
+}
+.universal-car-choice-card{
+  position:relative;
+  display:grid;
+  align-items:center;
+  min-height:64px;
+  border:1px solid rgba(62,36,32,.12);
+  border-radius:18px;
+  background:#fff;
+  padding:12px 14px;
+  cursor:pointer;
+  transition:.15s ease;
+  user-select:none;
+}
+.universal-car-choice-card input{
+  position:absolute;
+  opacity:0;
+  pointer-events:none;
+}
+.universal-car-choice-card span{
+  color:var(--brown-900,#3e2420);
+  font-weight:900;
+  line-height:1.6;
+}
+.universal-car-choice-card:hover{
+  transform:translateY(-1px);
+  box-shadow:0 12px 24px rgba(62,36,32,.08);
+}
+.universal-car-choice-card.is-checked,
+.universal-car-choice-card:has(input:checked){
+  background:var(--brown-900,#3e2420);
+  border-color:var(--brown-900,#3e2420);
+  box-shadow:0 14px 28px rgba(62,36,32,.16);
+}
+.universal-car-choice-card.is-checked span,
+.universal-car-choice-card:has(input:checked) span{
+  color:#fff;
+}
+.department-task-core-grid select[data-user-select][multiple]{
+  min-height:142px;
+  padding:10px;
+}
+.field-hint{
+  display:block;
+  margin-top:6px;
+  color:#8e766c;
+  font-weight:800;
+  line-height:1.5;
+}

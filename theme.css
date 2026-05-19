@@ -6288,3 +6288,18 @@ body:has(#taskDetailsModal.is-open){
     grid-template-columns:1fr;
   }
 }
+
+
+/* Compact publish card same as readiness card */
+.compact-publish-card .publish-details-panel{
+  margin-top:16px;
+}
+.compact-publish-card .publish-info-box{
+  margin:0 0 12px;
+}
+.compact-publish-card .publish-actions-grid{
+  margin-top:12px;
+}
+.compact-publish-card:not(.is-open){
+  max-height:none;
+}

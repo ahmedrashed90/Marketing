@@ -915,7 +915,7 @@ function mzjDetailsReadTasks() {
 function openTaskDetails(button) {
   if (!taskDetailsModal || !taskStepButtons) return;
 
-  activeTaskCard = button.closest('[data-dept-task-card]') || button.closest('.dept-card-template');
+  activeTaskCard = button.closest('[data-dept-task-card]') || button.closest('.department-task-card') || button.closest('.dept-card-template') || button.closest('[data-dash-task-id]');
   let deptDataFromButton = null;
   try {
     deptDataFromButton = button.dataset.deptTaskJson ? JSON.parse(decodeURIComponent(button.dataset.deptTaskJson)) : null;
@@ -923,7 +923,7 @@ function openTaskDetails(button) {
     deptDataFromButton = null;
   }
 
-  const taskId = activeTaskCard?.dataset.taskId || '';
+  const taskId = button.dataset.taskId || activeTaskCard?.dataset.taskId || activeTaskCard?.dataset.dashTaskId || '';
   const deptKeyValue = button.dataset.deptKey || '';
   const clickedIdentity = activeTaskCard?.dataset.deptIdentity || mzjDetailsDeptIdentity(deptDataFromButton || {});
   const allTasks = mzjDetailsReadTasks();
@@ -1112,7 +1112,12 @@ function closeTaskDetails() {
 
 document.addEventListener('click', (event) => {
   const taskDetailsButton = event.target.closest('[data-open-task-details]');
-  if (taskDetailsButton) openTaskDetails(taskDetailsButton);
+  if (taskDetailsButton) {
+    event.preventDefault();
+    event.stopPropagation();
+    openTaskDetails(taskDetailsButton);
+    return;
+  }
 
   const assignmentSwitch = event.target.closest('[data-switch-assignment]');
   if (assignmentSwitch) {
@@ -5575,19 +5580,25 @@ initCreateTaskFromTemplate();
     const receiveDate = publishDept.receiveDate || task.publishReadyDate || (publishDept.receivedAt ? String(publishDept.receivedAt).slice(0,10) : '--');
     const deliveryDate = publishDept.deliveryDate || publishDept.publishDate || task.publishStartDate || '--';
     const publishInfo = publishDept.departmentName ? `<div class="publish-info-box">
-      <strong>${esc(task.taskTypeLabel || 'حملة')} — كود الحملة: ${esc(task.campaignCode || '--')} — تاريخ جاهزية المطلوب: ${esc(receiveDate)}</strong>
-      <small>اسم المسئول / ${esc(deptAssigneeLabel(publishDept))}، تاريخ الاستلام / ${esc(receiveDate)}، التاريخ المطلوب / ${esc(publishDept.requiredDate || '--')}، تاريخ التسليم / ${esc(deliveryDate)}</small>
+      <strong>تاريخ الاستلام / ${esc(receiveDate)} — تاريخ التسليم / ${esc(deliveryDate)}</strong>
+      <small>المسؤول / ${esc(deptAssigneeLabel(publishDept))} — التاريخ المطلوب / ${esc(publishDept.requiredDate || '--')}</small>
     </div>` : '';
-    return `<article class="dept-card-template dynamic-dashboard-card" data-dash-task-id="${esc(task.id)}">
-      <div class="task-template-top"><strong>${esc(taskTitle(task))}</strong><span>${meta(task)} — جاهزية النشر ${percent}%</span></div>
-      ${publishInfo}
-      <div class="mini-progress"><span style="width:${percent}%"></span></div>
-      <div class="task-card-actions publish-start-row">
-        <button class="primary-btn ${deliveryDate !== '--' ? 'is-done' : ''}" type="button" data-start-publish data-task-id="${esc(task.id)}" ${!userIsAdmin()?'disabled':''}>${deliveryDate !== '--' ? 'تم بدء النشر' : 'بدء النشر'}</button>
+    return `<article class="readiness-card dynamic-dashboard-card compact-readiness-card compact-publish-card" data-dash-task-id="${esc(task.id)}">
+      <button class="readiness-card-summary" type="button" data-toggle-publish-details>
+        <div class="task-template-top"><strong>${esc(taskTitle(task))}</strong><span>${meta(task)} — جاهزية النشر ${percent}%</span></div>
+        <div class="mini-progress"><span style="width:${percent}%"></span></div>
+        <small>اضغط لعرض تجهيزات النشر</small>
+      </button>
+      <div class="publish-details-panel" data-publish-details hidden>
+        ${publishInfo}
+        <div class="task-card-actions publish-start-row">
+          <button class="primary-btn ${deliveryDate !== '--' ? 'is-done' : ''}" type="button" data-start-publish data-task-id="${esc(task.id)}" ${!userIsAdmin()?'disabled':''}>${deliveryDate !== '--' ? 'تم بدء النشر' : 'بدء النشر'}</button>
+        </div>
+        <div class="publish-actions-grid">
+          ${PUBLISH_STEPS.map((step,i)=>`<button type="button" class="task-step-btn ${done.includes(i) ? 'is-done' : ''}" data-publish-step data-task-id="${esc(task.id)}" data-step-index="${i}" ${!userIsAdmin()?'disabled':''}><span>${esc(step.label)}</span><small>${esc(step.value)}%</small></button>`).join('')}
+        </div>
+        <div class="task-card-actions"><button class="danger-btn" type="button" data-delete-task="${esc(task.id)}" data-admin-only>مسح الحملة</button></div>
       </div>
-      <div class="publish-actions-grid">
-        ${PUBLISH_STEPS.map((step,i)=>`<button type="button" class="task-step-btn ${done.includes(i) ? 'is-done' : ''}" data-publish-step data-task-id="${esc(task.id)}" data-step-index="${i}" ${!userIsAdmin()?'disabled':''}><span>${esc(step.label)}</span><small>${esc(step.value)}%</small></button>`).join('')}
-      </div><div class="task-card-actions"><button class="danger-btn" type="button" data-delete-task="${esc(task.id)}" data-admin-only>مسح الحملة</button></div>
     </article>`;
   }
   function archiveCard(task){
@@ -5716,6 +5727,17 @@ initCreateTaskFromTemplate();
     if (toggleReadiness) {
       const card = toggleReadiness.closest('.compact-readiness-card');
       const panel = card?.querySelector('[data-readiness-details]');
+      if (panel) {
+        panel.hidden = !panel.hidden;
+        card.classList.toggle('is-open', !panel.hidden);
+      }
+      return;
+    }
+
+    const togglePublish = event.target.closest('[data-toggle-publish-details]');
+    if (togglePublish) {
+      const card = togglePublish.closest('.compact-publish-card');
+      const panel = card?.querySelector('[data-publish-details]');
       if (panel) {
         panel.hidden = !panel.hidden;
         card.classList.toggle('is-open', !panel.hidden);

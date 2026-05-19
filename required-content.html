@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>المحتوى المطلوب - MZJ Marketing System</title>
+  <link rel="stylesheet" href="theme.css" />
+</head>
+<body data-page="requiredContent" data-route="requiredContent">
+  <button class="sidebar-toggle" type="button" data-sidebar-toggle aria-label="فتح وإغلاق القائمة">☰</button>
+  <aside class="sidebar" id="sidebar">
+    <div class="brand-block">
+      <button class="menu-toggle" id="sidebarToggle" type="button" aria-label="فتح وإغلاق القائمة">
+        <span></span><span></span><span></span>
+      </button>
+      <div class="brand-copy">
+        <strong>MZJ Workspace</strong>
+        <small>Marketing System</small>
+      </div>
+      <div class="brand-avatar">M</div>
+    </div>
+
+    <nav class="side-nav" aria-label="صفحات السيستم">
+      <a class="nav-link" href="admin.html" data-route="admin"><span class="nav-icon">01</span><span class="nav-text">صفحة الإدارة</span></a>
+      <a class="nav-link" href="stock.html" data-route="stock"><span class="nav-icon">02</span><span class="nav-text">صفحة الاستوك</span></a>
+      <a class="nav-link" href="daily-tasks.html" data-route="dailyTasks"><span class="nav-icon">03</span><span class="nav-text">تاسكات يومية</span></a>
+      <a class="nav-link" href="content.html" data-route="content"><span class="nav-icon">04</span><span class="nav-text">المحتوى</span></a>
+      <a class="nav-link" href="required-content.html" data-route="requiredContent"><span class="nav-icon">04B</span><span class="nav-text">المحتوى المطلوب</span></a>
+      <a class="nav-link" href="departments.html" data-route="departments"><span class="nav-icon">05</span><span class="nav-text">الأقسام</span></a>
+      <a class="nav-link" href="database.html" data-route="database"><span class="nav-icon">06</span><span class="nav-text">قاعدة البيانات</span></a>
+      <a class="nav-link" href="dashboard.html" data-route="dashboard"><span class="nav-icon">07</span><span class="nav-text">الداش بورد</span></a>
+      <a class="nav-link" href="campaigns-calendar.html" data-route="campaignsCalendar"><span class="nav-icon">08</span><span class="nav-text">الحملات والأجندات</span></a>
+      <a class="nav-link" href="templates.html" data-route="taskTemplates"><span class="nav-icon">09</span><span class="nav-text">قوالب الحملات</span></a>
+      <a class="nav-link" href="platforms.html" data-route="platforms"><span class="nav-icon">10</span><span class="nav-text">منصات الميزانية</span></a>
+    <a class="nav-link" href="login.html" data-route="login"><span class="nav-icon">11</span><span class="nav-text">تسجيل الدخول</span></a>
+    </nav>
+
+    <div class="sidebar-card">
+      <span class="status-dot"></span>
+      <div>
+        <strong>CONTENT</strong>
+        <small>مسار النسخة الجديدة</small>
+      </div>
+    </div>
+  </aside>
+
+  <main class="main-shell required-content-main">
+    <header class="topbar">
+      <div class="page-title">
+        <p>REQUIRED CONTENT</p>
+        <h1>المحتوى المطلوب</h1>
+      </div>
+      <div class="topbar-actions">
+        <button class="primary-btn" id="openRequiredContentForm" type="button">+ إضافة نوع محتوى</button>
+      </div>
+    </header>
+
+    <section class="workspace-card required-content-intro">
+      <span class="eyebrow">إدارة أنواع المحتوى</span>
+      <h2>أضف أنواع المحتوى لكل قسم</h2>
+      <p>أي نوع محتوى تضيفه هنا هيظهر بعد كده داخل إنشاء تاسك في الداش بورد حسب القسم المختار. تقدر تعدل أو تمسح أي نوع محتوى في أي وقت.</p>
+    </section>
+
+    <section class="workspace-card required-content-form-card" id="requiredContentFormCard" hidden>
+      <form id="requiredContentForm" class="required-content-form">
+        <input type="hidden" id="requiredContentId" />
+        <div class="create-task-grid">
+          <label class="mzj-field">
+            <span>القسم</span>
+            <select id="requiredContentDepartment" required>
+              <option value="">اختار القسم</option>
+              <option value="photography">قسم التصوير</option>
+              <option value="content">قسم المحتوى</option>
+              <option value="design">قسم التصميم</option>
+              <option value="montage">قسم المونتاج</option>
+              <option value="publish">قسم النشر</option>
+              <option value="generic">عام</option>
+            </select>
+          </label>
+          <label class="mzj-field">
+            <span>اسم نوع المحتوى</span>
+            <input id="requiredContentTitle" type="text" placeholder="مثال: ريل قصير / بوست سوشيال / فيديو صالة" required />
+          </label>
+          <label class="mzj-field full-width-field">
+            <span>وصف مختصر / ملاحظات</span>
+            <textarea id="requiredContentDetails" rows="3" placeholder="اختياري - اكتب وصف بسيط يظهر مع الاختيار"></textarea>
+          </label>
+        </div>
+        <div class="form-actions-row">
+          <button class="primary-btn" type="submit" id="saveRequiredContent">حفظ نوع المحتوى</button>
+          <button class="ghost-btn" type="button" id="cancelRequiredContent">إلغاء</button>
+        </div>
+        <p class="form-note" id="requiredContentNote"></p>
+      </form>
+    </section>
+
+    <section class="workspace-card">
+      <div class="required-content-toolbar">
+        <div>
+          <span class="eyebrow">الأنواع الحالية</span>
+          <h3>قائمة المحتوى المطلوب</h3>
+        </div>
+        <label class="mzj-field required-content-filter">
+          <span>فلتر بالقسم</span>
+          <select id="requiredContentFilter">
+            <option value="">كل الأقسام</option>
+            <option value="photography">قسم التصوير</option>
+            <option value="content">قسم المحتوى</option>
+            <option value="design">قسم التصميم</option>
+            <option value="montage">قسم المونتاج</option>
+            <option value="publish">قسم النشر</option>
+            <option value="generic">عام</option>
+          </select>
+        </label>
+      </div>
+      <div class="required-content-grid" id="requiredContentList">
+        <article class="empty-database-state">
+          <div class="empty-icon">RC</div>
+          <div>
+            <span class="eyebrow">المحتوى المطلوب</span>
+            <h4>جاري تحميل الأنواع...</h4>
+            <p>لو مفيش أنواع، اضغط إضافة نوع محتوى وابدأ إضافة الأنواع لكل قسم.</p>
+          </div>
+        </article>
+      </div>
+    </section>
+  </main>
+
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+  <script src="firebase-config.js"></script>
+  <script src="auth.js"></script>
+  <script src="routes.js"></script>
+  <script src="required-content-management.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

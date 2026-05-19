@@ -1893,79 +1893,168 @@ function attachmentLabelForKind(kind) {
   return 'إرفاق ملف';
 }
 
+
+function normalizeRequiredContentType(row, id) {
+  const title = String(row?.title || row?.name || row?.contentType || row?.label || '').trim();
+  if (!title) return null;
+  const departmentKind = String(row?.departmentKind || row?.kind || row?.departmentKey || '').trim() || deptKindFromName(row?.departmentName || row?.department || '');
+  return {
+    id: id || row?.id || row?.docId || ('content_type_' + Date.now()),
+    title,
+    details: String(row?.details || row?.description || row?.desc || '').trim(),
+    departmentKind: departmentKind || 'generic',
+    departmentName: String(row?.departmentName || row?.department || '').trim(),
+    active: row?.active !== false,
+    createdAt: row?.createdAt || '',
+    updatedAt: row?.updatedAt || ''
+  };
+}
+
+async function loadRequiredContentTypes() {
+  const collected = [];
+  if (window.firebase && window.MZJ_FIREBASE_CONFIG && firebase.firestore) {
+    try {
+      if (!firebase.apps.length) firebase.initializeApp(window.MZJ_FIREBASE_CONFIG);
+      const snap = await firebase.firestore().collection('required_content_types').get();
+      snap.forEach((doc) => {
+        const item = normalizeRequiredContentType(doc.data() || {}, doc.id);
+        if (item && item.active !== false) collected.push(item);
+      });
+    } catch (error) {
+      console.warn('required_content_types load failed:', error);
+    }
+  }
+  const map = new Map();
+  collected.forEach((item) => map.set(String(item.id || item.title + item.departmentKind), item));
+  window.MZJRequiredContentTypesCache = Array.from(map.values()).sort((a,b) => String(a.departmentKind + a.title).localeCompare(String(b.departmentKind + b.title), 'ar'));
+  return window.MZJRequiredContentTypesCache;
+}
+
+function requiredContentTypesForKind(kind) {
+  const cache = Array.isArray(window.MZJRequiredContentTypesCache) ? window.MZJRequiredContentTypesCache : [];
+  const normalizedKind = String(kind || 'generic');
+  return cache.filter((item) => item.active !== false && (item.departmentKind === normalizedKind || item.departmentKind === 'generic'));
+}
+
+function renderRequiredContentOptions(kind, selected = '') {
+  const items = requiredContentTypesForKind(kind);
+  const current = String(selected || '').trim();
+  if (!items.length) return '<option value="">لا توجد أنواع محتوى لهذا القسم</option>';
+  return '<option value="">اختار نوع المحتوى</option>' + items.map((item) => `<option value="${escapeHTML(item.title)}" data-desc="${escapeHTML(item.details || '')}" data-id="${escapeHTML(item.id)}" ${current === item.title ? 'selected' : ''}>${escapeHTML(item.title)}${item.details ? ' — ' + escapeHTML(item.details) : ''}</option>`).join('');
+}
+
+function renderRequiredContentCards(kind, attrName) {
+  const items = requiredContentTypesForKind(kind);
+  if (!items.length) {
+    return `<div class="required-content-empty">لا توجد أنواع محتوى مضافة لهذا القسم. افتح صفحة المحتوى المطلوب وأضف الأنواع.</div>`;
+  }
+  return items.map((item) => `
+    <label class="multi-choice-card required-content-choice-card">
+      <input type="checkbox" ${attrName} value="${escapeHTML(item.title)}" data-desc="${escapeHTML(item.details || '')}" data-title="${escapeHTML(item.title)}" data-required-content-id="${escapeHTML(item.id)}">
+      <span class="multi-choice-title">${escapeHTML(item.title)}</span>
+      ${item.details ? `<small>${escapeHTML(item.details)}</small>` : '<small>نوع محتوى من صفحة المحتوى المطلوب</small>'}
+    </label>
+  `).join('');
+}
+
 function buildSpecialDepartmentFields(kind) {
+  const kindLabel = ({
+    photography: 'التصوير',
+    content: 'المحتوى',
+    design: 'التصميم',
+    montage: 'المونتاج',
+    publish: 'النشر'
+  })[kind] || 'القسم';
+
   if (kind === 'photography') {
     return `
       <div class="dept-special-fields" data-special-kind="photography">
         <div class="dept-special-head">
-          <strong>المطلوب</strong>
-          <button class="soft-btn" type="button" data-add-photo-item>+ إضافة مطلوب تصوير</button>
+          <strong>المحتوى المطلوب</strong>
+          <button class="soft-btn" type="button" data-add-photo-item>+ إضافة مطلوب</button>
         </div>
+        <div class="required-content-note">اختيارات نوع المحتوى هنا جاية من صفحة المحتوى المطلوب.</div>
         <div class="photo-items-list" data-photo-items-list>
           <article class="photo-item-row" data-photo-item>
             <label class="mzj-field"><span>نوع السيارة</span><input type="text" list="stockCarsDatalist" data-photo-car-type placeholder="اختار من حصر الماركات والمواصفات والألوان"></label>
-            <label class="mzj-field"><span>نوع المحتوى</span><select data-photo-content-type>${PHOTOGRAPHY_CONTENT_TYPES.map(t => `<option value="${escapeHTML(t)}">${escapeHTML(t)}</option>`).join('')}</select></label>
+            <label class="mzj-field"><span>نوع المحتوى</span><select data-photo-content-type>${renderRequiredContentOptions('photography')}</select></label>
           </article>
         </div>
-        <label class="mzj-field full-width-field"><span>ملاحظات / تفاصيل التصوير</span><textarea data-required-text rows="3" placeholder="اكتب تفاصيل التصوير من التاسك"></textarea></label>
+        <label class="mzj-field full-width-field"><span>ملاحظات مؤقتة</span><textarea data-required-text rows="3" placeholder="اكتب أي تفاصيل لحين اعتماد شكل المطلوب النهائي"></textarea></label>
       </div>`;
   }
+
   if (kind === 'content') {
     return `
       <div class="dept-special-fields" data-special-kind="content">
         <div class="dept-special-head">
-          <strong>المطلوب</strong>
-          <button class="soft-btn" type="button" data-add-content-item>+ إضافة مطلوب جديد</button>
+          <strong>المحتوى المطلوب</strong>
+          <button class="soft-btn" type="button" data-add-content-item>+ إضافة مطلوب</button>
         </div>
+        <div class="required-content-note">اختيارات نوع المحتوى هنا جاية من صفحة المحتوى المطلوب.</div>
         <div class="content-items-list" data-content-items-list>
           <article class="content-item-row" data-content-item>
             <label class="mzj-field full-width-field">
-              <span>السيارة المطلوبة من حصر الماركات والمواصفات والألوان</span>
-              <input type="text" list="stockCarsDatalist" data-content-car-type placeholder="ابحث بالماركة / المواصفة / اللون">
+              <span>نوع المحتوى</span>
+              <select data-content-type>${renderRequiredContentOptions('content')}</select>
             </label>
             <label class="mzj-field full-width-field">
-              <span>المطلوب من قسم المحتوى</span>
-              <textarea data-content-required-text rows="3" placeholder="اكتب المطلوب من قسم المحتوى"></textarea>
+              <span>السيارة المطلوبة من الاستوك</span>
+              <input type="text" list="stockCarsDatalist" data-content-car-type placeholder="اختياري - ابحث بالماركة / المواصفة">
+            </label>
+            <label class="mzj-field full-width-field">
+              <span>ملاحظات مؤقتة</span>
+              <textarea data-content-required-text rows="3" placeholder="اكتب أي تفاصيل لحين اعتماد شكل المطلوب النهائي"></textarea>
             </label>
           </article>
         </div>
       </div>`;
   }
+
   if (kind === 'design') {
     return `
       <div class="dept-special-fields" data-special-kind="design">
         <div class="dept-special-head">
-          <strong>المطلوب</strong>
-          <span class="department-hint-inline">اختار مطلوب واحد أو أكتر من التصميم</span>
+          <strong>المحتوى المطلوب</strong>
+          <span class="department-hint-inline">الاختيارات من صفحة المحتوى المطلوب</span>
         </div>
         <div class="multi-choice-grid" data-design-choices>
-          ${renderMultiChoicePairs(DESIGN_DELIVERABLES, 'design', 'data-design-deliverable')}
+          ${renderRequiredContentCards('design', 'data-design-deliverable')}
         </div>
         <label class="mzj-field full-width-field design-print-size-field" data-design-print-size-wrap hidden>
           <span>مقاس مطبوعات أونلاين</span>
           <input type="text" data-design-print-size placeholder="مثال: 1080x1080 / A4 / 1920x1080">
         </label>
-        <label class="mzj-field full-width-field"><span>ملاحظات إضافية</span><textarea data-required-text rows="3" placeholder="اكتب أي تفاصيل إضافية للتصميم"></textarea></label>
+        <label class="mzj-field full-width-field"><span>ملاحظات مؤقتة</span><textarea data-required-text rows="3" placeholder="اكتب أي تفاصيل لحين اعتماد شكل المطلوب النهائي"></textarea></label>
       </div>`;
   }
+
   if (kind === 'montage') {
     return `
       <div class="dept-special-fields" data-special-kind="montage">
         <div class="dept-special-head">
-          <strong>المطلوب</strong>
-          <span class="department-hint-inline">اختار مطلوب واحد أو أكتر من المونتاج</span>
+          <strong>المحتوى المطلوب</strong>
+          <span class="department-hint-inline">الاختيارات من صفحة المحتوى المطلوب</span>
         </div>
         <div class="multi-choice-grid" data-montage-choices>
-          ${renderMultiChoicePairs(MONTAGE_DELIVERABLES, 'montage', 'data-montage-deliverable')}
+          ${renderRequiredContentCards('montage', 'data-montage-deliverable')}
         </div>
-        <label class="mzj-field full-width-field"><span>ملاحظات إضافية</span><textarea data-required-text rows="3" placeholder="اكتب أي تفاصيل إضافية للمونتاج"></textarea></label>
+        <label class="mzj-field full-width-field"><span>ملاحظات مؤقتة</span><textarea data-required-text rows="3" placeholder="اكتب أي تفاصيل لحين اعتماد شكل المطلوب النهائي"></textarea></label>
       </div>`;
   }
+
   return `
-    <label class="mzj-field full-width-field dept-special-fields" data-special-kind="${escapeHTML(kind)}">
-      <span>المطلوب</span>
-      <textarea data-required-text rows="3" placeholder="اكتب شرح المطلوب من القسم"></textarea>
-    </label>`;
+    <div class="dept-special-fields" data-special-kind="${escapeHTML(kind)}">
+      <div class="dept-special-head"><strong>المحتوى المطلوب - قسم ${escapeHTML(kindLabel)}</strong></div>
+      <label class="mzj-field full-width-field">
+        <span>نوع المحتوى</span>
+        <select data-generic-content-type>${renderRequiredContentOptions(kind)}</select>
+      </label>
+      <label class="mzj-field full-width-field">
+        <span>ملاحظات مؤقتة</span>
+        <textarea data-required-text rows="3" placeholder="اكتب أي تفاصيل لحين اعتماد شكل المطلوب النهائي"></textarea>
+      </label>
+    </div>`;
 }
 
 function initCreateTaskFromTemplate() {
@@ -2016,6 +2105,7 @@ function initCreateTaskFromTemplate() {
   let departmentIndex = 0;
   let platformsCache = [];
   let funnelsCache = [];
+  let requiredContentTypesCache = [];
   let campaignTypesCache = [];
   let importedTemplateContext = {
     loaded: false,
@@ -2107,6 +2197,8 @@ function initCreateTaskFromTemplate() {
     usersCache = await loadUsersFromSystemPath();
     platformsCache = await loadMarketingPlatforms();
     funnelsCache = await loadMarketingFunnels();
+    requiredContentTypesCache = await loadRequiredContentTypes();
+    window.MZJRequiredContentTypesCache = requiredContentTypesCache;
     await refreshCampaignTypes();
     try { await loadTaskTemplatesFromFirebase(); } catch (error) { if (note) note.textContent = '⚠️ فشل قراءة قوالب Firebase: ' + (error?.message || error?.code || error); }
     applyDateLabels();
@@ -3871,17 +3963,20 @@ function initCreateTaskFromTemplate() {
     }
     if (kind === 'content') {
       const items = Array.from(row.querySelectorAll('[data-content-item]')).map((item) => ({
+        contentType: item.querySelector('[data-content-type]')?.value.trim() || '',
         carType: item.querySelector('[data-content-car-type]')?.value.trim() || '',
         requiredText: item.querySelector('[data-content-required-text]')?.value.trim() || ''
-      })).filter((item) => item.carType || item.requiredText);
+      })).filter((item) => item.contentType || item.carType || item.requiredText);
       const requiredText = items.map((item, index) => [
         `مطلوب ${index + 1}`,
+        item.contentType ? `نوع المحتوى: ${item.contentType}` : '',
         item.carType ? `السيارة المطلوبة: ${item.carType}` : '',
-        item.requiredText ? `المطلوب: ${item.requiredText}` : ''
+        item.requiredText ? `ملاحظات: ${item.requiredText}` : ''
       ].filter(Boolean).join(' — ')).join(' | ');
       return {
         kind,
         items,
+        contentType: items.map((item) => item.contentType).filter(Boolean).join('، '),
         carType: items.map((item) => item.carType).filter(Boolean).join('، '),
         notes: items.map((item) => item.requiredText).filter(Boolean).join(' | '),
         requiredText
@@ -4158,7 +4253,7 @@ function initCreateTaskFromTemplate() {
         item.dataset.photoItem = 'true';
         item.innerHTML = `
           <label class="mzj-field"><span>نوع السيارة</span><input type="text" list="stockCarsDatalist" data-photo-car-type placeholder="اختار من حصر الماركات والمواصفات والألوان"></label>
-          <label class="mzj-field"><span>نوع المحتوى</span><select data-photo-content-type>${PHOTOGRAPHY_CONTENT_TYPES.map(t => `<option value="${escapeHTML(t)}">${escapeHTML(t)}</option>`).join('')}</select></label>
+          <label class="mzj-field"><span>نوع المحتوى</span><select data-photo-content-type>${renderRequiredContentOptions('photography')}</select></label>
           <button class="soft-danger-btn" type="button" data-remove-photo-item>مسح</button>
         `;
         list.appendChild(item);
@@ -4174,12 +4269,16 @@ function initCreateTaskFromTemplate() {
         item.dataset.contentItem = 'true';
         item.innerHTML = `
           <label class="mzj-field full-width-field">
-            <span>السيارة المطلوبة من حصر الماركات والمواصفات والألوان</span>
-            <input type="text" list="stockCarsDatalist" data-content-car-type placeholder="ابحث بالماركة / المواصفة / اللون">
+            <span>نوع المحتوى</span>
+            <select data-content-type>${renderRequiredContentOptions('content')}</select>
           </label>
           <label class="mzj-field full-width-field">
-            <span>المطلوب من قسم المحتوى</span>
-            <textarea data-content-required-text rows="3" placeholder="اكتب المطلوب من قسم المحتوى"></textarea>
+            <span>السيارة المطلوبة من الاستوك</span>
+            <input type="text" list="stockCarsDatalist" data-content-car-type placeholder="اختياري - ابحث بالماركة / المواصفة">
+          </label>
+          <label class="mzj-field full-width-field">
+            <span>ملاحظات مؤقتة</span>
+            <textarea data-content-required-text rows="3" placeholder="اكتب أي تفاصيل لحين اعتماد شكل المطلوب النهائي"></textarea>
           </label>
           <button class="soft-danger-btn" type="button" data-remove-content-item>مسح</button>
         `;

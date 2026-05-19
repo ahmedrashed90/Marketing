@@ -6810,6 +6810,10 @@ body:has(#taskDetailsModal.is-open){
   font-size:13px;
   font-weight:900;
   line-height:1.45;
+  white-space:normal;
+  overflow-wrap:anywhere;
+  word-break:break-word;
+  text-align:right;
 }
 .readable-chip-row.car-chips span{
   background:#fff;

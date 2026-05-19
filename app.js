@@ -1897,13 +1897,12 @@ function attachmentLabelForKind(kind) {
 function normalizeRequiredContentType(row, id) {
   const title = String(row?.title || row?.name || row?.contentType || row?.label || '').trim();
   if (!title) return null;
-  const departmentKind = String(row?.departmentKind || row?.kind || row?.departmentKey || '').trim() || deptKindFromName(row?.departmentName || row?.department || '');
   return {
     id: id || row?.id || row?.docId || ('content_type_' + Date.now()),
     title,
     details: String(row?.details || row?.description || row?.desc || '').trim(),
-    departmentKind: departmentKind || 'generic',
-    departmentName: String(row?.departmentName || row?.department || '').trim(),
+    departmentKind: 'global',
+    departmentName: 'كل الأقسام',
     active: row?.active !== false,
     createdAt: row?.createdAt || '',
     updatedAt: row?.updatedAt || ''
@@ -1932,21 +1931,20 @@ async function loadRequiredContentTypes() {
 
 function requiredContentTypesForKind(kind) {
   const cache = Array.isArray(window.MZJRequiredContentTypesCache) ? window.MZJRequiredContentTypesCache : [];
-  const normalizedKind = String(kind || 'generic');
-  return cache.filter((item) => item.active !== false && (item.departmentKind === normalizedKind || item.departmentKind === 'generic'));
+  return cache.filter((item) => item.active !== false);
 }
 
 function renderRequiredContentOptions(kind, selected = '') {
   const items = requiredContentTypesForKind(kind);
   const current = String(selected || '').trim();
-  if (!items.length) return '<option value="">لا توجد أنواع محتوى لهذا القسم</option>';
+  if (!items.length) return '<option value="">لا توجد أنواع محتوى مضافة</option>';
   return '<option value="">اختار نوع المحتوى</option>' + items.map((item) => `<option value="${escapeHTML(item.title)}" data-desc="${escapeHTML(item.details || '')}" data-id="${escapeHTML(item.id)}" ${current === item.title ? 'selected' : ''}>${escapeHTML(item.title)}${item.details ? ' — ' + escapeHTML(item.details) : ''}</option>`).join('');
 }
 
 function renderRequiredContentCards(kind, attrName) {
   const items = requiredContentTypesForKind(kind);
   if (!items.length) {
-    return `<div class="required-content-empty">لا توجد أنواع محتوى مضافة لهذا القسم. افتح صفحة المحتوى المطلوب وأضف الأنواع.</div>`;
+    return `<div class="required-content-empty">لا توجد أنواع محتوى مضافة. افتح صفحة المحتوى المطلوب وأضف الأنواع.</div>`;
   }
   return items.map((item) => `
     <label class="multi-choice-card required-content-choice-card">
@@ -1973,7 +1971,7 @@ function buildSpecialDepartmentFields(kind) {
           <strong>المحتوى المطلوب</strong>
           <button class="soft-btn" type="button" data-add-photo-item>+ إضافة مطلوب</button>
         </div>
-        <div class="required-content-note">اختيارات نوع المحتوى هنا جاية من صفحة المحتوى المطلوب.</div>
+        <div class="required-content-note">اختيارات نوع المحتوى هنا جاية من صفحة المحتوى المطلوب وتظهر لكل الأقسام.</div>
         <div class="photo-items-list" data-photo-items-list>
           <article class="photo-item-row" data-photo-item>
             <label class="mzj-field"><span>نوع السيارة</span><input type="text" list="stockCarsDatalist" data-photo-car-type placeholder="اختار من حصر الماركات والمواصفات والألوان"></label>
@@ -1991,7 +1989,7 @@ function buildSpecialDepartmentFields(kind) {
           <strong>المحتوى المطلوب</strong>
           <button class="soft-btn" type="button" data-add-content-item>+ إضافة مطلوب</button>
         </div>
-        <div class="required-content-note">اختيارات نوع المحتوى هنا جاية من صفحة المحتوى المطلوب.</div>
+        <div class="required-content-note">اختيارات نوع المحتوى هنا جاية من صفحة المحتوى المطلوب وتظهر لكل الأقسام.</div>
         <div class="content-items-list" data-content-items-list>
           <article class="content-item-row" data-content-item>
             <label class="mzj-field full-width-field">

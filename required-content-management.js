@@ -1,14 +1,7 @@
 
 (function(){
   const COLLECTION = 'required_content_types';
-  const DEPTS = {
-    photography: 'قسم التصوير',
-    content: 'قسم المحتوى',
-    design: 'قسم التصميم',
-    montage: 'قسم المونتاج',
-    publish: 'قسم النشر',
-    generic: 'عام'
-  };
+  const DEPTS = { global: 'كل الأقسام' };
 
   let items = [];
   let unsubscribe = null;
@@ -37,8 +30,8 @@
       id: id || row.id || '',
       title,
       details: String(row.details || row.description || '').trim(),
-      departmentKind: String(row.departmentKind || row.kind || 'generic').trim() || 'generic',
-      departmentName: row.departmentName || DEPTS[row.departmentKind] || 'عام',
+      departmentKind: 'global',
+      departmentName: 'كل الأقسام',
       active: row.active !== false,
       createdAt: row.createdAt || '',
       updatedAt: row.updatedAt || ''
@@ -47,7 +40,6 @@
 
   function resetForm(){
     document.getElementById('requiredContentId').value = '';
-    document.getElementById('requiredContentDepartment').value = '';
     document.getElementById('requiredContentTitle').value = '';
     document.getElementById('requiredContentDetails').value = '';
     note('');
@@ -58,7 +50,6 @@
     if(card) card.hidden = false;
     if(item){
       document.getElementById('requiredContentId').value = item.id || '';
-      document.getElementById('requiredContentDepartment').value = item.departmentKind || '';
       document.getElementById('requiredContentTitle').value = item.title || '';
       document.getElementById('requiredContentDetails').value = item.details || '';
     }else{
@@ -76,8 +67,7 @@
   function render(){
     const list = document.getElementById('requiredContentList');
     if(!list) return;
-    const filter = document.getElementById('requiredContentFilter')?.value || '';
-    const visible = items.filter(item => item.active !== false && (!filter || item.departmentKind === filter));
+    const visible = items.filter(item => item.active !== false);
     if(!visible.length){
       list.innerHTML = `<article class="empty-database-state">
         <div class="empty-icon">RC</div>
@@ -128,11 +118,10 @@
   async function save(event){
     event.preventDefault();
     const id = document.getElementById('requiredContentId').value || '';
-    const kind = document.getElementById('requiredContentDepartment').value || '';
     const title = document.getElementById('requiredContentTitle').value.trim();
     const details = document.getElementById('requiredContentDetails').value.trim();
-    if(!kind || !title){
-      note('⚠️ اختار القسم واكتب اسم نوع المحتوى.', false);
+    if(!title){
+      note('⚠️ اكتب اسم نوع المحتوى.', false);
       return;
     }
     try{
@@ -142,8 +131,8 @@
         name: title,
         details,
         description: details,
-        departmentKind: kind,
-        departmentName: DEPTS[kind] || kind,
+        departmentKind: 'global',
+        departmentName: 'كل الأقسام',
         active: true,
         updatedAt: now
       };
@@ -177,7 +166,6 @@
     document.getElementById('openRequiredContentForm')?.addEventListener('click', () => openForm());
     document.getElementById('cancelRequiredContent')?.addEventListener('click', closeForm);
     document.getElementById('requiredContentForm')?.addEventListener('submit', save);
-    document.getElementById('requiredContentFilter')?.addEventListener('change', render);
 
     document.addEventListener('click', (event) => {
       const edit = event.target.closest('[data-edit-required-content]');

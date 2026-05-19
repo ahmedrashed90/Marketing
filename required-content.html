@@ -57,26 +57,14 @@
 
     <section class="workspace-card required-content-intro">
       <span class="eyebrow">إدارة أنواع المحتوى</span>
-      <h2>أضف أنواع المحتوى لكل قسم</h2>
-      <p>أي نوع محتوى تضيفه هنا هيظهر بعد كده داخل إنشاء تاسك في الداش بورد حسب القسم المختار. تقدر تعدل أو تمسح أي نوع محتوى في أي وقت.</p>
+      <h2>أضف أنواع المحتوى العامة</h2>
+      <p>أي نوع محتوى تضيفه هنا هيظهر بعد كده داخل إنشاء تاسك في الداش بورد لكل الأقسام. تقدر تعدل أو تمسح أي نوع محتوى في أي وقت.</p>
     </section>
 
     <section class="workspace-card required-content-form-card" id="requiredContentFormCard" hidden>
       <form id="requiredContentForm" class="required-content-form">
         <input type="hidden" id="requiredContentId" />
         <div class="create-task-grid">
-          <label class="mzj-field">
-            <span>القسم</span>
-            <select id="requiredContentDepartment" required>
-              <option value="">اختار القسم</option>
-              <option value="photography">قسم التصوير</option>
-              <option value="content">قسم المحتوى</option>
-              <option value="design">قسم التصميم</option>
-              <option value="montage">قسم المونتاج</option>
-              <option value="publish">قسم النشر</option>
-              <option value="generic">عام</option>
-            </select>
-          </label>
           <label class="mzj-field">
             <span>اسم نوع المحتوى</span>
             <input id="requiredContentTitle" type="text" placeholder="مثال: ريل قصير / بوست سوشيال / فيديو صالة" required />
@@ -100,18 +88,6 @@
           <span class="eyebrow">الأنواع الحالية</span>
           <h3>قائمة المحتوى المطلوب</h3>
         </div>
-        <label class="mzj-field required-content-filter">
-          <span>فلتر بالقسم</span>
-          <select id="requiredContentFilter">
-            <option value="">كل الأقسام</option>
-            <option value="photography">قسم التصوير</option>
-            <option value="content">قسم المحتوى</option>
-            <option value="design">قسم التصميم</option>
-            <option value="montage">قسم المونتاج</option>
-            <option value="publish">قسم النشر</option>
-            <option value="generic">عام</option>
-          </select>
-        </label>
       </div>
       <div class="required-content-grid" id="requiredContentList">
         <article class="empty-database-state">

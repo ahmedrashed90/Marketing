@@ -5994,3 +5994,17 @@ body:has(#taskDetailsModal.is-open){
     min-width:0;
   }
 }
+
+
+/* Required content global mode */
+.required-content-form .create-task-grid{
+  grid-template-columns:repeat(2,minmax(0,1fr));
+}
+.required-content-toolbar{
+  align-items:center;
+}
+@media(max-width:760px){
+  .required-content-form .create-task-grid{
+    grid-template-columns:1fr;
+  }
+}

@@ -463,74 +463,116 @@ function renderTaskRequirementDetails(requiredText, deptKeyValue) {
 
 function renderReadableDepartmentRequirement(deptTask, deptKeyValue) {
   const safe = (value) => escapeHTML(value == null ? '' : value);
-  const clean = (value) => String(value || '').replace(/\s+/g, ' ').trim();
+  const clean = (value) => String(value == null ? '' : value).replace(/\s+/g, ' ').trim();
+  const itemText = (value) => {
+    if (value == null) return '';
+    if (typeof value === 'object') {
+      return clean(value.contentType || value.title || value.name || value.deliverable || value.label || value.carType || value.details || value.desc || '');
+    }
+    return clean(value);
+  };
   const unique = (values) => {
     const seen = new Set();
-    return (values || []).map(clean).filter(Boolean).filter((value) => {
+    return (values || []).map(itemText).filter(Boolean).filter((value) => {
       const key = value.toLowerCase();
+      if (!key || key === '—' || key === '-' || key === 'null' || key === 'undefined') return false;
       if (seen.has(key)) return false;
       seen.add(key);
       return true;
     });
   };
   const splitList = (value) => clean(value).split(/،|,|\+|\n|\r/g).map(clean).filter(Boolean);
+  const parseLabelValues = (text, labels) => {
+    const source = String(text || '');
+    const values = [];
+    labels.forEach((label) => {
+      const re = new RegExp(`${label}\\s*:?\\s*([^|—\\n\\r]+)`, 'gi');
+      let match;
+      while ((match = re.exec(source))) values.push(...splitList(match[1]));
+    });
+    return values;
+  };
+
   const details = deptTask?.requiredDetails && typeof deptTask.requiredDetails === 'object' ? deptTask.requiredDetails : {};
   const contentItems = [];
-  if (Array.isArray(deptTask?.contentItems)) contentItems.push(...deptTask.contentItems);
-  if (Array.isArray(deptTask?.photoItems)) contentItems.push(...deptTask.photoItems);
-  if (Array.isArray(deptTask?.selectedDeliverables)) contentItems.push(...deptTask.selectedDeliverables);
+  [deptTask?.contentItems, deptTask?.photoItems, deptTask?.selectedDeliverables, details.items, details.deliverables, details.selectedDeliverables].forEach((list) => {
+    if (Array.isArray(list)) contentItems.push(...list);
+  });
   if (details && Object.keys(details).length) contentItems.push(details);
 
-  const taskName = clean(deptTask?.taskName || deptTask?.taskTitle || deptTask?.title || deptTask?.name || details.taskName || details.taskTitle || '');
-  const contentTypes = unique([
-    deptTask?.contentType,
-    details.contentType,
-    ...(Array.isArray(details.contentTypes) ? details.contentTypes.map((x) => x?.title || x?.name || x) : []),
-    ...contentItems.map((item) => item?.contentType || item?.title || item?.name || item?.deliverable)
-  ]).filter((value) => value !== taskName);
+  const rawFallback = clean(deptTask?.requiredText || deptTask?.required || details.requiredText || '');
+  const taskName = clean(
+    deptTask?.taskName || deptTask?.taskTitle || deptTask?.title || deptTask?.name ||
+    details.taskName || details.taskTitle || details.title || details.name || ''
+  );
   const cars = unique([
     ...(Array.isArray(deptTask?.selectedCars) ? deptTask.selectedCars : []),
     ...(Array.isArray(details.selectedCars) ? details.selectedCars : []),
     ...splitList(deptTask?.carType),
     ...splitList(details.carType),
+    ...parseLabelValues(rawFallback, ['السيارة', 'نوع السيارة', 'السيارات المختارة']),
     ...contentItems.flatMap((item) => [
       ...(Array.isArray(item?.selectedCars) ? item.selectedCars : []),
-      ...splitList(item?.carType)
+      ...splitList(item?.carType),
+      ...parseLabelValues(item?.requiredText || item?.details || item?.desc || '', ['السيارة', 'نوع السيارة', 'السيارات المختارة'])
     ])
   ]);
-  const printSizes = unique([deptTask?.printSize, details.printSize, ...contentItems.map((item) => item?.printSize)]);
+  const contentTypes = unique([
+    deptTask?.contentType,
+    details.contentType,
+    ...(Array.isArray(deptTask?.contentTypes) ? deptTask.contentTypes : []),
+    ...(Array.isArray(details.contentTypes) ? details.contentTypes : []),
+    ...parseLabelValues(rawFallback, ['نوع المحتوى', 'المحتوى']),
+    ...contentItems.flatMap((item) => [
+      item?.contentType,
+      item?.deliverable,
+      item?.contentTitle,
+      item?.requiredContent,
+      ...parseLabelValues(item?.requiredText || item?.details || item?.desc || '', ['نوع المحتوى', 'المحتوى'])
+    ])
+  ]).filter((value) => value !== taskName && !/^مطلوب\s*\d+/i.test(value));
+  const printSizes = unique([deptTask?.printSize, details.printSize, ...contentItems.map((item) => item?.printSize), ...parseLabelValues(rawFallback, ['المقاس'])]);
   const extraDetails = unique([
     details.details,
     details.desc,
     details.description,
     deptTask?.deliveryDetails,
-    ...contentItems.map((item) => item?.details || item?.desc || item?.description)
-  ]).filter((value) => value && value !== taskName && !contentTypes.includes(value));
-  const rawFallback = clean(deptTask?.requiredText || deptTask?.required || '');
+    ...contentItems.map((item) => item?.notes || item?.details || item?.desc || item?.description)
+  ]).filter((value) => value && value !== taskName && !contentTypes.includes(value) && !cars.includes(value));
 
   const chips = (items, className = '') => items.length
     ? `<div class="readable-chip-row ${className}">${items.map((item) => `<span>${safe(item)}</span>`).join('')}</div>`
-    : `<em class="readable-empty">—</em>`;
+    : `<em class="readable-empty">غير محدد</em>`;
 
-  const summaryItems = [
-    `<span><small>السيارات</small><strong>${cars.length || 0}</strong></span>`,
-    `<span><small>أنواع المحتوى</small><strong>${contentTypes.length || (deptTask?.contentType ? 1 : 0)}</strong></span>`,
-    `<span><small>القسم</small><strong>${safe(deptTask?.departmentName || '—')}</strong></span>`
-  ].join('');
+  const deptLabel = clean(deptTask?.departmentName || details.departmentName || '—');
+  const userLabel = clean(deptTask?.userDisplayName || deptTask?.userName || deptTask?.assigneeName || deptTask?.userEmail || '—');
+  const finalTitle = taskName || departmentTaskShortName(deptTask) || 'تكليف مطلوب';
+  const contentLabel = contentTypes.length === 1 ? contentTypes[0] : `${contentTypes.length || 0} نوع`;
+  const carLabel = cars.length === 1 ? cars[0] : `${cars.length || 0} سيارات`;
 
-  return `<section class="readable-task-details">
-    <div class="readable-task-summary">${summaryItems}</div>
-    <article class="readable-task-main">
-      <div class="readable-task-main-head">
-        <small>اسم التكليف</small>
-        <strong>${safe(taskName || departmentTaskShortName(deptTask) || 'تكليف مطلوب')}</strong>
+  return `<section class="readable-task-details readable-task-details-v6">
+    <article class="readable-task-hero">
+      <div>
+        <small>اسم التاسك</small>
+        <strong>${safe(finalTitle)}</strong>
       </div>
-      <div class="readable-detail-grid">
-        <div class="readable-detail-item"><small>نوع المحتوى</small>${chips(contentTypes.length ? contentTypes : (deptTask?.contentType ? [deptTask.contentType] : []), 'content-type-chips')}</div>
-        <div class="readable-detail-item"><small>السيارات المختارة</small>${chips(cars, 'car-chips')}</div>
+      <div class="readable-task-hero-meta">
+        <span><small>القسم</small><b>${safe(deptLabel)}</b></span>
+        <span><small>المسؤول</small><b>${safe(userLabel)}</b></span>
+      </div>
+    </article>
+    <div class="readable-task-summary readable-task-summary-v6">
+      <span><small>نوع المحتوى</small><strong>${safe(contentLabel)}</strong></span>
+      <span><small>السيارات</small><strong>${safe(carLabel)}</strong></span>
+      ${printSizes.length ? `<span><small>المقاس</small><strong>${safe(printSizes.join('، '))}</strong></span>` : ''}
+    </div>
+    <article class="readable-task-main readable-task-main-v6">
+      <div class="readable-detail-grid readable-detail-grid-v6">
+        <div class="readable-detail-item"><small>نوع المحتوى المطلوب</small>${chips(contentTypes, 'content-type-chips')}</div>
+        <div class="readable-detail-item readable-detail-wide"><small>السيارات المختارة</small>${chips(cars, 'car-chips')}</div>
         ${printSizes.length ? `<div class="readable-detail-item"><small>المقاس</small>${chips(printSizes)}</div>` : ''}
         ${extraDetails.length ? `<div class="readable-detail-item readable-detail-wide"><small>تفاصيل إضافية</small>${chips(extraDetails)}</div>` : ''}
-        ${(!cars.length && !contentTypes.length && rawFallback) ? `<div class="readable-detail-item readable-detail-wide"><small>المطلوب</small>${renderTaskRequirementDetails(rawFallback, deptKeyValue)}</div>` : ''}
+        ${(!cars.length && !contentTypes.length && rawFallback) ? `<div class="readable-detail-item readable-detail-wide"><small>المطلوب</small><div class="readable-fallback-text">${renderTaskRequirementDetails(rawFallback, deptKeyValue)}</div></div>` : ''}
       </div>
     </article>
   </section>`;
@@ -4318,7 +4360,10 @@ function initCreateTaskFromTemplate() {
       photoItems: kind === 'photography' ? (special.items || []) : [],
       contentItems: special.items || [],
       selectedDeliverables: special.deliverables || [],
+      selectedCars: special.selectedCars || [],
+      contentTypes: special.contentTypes || (special.contentType ? [{ title: special.contentType, id: special.contentTypeId || '', details: special.details || '' }] : []),
       contentType: special.contentType || '',
+      contentTypeId: special.contentTypeId || '',
       carType: special.carType || '',
       printSize: special.printSize || ''
     };

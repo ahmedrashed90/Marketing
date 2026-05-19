@@ -6830,3 +6830,100 @@ body:has(#taskDetailsModal.is-open){
 #taskDetailsModal .assignment-step-required .readable-task-summary{
   grid-template-columns:repeat(auto-fit,minmax(120px,1fr));
 }
+
+/* V6 clear task details for unified assignments */
+.readable-task-details-v6{
+  gap:16px;
+}
+.readable-task-hero{
+  display:grid;
+  gap:14px;
+  background:linear-gradient(135deg,#fffaf6,#fff);
+  border:1px solid rgba(75,36,31,.10);
+  border-radius:26px;
+  padding:18px;
+  box-shadow:0 16px 34px rgba(75,36,31,.06);
+}
+.readable-task-hero small,
+.readable-task-hero-meta small{
+  display:block;
+  color:#9a7d70;
+  font-weight:950;
+  font-size:12px;
+  margin-bottom:4px;
+}
+.readable-task-hero strong{
+  color:#321713;
+  font-size:28px;
+  font-weight:950;
+  line-height:1.45;
+}
+.readable-task-hero-meta{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(190px,1fr));
+  gap:10px;
+}
+.readable-task-hero-meta span{
+  background:#fff;
+  border:1px solid rgba(75,36,31,.08);
+  border-radius:18px;
+  padding:12px 14px;
+}
+.readable-task-hero-meta b{
+  color:#4b241f;
+  font-weight:950;
+}
+.readable-task-summary-v6 span{
+  min-height:72px;
+}
+.readable-task-summary-v6 strong{
+  font-size:16px;
+  line-height:1.45;
+  text-align:end;
+}
+.readable-task-main-v6{
+  padding:0;
+  border:0;
+  background:transparent;
+}
+.readable-detail-grid-v6{
+  grid-template-columns:repeat(2,minmax(240px,1fr));
+}
+.readable-detail-grid-v6 .readable-detail-item{
+  background:#fff;
+  border-color:rgba(75,36,31,.10);
+  box-shadow:0 10px 24px rgba(75,36,31,.04);
+}
+.readable-detail-grid-v6 .readable-detail-wide{
+  grid-column:1/-1;
+}
+.readable-detail-grid-v6 .readable-chip-row.car-chips span{
+  min-height:32px;
+  padding:7px 11px;
+  border-radius:12px;
+  background:#fffaf6;
+  max-width:100%;
+}
+.readable-fallback-text .campaign-task-details-list{
+  display:grid;
+  grid-template-columns:1fr;
+  gap:8px;
+}
+.universal-car-choice-grid{
+  grid-template-columns:repeat(auto-fill,minmax(120px,1fr));
+  max-height:150px;
+  gap:6px;
+}
+.universal-car-choice-card{
+  min-height:36px;
+  border-radius:12px;
+  padding:6px 8px;
+}
+.universal-car-choice-card span{
+  font-size:.78rem;
+  line-height:1.25;
+}
+@media(max-width:760px){
+  .readable-detail-grid-v6{grid-template-columns:1fr;}
+  .readable-task-hero strong{font-size:22px;}
+}

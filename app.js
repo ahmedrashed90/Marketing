@@ -614,7 +614,9 @@ function renderTaskDetailsSummary(deptTask, deptKeyValue) {
     ...(Array.isArray(safeTask?.selectedDeliverables) ? safeTask.selectedDeliverables.map((item) => item?.carType || item?.car || item?.vehicle || item?.carValue) : []),
     ...mzjSplitMultiValue(safeTask?.carType)
   ].map((value) => String(value || '').trim()).filter(Boolean).filter(excludeRequiredText));
-  const cars = explicitCars.length ? explicitCars : itemCars;
+  const fallbackTextForSelection = taskDetailsRawSources(safeTask).join('\n');
+  const parsedCarsFromText = parseCarsFromTaskText(fallbackTextForSelection).filter(excludeRequiredText);
+  const cars = explicitCars.length ? explicitCars : (itemCars.length ? itemCars : parsedCarsFromText);
 
   const explicitTypes = mzjUniqueStrings([
     ...normalizeSelectedContentTypeList(safeTask?.selectedContentTypes),
@@ -630,7 +632,8 @@ function renderTaskDetailsSummary(deptTask, deptKeyValue) {
     ...(Array.isArray(safeTask?.selectedDeliverables) ? safeTask.selectedDeliverables.map((item) => item?.contentType || item?.title || item?.name) : []),
     ...mzjSplitMultiValue(safeTask?.contentType)
   ].map((value) => String(value || '').trim()).filter(Boolean).filter(excludeRequiredText));
-  const contentTypes = explicitTypes.length ? explicitTypes : itemTypes;
+  const parsedTypesFromText = parseContentTypesFromTaskText(fallbackTextForSelection).filter(excludeRequiredText);
+  const contentTypes = explicitTypes.length ? explicitTypes : (itemTypes.length ? itemTypes : parsedTypesFromText);
 
   const requiredHtml = `<section class="task-details-required-only"><small>المطلوب</small>${lines.length ? lines.map((item) => `<p>${escapeHTML(item)}</p>`).join('') : '<p>لا يوجد مطلوب مكتوب</p>'}</section>`;
   const carsHtml = `<section class="task-details-meta-lines"><small>السيارة المختارة</small>${cars.length ? cars.map((car) => `<p class="task-detail-car-line">${escapeHTML(car)}</p>`).join('') : '<p>—</p>'}</section>`;
@@ -2972,8 +2975,7 @@ function initCreateTaskFromTemplate() {
   function addDepartmentAssignmentRow(deptRow) {
     if (!deptRow) return null;
     const departmentId = deptRow.dataset.departmentId || '';
-    const dept = departmentsCache.find((item) => String(item.id) === String(departmentId));
-    if (!dept) return null;
+    const dept = departmentsCache.find((item) => String(item.id) === String(departmentId)) || { id: departmentId || 'content', name: 'قسم المحتوى' };
     const list = deptRow.querySelector('[data-department-assignments-list]');
     if (!list) return null;
     const nextIndex = list.querySelectorAll('[data-department-assignment-row]').length + 1;
@@ -2981,6 +2983,7 @@ function initCreateTaskFromTemplate() {
     refreshDepartmentAssignmentNumbers(deptRow);
     const added = list.querySelector('[data-department-assignment-row]:last-child');
     hydrateAssignmentPickers(added);
+    refreshStockCarCheckboxGrids();
     return added;
   }
 
@@ -4670,13 +4673,15 @@ function initCreateTaskFromTemplate() {
   function collectSpecialDepartmentDetails(row, kind) {
     const items = [];
     Array.from(row.querySelectorAll('[data-universal-required-item]')).forEach((item) => {
-      const selectedTypes = Array.from(item.querySelectorAll('[data-universal-content-type]:checked')).map((input) => ({
+      const selectedTypeInputs = Array.from(item.querySelectorAll('[data-universal-content-type]')).filter((input) => input.checked || input.closest('.universal-content-type-card')?.classList.contains('is-checked'));
+      const selectedTypes = selectedTypeInputs.map((input) => ({
         title: input.value.trim(),
         id: input.dataset.id || '',
         details: input.dataset.desc || ''
       })).filter((entry) => entry.title);
       const manualRequired = item.querySelector('[data-universal-required-text]')?.value.trim() || item.querySelector('[data-universal-car-type]')?.value.trim() || '';
-      const selectedCars = Array.from(item.querySelectorAll('[data-universal-car-choice]:checked')).map((input) => input.value.trim()).filter(Boolean);
+      const selectedCarInputs = Array.from(item.querySelectorAll('[data-universal-car-choice]')).filter((input) => input.checked || input.closest('.stock-car-choice-card')?.classList.contains('is-checked'));
+      const selectedCars = selectedCarInputs.map((input) => input.value.trim()).filter(Boolean);
       const printSize = item.querySelector('[data-universal-print-size]')?.value.trim() || '';
 
       const carList = selectedCars.length ? selectedCars : [''];

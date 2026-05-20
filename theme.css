@@ -7579,3 +7579,11 @@ body:has(#taskDetailsModal.is-open){
   overflow:visible !important;
   overflow-wrap:anywhere;
 }
+
+/* restore optional second assignment button */
+#createTaskModal [data-add-department-assignment]{
+  display:inline-flex!important;
+}
+#createTaskModal [data-remove-department-assignment]{
+  display:inline-flex!important;
+}

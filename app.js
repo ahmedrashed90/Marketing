@@ -2731,55 +2731,101 @@ function attachmentLabelForKind(kind) {
 }
 
 
-function requiredContentSlug(text) {
-  return String(text || '').trim().toLowerCase().replace(/\s+/g, '_').replace(/[^\u0600-\u06FFa-z0-9_-]/g, '') || 'section_general';
-}
-
-function isRequiredContentSectionDoc(row) {
-  return row?.docType === 'section' || row?.kind === 'section' || row?.isSection === true;
+function mzjSlug(value) {
+  return String(value || '').trim().toLowerCase().replace(/[^a-z0-9\u0600-\u06ff]+/gi, '-').replace(/^-+|-+$/g, '').slice(0, 80) || 'section';
 }
 
 function normalizeRequiredContentType(row, id) {
-  if (isRequiredContentSectionDoc(row)) return null;
+  if (row?.docType === 'section' || row?.kind === 'section' || row?.isContentSection === true) return null;
   const title = String(row?.title || row?.name || row?.contentType || row?.label || '').trim();
   if (!title) return null;
-  const categoryName = String(row?.categoryName || row?.contentSectionName || row?.sectionName || row?.groupName || row?.departmentName || '').trim();
-  const categoryId = String(row?.categoryId || row?.sectionId || row?.contentSectionId || '').trim();
+  const sectionName = String(row?.sectionName || row?.contentSectionName || row?.categoryName || '').trim() || 'عام';
+  const sectionId = String(row?.sectionId || row?.contentSectionId || mzjSlug(sectionName)).trim();
   return {
     id: id || row?.id || row?.docId || ('content_type_' + Date.now()),
     title,
     details: String(row?.details || row?.description || row?.desc || '').trim(),
-    categoryId: categoryId || (categoryName ? requiredContentSlug(categoryName) : 'section_general'),
-    categoryName: categoryName || 'عام',
+    sectionId,
+    sectionName,
+    contentSectionId: sectionId,
+    contentSectionName: sectionName,
     departmentKind: 'global',
-    departmentName: categoryName || 'عام',
+    departmentName: 'كل الأقسام',
     active: row?.active !== false,
     createdAt: row?.createdAt || '',
     updatedAt: row?.updatedAt || ''
   };
 }
 
+function normalizeRequiredContentSection(row, id) {
+  const title = String(row?.sectionName || row?.contentSectionName || row?.title || row?.name || '').trim();
+  if (!title) return null;
+  return {
+    id: id || row?.sectionId || row?.contentSectionId || mzjSlug(title),
+    title,
+    name: title,
+    details: String(row?.details || row?.description || '').trim(),
+    active: row?.active !== false
+  };
+}
+
 async function loadRequiredContentTypes() {
   const collected = [];
+  const sections = [];
   if (window.firebase && window.MZJ_FIREBASE_CONFIG && firebase.firestore) {
     try {
       if (!firebase.apps.length) firebase.initializeApp(window.MZJ_FIREBASE_CONFIG);
       const snap = await firebase.firestore().collection('required_content_types').get();
       snap.forEach((doc) => {
-        const item = normalizeRequiredContentType(doc.data() || {}, doc.id);
-        if (item && item.active !== false) collected.push(item);
+        const data = doc.data() || {};
+        if (data.docType === 'section' || data.kind === 'section' || data.isContentSection === true) {
+          const section = normalizeRequiredContentSection(data, doc.id);
+          if (section && section.active !== false) sections.push(section);
+        } else {
+          const item = normalizeRequiredContentType(data, doc.id);
+          if (item && item.active !== false) collected.push(item);
+        }
       });
     } catch (error) {
       console.warn('required_content_types load failed:', error);
     }
   }
-  const map = new Map();
-  collected.forEach((item) => map.set(String(item.id || item.title), item));
-  window.MZJRequiredContentTypesCache = Array.from(map.values()).sort((a,b) => {
-    const cat = String(a.categoryName || '').localeCompare(String(b.categoryName || ''), 'ar');
-    return cat || String(a.title || '').localeCompare(String(b.title || ''), 'ar');
+  const sectionMap = new Map();
+  sections.forEach((section) => sectionMap.set(String(section.id), section));
+  collected.forEach((item) => {
+    const id = item.sectionId || mzjSlug(item.sectionName || 'عام');
+    if (!sectionMap.has(String(id))) {
+      sectionMap.set(String(id), { id, title: item.sectionName || 'عام', name: item.sectionName || 'عام', details: '', active: true });
+    }
   });
+  const typeMap = new Map();
+  collected.forEach((item) => mapSetUnique(typeMap, String(item.id || item.sectionId + ':' + item.title), item));
+  window.MZJRequiredContentSectionsCache = Array.from(sectionMap.values()).sort((a,b) => String(a.title || '').localeCompare(String(b.title || ''), 'ar'));
+  window.MZJRequiredContentTypesCache = Array.from(typeMap.values()).sort((a,b) => String(a.title || '').localeCompare(String(b.title || ''), 'ar'));
   return window.MZJRequiredContentTypesCache;
+}
+
+function mapSetUnique(map, key, item) {
+  map.set(key, item);
+  return map;
+}
+
+function requiredContentSections() {
+  const sections = Array.isArray(window.MZJRequiredContentSectionsCache) ? window.MZJRequiredContentSectionsCache : [];
+  const types = Array.isArray(window.MZJRequiredContentTypesCache) ? window.MZJRequiredContentTypesCache : [];
+  if (sections.length) return sections.filter((item) => item.active !== false);
+  const sectionMap = new Map();
+  types.forEach((item) => {
+    const id = item.sectionId || mzjSlug(item.sectionName || 'عام');
+    if (!sectionMap.has(id)) sectionMap.set(id, { id, title: item.sectionName || 'عام', name: item.sectionName || 'عام' });
+  });
+  return Array.from(sectionMap.values());
+}
+
+function requiredContentTypesForSection(sectionId) {
+  const cache = Array.isArray(window.MZJRequiredContentTypesCache) ? window.MZJRequiredContentTypesCache : [];
+  if (!sectionId) return [];
+  return cache.filter((item) => item.active !== false && String(item.sectionId || '') === String(sectionId));
 }
 
 function requiredContentTypesForKind(kind) {
@@ -2787,25 +2833,11 @@ function requiredContentTypesForKind(kind) {
   return cache.filter((item) => item.active !== false);
 }
 
-function groupRequiredContentTypes(items) {
-  const map = new Map();
-  (items || []).forEach((item) => {
-    const key = String(item.categoryId || requiredContentSlug(item.categoryName || 'عام'));
-    if (!map.has(key)) map.set(key, { id: key, title: item.categoryName || 'عام', items: [] });
-    map.get(key).items.push(item);
-  });
-  return Array.from(map.values()).sort((a,b) => String(a.title || '').localeCompare(String(b.title || ''), 'ar'));
-}
-
 function renderRequiredContentOptions(kind, selected = '') {
   const items = requiredContentTypesForKind(kind);
   const current = String(selected || '').trim();
   if (!items.length) return '<option value="">لا توجد أنواع محتوى مضافة</option>';
-  return '<option value="">اختار نوع المحتوى</option>' + groupRequiredContentTypes(items).map((group) => `
-    <optgroup label="${escapeHTML(group.title || 'عام')}">
-      ${group.items.map((item) => `<option value="${escapeHTML(item.title)}" data-desc="${escapeHTML(item.details || '')}" data-id="${escapeHTML(item.id)}" data-category-id="${escapeHTML(item.categoryId || '')}" data-category-name="${escapeHTML(item.categoryName || '')}" ${current === item.title ? 'selected' : ''}>${escapeHTML(item.title)}${item.details ? ' — ' + escapeHTML(item.details) : ''}</option>`).join('')}
-    </optgroup>
-  `).join('');
+  return '<option value="">اختار نوع المحتوى</option>' + items.map((item) => `<option value="${escapeHTML(item.title)}" data-desc="${escapeHTML(item.details || '')}" data-id="${escapeHTML(item.id)}" data-section-id="${escapeHTML(item.sectionId || '')}" ${current === item.title ? 'selected' : ''}>${escapeHTML(item.title)}${item.sectionName ? ' / ' + escapeHTML(item.sectionName) : ''}</option>`).join('');
 }
 
 function renderRequiredContentCards(kind, attrName) {
@@ -2813,22 +2845,58 @@ function renderRequiredContentCards(kind, attrName) {
   if (!items.length) {
     return `<div class="required-content-empty">لا توجد أنواع محتوى مضافة. افتح صفحة المحتوى المطلوب وأضف الأقسام والأنواع.</div>`;
   }
-  return groupRequiredContentTypes(items).map((group) => `
-    <section class="required-content-choice-section">
-      <div class="required-content-choice-section-title">${escapeHTML(group.title || 'عام')}</div>
-      <div class="required-content-choice-section-grid">
-        ${group.items.map((item) => `
-          <label class="multi-choice-card required-content-choice-card">
-            <input type="checkbox" ${attrName} value="${escapeHTML(item.title)}" data-desc="${escapeHTML(item.details || '')}" data-title="${escapeHTML(item.title)}" data-required-content-id="${escapeHTML(item.id)}" data-category-id="${escapeHTML(item.categoryId || '')}" data-category-name="${escapeHTML(item.categoryName || '')}">
-            <span class="multi-choice-title">${escapeHTML(item.title)}</span>
-            ${item.details ? `<small>${escapeHTML(item.details)}</small>` : `<small>${escapeHTML(group.title || 'قسم محتوى')}</small>`}
-          </label>
-        `).join('')}
-      </div>
-    </section>
+  return items.map((item) => `
+    <label class="multi-choice-card required-content-choice-card">
+      <input type="checkbox" ${attrName} value="${escapeHTML(item.title)}" data-desc="${escapeHTML(item.details || '')}" data-title="${escapeHTML(item.title)}" data-required-content-id="${escapeHTML(item.id)}" data-section-id="${escapeHTML(item.sectionId || '')}">
+      <span class="multi-choice-title">${escapeHTML(item.title)}</span>
+      <small>${escapeHTML(item.sectionName || 'قسم محتوى')}${item.details ? ' — ' + escapeHTML(item.details) : ''}</small>
+    </label>
   `).join('');
 }
 
+function renderContentSectionOptions(selected = '') {
+  const current = String(selected || '').trim();
+  const sections = requiredContentSections();
+  if (!sections.length) return '<option value="">لا توجد أقسام محتوى</option>';
+  return '<option value="">اختار قسم المحتوى</option>' + sections.map((section) => `<option value="${escapeHTML(section.id)}" ${current === String(section.id) ? 'selected' : ''}>${escapeHTML(section.title || section.name || 'قسم محتوى')}</option>`).join('');
+}
+
+function renderUniversalContentChoiceCards(kind, sectionId = '', selected = []) {
+  const selectedSet = new Set((Array.isArray(selected) ? selected : String(selected || '').split('،')).map((item) => String(item || '').trim()).filter(Boolean));
+  if (!sectionId) return `<div class="required-content-empty">اختار قسم المحتوى الأول علشان تظهر الأنواع الخاصة به.</div>`;
+  const items = requiredContentTypesForSection(sectionId);
+  if (!items.length) {
+    return `<div class="required-content-empty">لا توجد أنواع محتوى داخل هذا القسم. افتح صفحة المحتوى المطلوب وأضف الأنواع.</div>`;
+  }
+  return items.map((item, index) => {
+    const qtyId = `content-qty-${String(item.id || index).replace(/[^a-zA-Z0-9_-]/g, '')}-${index}`;
+    const checked = selectedSet.has(item.title);
+    return `
+    <div class="universal-content-type-card ${checked ? 'is-checked' : ''}" data-content-type-card>
+      <label class="universal-content-type-main">
+        <input type="checkbox" data-universal-content-type value="${escapeHTML(item.title)}" data-desc="${escapeHTML(item.details || '')}" data-id="${escapeHTML(item.id)}" data-section-id="${escapeHTML(item.sectionId || '')}" data-section-name="${escapeHTML(item.sectionName || '')}" data-quantity-input-id="${escapeHTML(qtyId)}" ${checked ? 'checked' : ''}>
+        <span>${escapeHTML(item.title)}</span>
+        ${item.details ? `<small>${escapeHTML(item.details)}</small>` : '<small>اضغط للاختيار وكتابة العدد</small>'}
+      </label>
+      <label class="content-type-quantity-field" data-content-type-quantity-wrap ${checked ? '' : 'hidden'}>
+        <small>العدد المطلوب</small>
+        <input type="number" min="1" step="1" id="${escapeHTML(qtyId)}" data-content-type-quantity data-content-type-title="${escapeHTML(item.title)}" placeholder="اكتب العدد">
+      </label>
+    </div>`;
+  }).join('');
+}
+
+function refreshContentTypesForSection(item) {
+  if (!item) return;
+  const sectionSelect = item.querySelector('[data-content-section-select]');
+  const grid = item.querySelector('[data-universal-content-type-grid]');
+  if (!grid) return;
+  const selected = Array.from(item.querySelectorAll('[data-universal-content-type]:checked')).map((input) => input.value).filter(Boolean);
+  grid.innerHTML = renderUniversalContentChoiceCards('content', sectionSelect?.value || '', selected);
+  item.querySelectorAll('[data-universal-content-type]').forEach((input) => {
+    input.closest('.universal-content-type-card')?.classList.toggle('is-checked', input.checked);
+  });
+}
 
 function isOfflinePrintContent(value) {
   const text = String(value || '').toLowerCase();
@@ -2844,35 +2912,23 @@ function isOfflinePrintContent(value) {
 function renderUniversalContentChoiceCards(kind) {
   const items = requiredContentTypesForKind(kind);
   if (!items.length) {
-    return `<div class="required-content-empty">لا توجد أنواع محتوى مضافة. افتح صفحة المحتوى المطلوب وأضف الأقسام والأنواع.</div>`;
+    return `<div class="required-content-empty">لا توجد أنواع محتوى مضافة. افتح صفحة المحتوى المطلوب وأضف الأنواع.</div>`;
   }
-  let counter = 0;
-  return groupRequiredContentTypes(items).map((group) => `
-    <section class="universal-content-section" data-universal-content-section="${escapeHTML(group.id || '')}">
-      <div class="universal-content-section-head">
-        <strong>${escapeHTML(group.title || 'عام')}</strong>
-        <small>اختار نوع أو أكثر من هذا القسم</small>
-      </div>
-      <div class="universal-content-section-grid">
-        ${group.items.map((item) => {
-          const index = counter++;
-          const qtyId = `content-qty-${String(item.id || index).replace(/[^a-zA-Z0-9_-]/g, '')}-${index}`;
-          return `
-            <div class="universal-content-type-card" data-content-type-card>
-              <label class="universal-content-type-main">
-                <input type="checkbox" data-universal-content-type value="${escapeHTML(item.title)}" data-desc="${escapeHTML(item.details || '')}" data-id="${escapeHTML(item.id)}" data-category-id="${escapeHTML(item.categoryId || '')}" data-category-name="${escapeHTML(item.categoryName || group.title || '')}" data-quantity-input-id="${escapeHTML(qtyId)}">
-                <span>${escapeHTML(item.title)}</span>
-                ${item.details ? `<small>${escapeHTML(item.details)}</small>` : '<small>اضغط للاختيار وكتابة العدد</small>'}
-              </label>
-              <label class="content-type-quantity-field" data-content-type-quantity-wrap hidden>
-                <small>العدد المطلوب</small>
-                <input type="number" min="1" step="1" id="${escapeHTML(qtyId)}" data-content-type-quantity data-content-type-title="${escapeHTML(item.title)}" placeholder="اكتب العدد">
-              </label>
-            </div>`;
-        }).join('')}
-      </div>
-    </section>
-  `).join('');
+  return items.map((item, index) => {
+    const qtyId = `content-qty-${String(item.id || index).replace(/[^a-zA-Z0-9_-]/g, '')}-${index}`;
+    return `
+    <div class="universal-content-type-card" data-content-type-card>
+      <label class="universal-content-type-main">
+        <input type="checkbox" data-universal-content-type value="${escapeHTML(item.title)}" data-desc="${escapeHTML(item.details || '')}" data-id="${escapeHTML(item.id)}" data-quantity-input-id="${escapeHTML(qtyId)}">
+        <span>${escapeHTML(item.title)}</span>
+        ${item.details ? `<small>${escapeHTML(item.details)}</small>` : '<small>اضغط للاختيار وكتابة العدد</small>'}
+      </label>
+      <label class="content-type-quantity-field" data-content-type-quantity-wrap hidden>
+        <small>العدد المطلوب</small>
+        <input type="number" min="1" step="1" id="${escapeHTML(qtyId)}" data-content-type-quantity data-content-type-title="${escapeHTML(item.title)}" placeholder="اكتب العدد">
+      </label>
+    </div>`;
+  }).join('');
 }
 
 function renderStockCarCheckboxCards(selected = []) {
@@ -2904,24 +2960,46 @@ function refreshStockCarCheckboxGrids() {
 
 function renderUniversalRequiredItem(kind, removable = false) {
   return `
-    <article class="universal-required-item" data-universal-required-item>
-      <label class="mzj-field full-width-field">
+    <article class="universal-required-item create-assignment-horizontal" data-universal-required-item>
+      <label class="mzj-field assignment-required-field">
         <span>المطلوب</span>
-        <textarea rows="3" data-universal-required-text placeholder="اكتب تفاصيل المطلوب للتاسك هنا"></textarea>
+        <textarea rows="2" data-universal-required-text placeholder="اكتب المطلوب"></textarea>
       </label>
-      <div class="universal-content-type-wrap full-width-field">
-        <div class="universal-content-type-head">اختيار السيارة / السيارات</div>
-        <div class="universal-content-type-grid stock-car-choice-grid" data-universal-car-grid>
+
+      <details class="checkbox-dropdown assignment-dropdown" data-checkbox-dropdown>
+        <summary>اختيار السيارة / السيارات</summary>
+        <div class="universal-content-type-grid stock-car-choice-grid dropdown-checkbox-panel" data-universal-car-grid>
           ${renderStockCarCheckboxCards()}
         </div>
-      </div>
-      <div class="universal-content-type-wrap full-width-field">
-        <div class="universal-content-type-head">نوع المحتوى الخاص بالتكليف</div>
-        <div class="universal-content-type-grid" data-universal-content-type-grid>
-          ${renderUniversalContentChoiceCards(kind)}
+      </details>
+
+      <label class="mzj-field assignment-section-field">
+        <span>قسم المحتوى</span>
+        <select data-content-section-select>
+          ${renderContentSectionOptions()}
+        </select>
+      </label>
+
+      <details class="checkbox-dropdown assignment-dropdown" data-content-type-dropdown>
+        <summary>أنواع المحتوى</summary>
+        <div class="universal-content-type-grid dropdown-checkbox-panel" data-universal-content-type-grid>
+          ${renderUniversalContentChoiceCards(kind, '')}
+        </div>
+      </details>
+
+      <div class="assignment-distribution-panel assignment-distribution-inline" data-assignment-distribution-panel>
+        <div class="assignment-distribution-head compact-assignment-head">
+          <strong>الأقسام واليوزرات</strong>
+          <small>اختار قسم، بعدها اختار يوزر أو أكثر</small>
+        </div>
+        <div class="distribution-pro-picker distribution-matrix-picker" data-distribution-pro-picker>
+          <select data-target-department-select multiple hidden>${renderDepartmentTargetOptions()}</select>
+          <select data-user-select multiple hidden>${renderUserOptionsForDepartmentIds([])}</select>
+          <div class="department-user-matrix" data-department-user-matrix></div>
         </div>
       </div>
-      <label class="mzj-field full-width-field universal-print-size-field" data-universal-print-size-wrap hidden>
+
+      <label class="mzj-field universal-print-size-field" data-universal-print-size-wrap hidden>
         <span>المقاس</span>
         <input type="text" data-universal-print-size placeholder="اكتب المقاس المطلوب">
       </label>
@@ -3267,7 +3345,10 @@ function initCreateTaskFromTemplate() {
       renderDepartmentChipPicker(assignmentRow);
       renderUserChipPicker(assignmentRow);
       renderDepartmentUserMatrix(assignmentRow);
-      assignmentRow.querySelectorAll('[data-universal-required-item]').forEach(refreshUniversalContentTypeCardState);
+      assignmentRow.querySelectorAll('[data-universal-required-item]').forEach((item) => {
+        refreshContentTypesForSection(item);
+        refreshUniversalContentTypeCardState(item);
+      });
     });
   }
 
@@ -3284,18 +3365,6 @@ function initCreateTaskFromTemplate() {
         </div>
 
         ${buildSpecialDepartmentFields(kind)}
-
-        <div class="assignment-distribution-panel" data-assignment-distribution-panel>
-          <div class="assignment-distribution-head">
-            <span class="content-box-eyebrow">التوزيع بعد نوع المحتوى</span>
-            <strong>الأقسام واليوزرات</strong>
-          </div>
-          <div class="distribution-pro-picker distribution-matrix-picker" data-distribution-pro-picker>
-            <select data-target-department-select multiple hidden>${renderDepartmentTargetOptions()}</select>
-            <select data-user-select multiple hidden>${renderUserOptionsForDepartmentIds([])}</select>
-            <div class="department-user-matrix" data-department-user-matrix></div>
-          </div>
-        </div>
       </article>
     `;
   }
@@ -5006,6 +5075,9 @@ function initCreateTaskFromTemplate() {
   function collectSpecialDepartmentDetails(row, kind) {
     const items = [];
     Array.from(row.querySelectorAll('[data-universal-required-item]')).forEach((item) => {
+      const contentSectionSelect = item.querySelector('[data-content-section-select]');
+      const contentSectionId = contentSectionSelect?.value || '';
+      const contentSectionName = contentSectionSelect?.selectedOptions?.[0]?.textContent?.trim() || '';
       const selectedTypeInputs = Array.from(item.querySelectorAll('[data-universal-content-type]')).filter((input) => input.checked || input.closest('.universal-content-type-card')?.classList.contains('is-checked'));
       const selectedTypes = selectedTypeInputs.map((input) => {
         const card = input.closest('[data-content-type-card], .universal-content-type-card');
@@ -5014,7 +5086,9 @@ function initCreateTaskFromTemplate() {
           title: input.value.trim(),
           id: input.dataset.id || '',
           details: input.dataset.desc || '',
-          quantity: qty
+          quantity: qty,
+          sectionId: input.dataset.sectionId || contentSectionId,
+          sectionName: input.dataset.sectionName || contentSectionName
         };
       }).filter((entry) => entry.title);
       const manualRequired = item.querySelector('[data-universal-required-text]')?.value.trim() || item.querySelector('[data-universal-car-type]')?.value.trim() || '';
@@ -5032,6 +5106,8 @@ function initCreateTaskFromTemplate() {
             contentTypes: typeEntry.title ? [typeEntry] : [],
             contentType: typeEntry.title || '',
             contentTypeId: typeEntry.id || '',
+            contentSectionId: typeEntry.sectionId || contentSectionId,
+            contentSectionName: typeEntry.sectionName || contentSectionName,
             details: typeEntry.details || '',
             quantity: typeEntry.quantity || '',
             printSize
@@ -5054,7 +5130,9 @@ function initCreateTaskFromTemplate() {
     const deliverables = uniqueItems.map((item) => ({
       title: item.contentType || item.requiredText || 'مطلوب',
       contentType: item.contentType,
-      details: [item.details, item.quantity ? `العدد: ${item.quantity}` : '', item.carType ? `السيارة: ${item.carType}` : '', item.printSize ? `المقاس: ${item.printSize}` : '', item.requiredText].filter(Boolean).join(' — '),
+      contentSectionId: item.contentSectionId,
+      contentSectionName: item.contentSectionName,
+      details: [item.contentSectionName ? `قسم المحتوى: ${item.contentSectionName}` : '', item.details, item.quantity ? `العدد: ${item.quantity}` : '', item.carType ? `السيارة: ${item.carType}` : '', item.printSize ? `المقاس: ${item.printSize}` : '', item.requiredText].filter(Boolean).join(' — '),
       quantity: item.quantity,
       carType: item.carType,
       printSize: item.printSize,
@@ -5067,6 +5145,8 @@ function initCreateTaskFromTemplate() {
       items: uniqueItems,
       deliverables,
       contentType: mzjUniqueStrings(uniqueItems.map((item) => item.contentType)).join('، '),
+      contentSectionId: mzjUniqueStrings(uniqueItems.map((item) => item.contentSectionId)).join('، '),
+      contentSectionName: mzjUniqueStrings(uniqueItems.map((item) => item.contentSectionName)).join('، '),
       carType: mzjUniqueStrings(uniqueItems.map((item) => item.carType)).join('، '),
       printSize: mzjUniqueStrings(uniqueItems.map((item) => item.printSize)).join('، '),
       contentTypeQuantities: uniqueItems.reduce((acc, item) => {
@@ -5153,6 +5233,8 @@ function initCreateTaskFromTemplate() {
               selectedCarValues: special.selectedCarValues || special.selectedCars || mzjUniqueStrings((special.items || []).map((entry) => entry.carType)),
               selectedContentTypes: special.selectedContentTypes || mzjUniqueStrings((special.items || []).map((entry) => entry.contentType)),
               selectedContentTypeTitles: special.selectedContentTypeTitles || special.selectedContentTypes || mzjUniqueStrings((special.items || []).map((entry) => entry.contentType)),
+              contentSectionId: special.contentSectionId || '',
+              contentSectionName: special.contentSectionName || '',
               selectedContentTypeQuantities: special.contentTypeQuantities || {},
               contentTypeQuantities: special.contentTypeQuantities || {},
               photoItems: targetDept.kind === 'photography' ? (special.items || []) : [],
@@ -5243,6 +5325,18 @@ function initCreateTaskFromTemplate() {
       .concat((row.contentItems || []).map((i) => i?.contentType || i?.title))
       .concat((row.photoItems || []).map((i) => i?.contentType || i?.title))
     ).filter((v) => v && !/^rct_/i.test(String(v))));
+    const sectionIds = mzjUniqueStrings(groupRows.flatMap((row) => [row.contentSectionId, row.requiredDetails?.contentSectionId].concat((row.contentItems || []).map((i) => i?.contentSectionId))).filter(Boolean));
+    const sectionNames = mzjUniqueStrings(groupRows.flatMap((row) => [row.contentSectionName, row.requiredDetails?.contentSectionName].concat((row.contentItems || []).map((i) => i?.contentSectionName))).filter(Boolean));
+    const sectionSelect = assignmentRow.querySelector('[data-content-section-select]');
+    if (sectionSelect) {
+      if (sectionIds[0] && Array.from(sectionSelect.options).some((opt) => String(opt.value) === String(sectionIds[0]))) {
+        sectionSelect.value = sectionIds[0];
+      } else if (sectionNames[0]) {
+        const matched = Array.from(sectionSelect.options).find((opt) => String(opt.textContent || '').trim() === String(sectionNames[0]).trim());
+        if (matched) sectionSelect.value = matched.value;
+      }
+      refreshContentTypesForSection(assignmentRow.querySelector('[data-universal-required-item]'));
+    }
     const qtyMap = Object.assign({}, ...groupRows.map((row) => row.selectedContentTypeQuantities || row.contentTypeQuantities || {}));
     assignmentRow.querySelectorAll('[data-universal-content-type]').forEach((input) => {
       input.checked = types.some((type) => String(type) === String(input.value));
@@ -5654,6 +5748,15 @@ function initCreateTaskFromTemplate() {
       if (userSelect) userSelect.innerHTML = renderUserOptionsForDepartmentIds(selectedDeptIds, selectedUsers);
       renderDepartmentChipPicker(assignmentRow);
       renderUserChipPicker(assignmentRow);
+      return;
+    }
+
+    const contentSectionSelect = event.target.closest('[data-content-section-select]');
+    if (contentSectionSelect) {
+      const item = contentSectionSelect.closest('[data-universal-required-item]');
+      refreshContentTypesForSection(item);
+      refreshPublishCalendarOptions();
+      refreshBudgetDropdownOptions();
       return;
     }
 

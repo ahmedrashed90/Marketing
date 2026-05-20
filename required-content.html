@@ -51,27 +51,32 @@
         <h1>المحتوى المطلوب</h1>
       </div>
       <div class="topbar-actions">
-        <button class="primary-btn" id="openRequiredContentForm" type="button">+ إضافة قسم محتوى</button>
+        <button class="primary-btn" id="openContentSectionForm" type="button">+ إضافة قسم محتوى</button>
       </div>
     </header>
 
     <section class="workspace-card required-content-intro">
       <span class="eyebrow">إدارة أقسام وأنواع المحتوى</span>
       <h2>قسّم المحتوى المطلوب حسب الأقسام</h2>
-      <p>أضف قسم محتوى، وبعدها أضف داخله أنواع المحتوى التابعة له. الأنواع دي هتظهر في الداش بورد متقسمة تحت نفس الأقسام علشان الاختيار يبقى أوضح.</p>
+      <p>أضف قسم محتوى، وبعدها أضف أنواع المحتوى داخله. في الداش بورد هتختار قسم المحتوى أولًا، وبعدها تظهر أنواع المحتوى الخاصة بالقسم فقط.</p>
     </section>
 
-    <section class="workspace-card required-content-form-card" id="requiredContentFormCard" hidden>
-      <form id="requiredSectionForm" class="required-content-form">
+    <section class="workspace-card required-content-form-card" id="contentSectionFormCard" hidden>
+      <form id="contentSectionForm" class="required-content-form">
+        <input type="hidden" id="contentSectionId" />
         <div class="create-task-grid">
           <label class="mzj-field full-width-field">
             <span>اسم قسم المحتوى</span>
-            <input id="requiredSectionTitle" type="text" placeholder="مثال: سوشيال ميديا / تصوير / أوفلاين / يوتيوب" required />
+            <input id="contentSectionTitle" type="text" placeholder="مثال: Social Media / Website / Outdoor" required />
+          </label>
+          <label class="mzj-field full-width-field">
+            <span>وصف مختصر للقسم</span>
+            <textarea id="contentSectionDetails" rows="2" placeholder="اختياري - اكتب وصف بسيط للقسم"></textarea>
           </label>
         </div>
         <div class="form-actions-row">
-          <button class="primary-btn" type="submit" id="saveRequiredSection">حفظ القسم</button>
-          <button class="ghost-btn" type="button" id="cancelRequiredContent">إلغاء</button>
+          <button class="primary-btn" type="submit" id="saveContentSection">حفظ قسم المحتوى</button>
+          <button class="ghost-btn" type="button" id="cancelContentSection">إلغاء</button>
         </div>
         <p class="form-note" id="requiredContentNote"></p>
       </form>
@@ -80,16 +85,16 @@
     <section class="workspace-card">
       <div class="required-content-toolbar">
         <div>
-          <span class="eyebrow">الأقسام والأنواع الحالية</span>
-          <h3>قائمة المحتوى المطلوب</h3>
+          <span class="eyebrow">الأقسام الحالية</span>
+          <h3>أقسام المحتوى وأنواعها</h3>
         </div>
       </div>
-      <div class="required-sections-list" id="requiredContentList">
+      <div class="required-content-grid" id="requiredContentList">
         <article class="empty-database-state">
           <div class="empty-icon">RC</div>
           <div>
             <span class="eyebrow">المحتوى المطلوب</span>
-            <h4>جاري تحميل الأقسام...</h4>
+            <h4>جاري تحميل أقسام المحتوى...</h4>
             <p>لو مفيش أقسام، اضغط إضافة قسم محتوى وابدأ إضافة الأنواع داخله.</p>
           </div>
         </article>

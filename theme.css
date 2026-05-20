@@ -7537,3 +7537,45 @@ body:has(#taskDetailsModal.is-open){
 #createTaskModal label:has([data-assignment-task-name]){
   display:none !important;
 }
+
+/* Required-only text plus independent car/content-type rows in task details */
+#taskDetailsModal .task-details-clean-stack{
+  display:grid;
+  gap:12px;
+}
+#taskDetailsModal .task-details-required-only,
+#taskDetailsModal .task-details-meta-lines{
+  padding:16px 18px !important;
+  border:1px solid rgba(75,36,31,.10) !important;
+  border-radius:18px !important;
+  background:#fff !important;
+  box-shadow:none !important;
+}
+#taskDetailsModal .task-details-required-only small,
+#taskDetailsModal .task-details-meta-lines small{
+  display:block;
+  color:var(--muted,#9a7d70);
+  font-weight:900;
+  margin-bottom:8px;
+}
+#taskDetailsModal .task-details-required-only p,
+#taskDetailsModal .task-details-meta-lines p{
+  margin:0;
+  color:var(--brown-900,#4b241f);
+  font-weight:900;
+  line-height:1.9;
+  text-align:right;
+  direction:rtl;
+  unicode-bidi:plaintext;
+}
+#taskDetailsModal .task-details-required-only p + p,
+#taskDetailsModal .task-details-meta-lines p + p{
+  margin-top:8px;
+  padding-top:8px;
+  border-top:1px dashed rgba(75,36,31,.10);
+}
+#taskDetailsModal .task-detail-car-line{
+  white-space:normal !important;
+  overflow:visible !important;
+  overflow-wrap:anywhere;
+}

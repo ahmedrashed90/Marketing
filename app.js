@@ -460,19 +460,76 @@ function cleanTaskRequiredDisplayText(value) {
   return mzjUniqueStrings(cleanLines).join('\n');
 }
 
+function taskDetailsRawSources(deptTask) {
+  return [
+    deptTask?.carType,
+    deptTask?.contentType,
+    deptTask?.deliveryDetails,
+    deptTask?.notes,
+    deptTask?.required,
+    deptTask?.requiredText,
+    deptTask?.requiredDetails?.notes,
+    deptTask?.requiredDetails?.manualRequired,
+    ...(Array.isArray(deptTask?.contentItems) ? deptTask.contentItems.flatMap((item) => [item?.carType, item?.car, item?.vehicle, item?.contentType, item?.title, item?.name, item?.requiredText, item?.details]) : []),
+    ...(Array.isArray(deptTask?.photoItems) ? deptTask.photoItems.flatMap((item) => [item?.carType, item?.car, item?.vehicle, item?.contentType, item?.title, item?.name, item?.requiredText, item?.details]) : []),
+    ...(Array.isArray(deptTask?.requiredDetails?.items) ? deptTask.requiredDetails.items.flatMap((item) => [item?.carType, item?.car, item?.vehicle, item?.contentType, item?.title, item?.name, item?.requiredText, item?.details]) : [])
+  ].map((value) => String(value || '').trim()).filter(Boolean);
+}
+
+function parseCarsFromTaskText(value) {
+  const text = String(value || '').replace(/\r/g, '\n').trim();
+  if (!text) return [];
+  const found = [];
+  text.split(/\n+/g).forEach((line) => {
+    let item = String(line || '').trim();
+    if (!item) return;
+    const labeled = item.match(/السيارة\s*:?\s*([\s\S]*?)(?=\s*[—\-–]\s*(?:نوع\s+المحتوى|المقاس|المطلوب)\s*:|$)/i);
+    if (labeled && labeled[1]) found.push(labeled[1].trim());
+    const beforeType = item.match(/^([\s\S]+?)\s*[—–]\s*نوع\s+المحتوى\s*:/i);
+    if (!labeled && beforeType && beforeType[1] && !/المطلوب\s*:/i.test(beforeType[1])) found.push(beforeType[1].trim());
+  });
+  return mzjUniqueStrings(found.map((car) => car.replace(/^مطلوب\s*\d+\s*[—\-–]?\s*/i, '').trim()).filter(Boolean));
+}
+
+function parseContentTypesFromTaskText(value) {
+  const text = String(value || '').replace(/\r/g, '\n').trim();
+  if (!text) return [];
+  const found = [];
+  text.split(/\n+/g).forEach((line) => {
+    const match = String(line || '').match(/نوع\s+المحتوى\s*:?\s*([\s\S]*?)(?=\s*(?:مطلوب\s*\d+|[—\-–]\s*(?:المطلوب|السيارة|المقاس)\s*:)|$)/i);
+    if (match && match[1]) found.push(match[1].trim());
+  });
+  return mzjUniqueStrings(found.filter(Boolean));
+}
+
 function renderTaskDetailsSummary(deptTask, deptKeyValue) {
-  const directSources = [
+  const items = normalizeDepartmentContentItems(deptTask || {});
+  const rawSources = taskDetailsRawSources(deptTask || {});
+  const directRequiredSources = [
     deptTask?.deliveryDetails,
     deptTask?.notes,
     deptTask?.requiredDetails?.notes,
     deptTask?.requiredDetails?.manualRequired,
-    ...(Array.isArray(deptTask?.contentItems) ? deptTask.contentItems.map((item) => item?.requiredText) : []),
-    ...(Array.isArray(deptTask?.photoItems) ? deptTask.photoItems.map((item) => item?.requiredText) : []),
-    ...(Array.isArray(deptTask?.requiredDetails?.items) ? deptTask.requiredDetails.items.map((item) => item?.requiredText) : [])
+    ...(Array.isArray(deptTask?.contentItems) ? deptTask.contentItems.map((item) => item?.requiredText || item?.details) : []),
+    ...(Array.isArray(deptTask?.photoItems) ? deptTask.photoItems.map((item) => item?.requiredText || item?.details) : []),
+    ...(Array.isArray(deptTask?.requiredDetails?.items) ? deptTask.requiredDetails.items.map((item) => item?.requiredText || item?.details) : [])
   ];
-  const lines = mzjUniqueStrings(directSources.map(cleanTaskRequiredDisplayText).filter(Boolean));
-  if (!lines.length) return `<section class="task-details-required-only"><p>لا يوجد مطلوب مكتوب</p></section>`;
-  return `<section class="task-details-required-only">${lines.map((item) => `<p>${escapeHTML(item)}</p>`).join('')}</section>`;
+  const lines = mzjUniqueStrings(directRequiredSources.map(cleanTaskRequiredDisplayText).filter(Boolean));
+  const cars = mzjUniqueStrings([
+    ...items.map((item) => item?.carType),
+    ...mzjSplitMultiValue(deptTask?.carType),
+    ...rawSources.flatMap(parseCarsFromTaskText)
+  ].map((value) => String(value || '').trim()).filter(Boolean));
+  const contentTypes = mzjUniqueStrings([
+    ...items.map((item) => item?.contentType),
+    ...mzjSplitMultiValue(deptTask?.contentType),
+    ...rawSources.flatMap(parseContentTypesFromTaskText)
+  ].map((value) => String(value || '').trim()).filter(Boolean));
+
+  const requiredHtml = `<section class="task-details-required-only"><small>المطلوب</small>${lines.length ? lines.map((item) => `<p>${escapeHTML(item)}</p>`).join('') : '<p>لا يوجد مطلوب مكتوب</p>'}</section>`;
+  const carsHtml = cars.length ? `<section class="task-details-meta-lines"><small>السيارة المختارة</small>${cars.map((car) => `<p class="task-detail-car-line">${escapeHTML(car)}</p>`).join('')}</section>` : '';
+  const typesHtml = contentTypes.length ? `<section class="task-details-meta-lines"><small>نوع المحتوى</small>${contentTypes.map((type) => `<p>${escapeHTML(type)}</p>`).join('')}</section>` : '';
+  return `<div class="task-details-clean-stack">${requiredHtml}${carsHtml}${typesHtml}</div>`;
 }
 
 function renderStructuredDepartmentRequirement(deptTask, deptKeyValue) {

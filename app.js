@@ -437,24 +437,26 @@ function extractDepartmentTaskSummary(deptTask) {
   return { taskName, deptName, assignee, cars, contentTypes, requiredParts };
 }
 
+function cleanTaskRequiredDisplayText(value) {
+  let text = String(value || '').replace(/\r/g, '\n').trim();
+  if (!text) return '';
+  text = text
+    .replace(/^اسم التاسك\s*:\s*.*$/gmi, '')
+    .replace(/^مطلوب\s*\d+\s*[—\-–]\s*المطلوب\s*:?\s*/gmi, '')
+    .replace(/^مطلوب\s*\d+\s*:?\s*/gmi, '')
+    .replace(/^المطلوب\s*:?\s*/gmi, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+  return text;
+}
+
 function renderTaskDetailsSummary(deptTask, deptKeyValue) {
   const summary = extractDepartmentTaskSummary(deptTask || {});
-  const summaryRows = [
-    ['اسم التاسك', summary.taskName || '—'],
-    ['السيارة المختارة', summary.cars.join('، ') || '—'],
-    ['نوع المحتوى', summary.contentTypes.join('، ') || '—']
-  ];
-  const metaBadges = [
-    summary.deptName ? `<span class="task-detail-mini-badge">${escapeHTML(summary.deptName)}</span>` : '',
-    summary.assignee ? `<span class="task-detail-mini-badge">${escapeHTML(summary.assignee)}</span>` : ''
-  ].filter(Boolean).join('');
-  return `<section class="task-details-summary-card">
-    ${metaBadges ? `<div class="task-detail-meta-strip">${metaBadges}</div>` : ''}
-    <div class="task-details-summary-rows">
-      ${summaryRows.map(([label, value]) => `<div class="task-detail-row"><small>${escapeHTML(label)}</small><strong>${escapeHTML(value)}</strong></div>`).join('')}
-    </div>
-    ${summary.requiredParts.length ? `<div class="task-details-required-note"><small>المطلوب</small>${summary.requiredParts.map((item) => `<p>${escapeHTML(item)}</p>`).join('')}</div>` : ''}
-  </section>`;
+  const required = mzjUniqueStrings(summary.requiredParts.map(cleanTaskRequiredDisplayText).filter(Boolean));
+  const fallback = cleanTaskRequiredDisplayText(formatDepartmentRequirement(deptTask || {}));
+  const lines = required.length ? required : (fallback ? [fallback] : []);
+  if (!lines.length) return `<section class="task-details-required-only"><p>لا يوجد مطلوب مكتوب</p></section>`;
+  return `<section class="task-details-required-only">${lines.map((item) => `<p>${escapeHTML(item)}</p>`).join('')}</section>`;
 }
 
 function renderStructuredDepartmentRequirement(deptTask, deptKeyValue) {
@@ -2713,13 +2715,6 @@ function initCreateTaskFromTemplate() {
           <button class="soft-danger-btn" type="button" data-remove-department-assignment>مسح التكليف</button>
         </div>
 
-        <div class="department-task-grid department-task-core-grid professional-core-grid">
-          <label class="mzj-field full-width-field">
-            <span>اسم التاسك</span>
-            <input type="text" data-assignment-task-name placeholder="مثال: تجهيز محتوى إعلان عرض الجمعة">
-          </label>
-        </div>
-
         ${buildSpecialDepartmentFields(kind)}
 
         <div class="assignment-distribution-panel" data-assignment-distribution-panel>
@@ -4535,7 +4530,7 @@ function initCreateTaskFromTemplate() {
         const baseKind = 'content';
         const special = collectSpecialDepartmentDetails(assignmentRow, baseKind);
         const requiredText = special.requiredText || '';
-        const taskName = assignmentRow.querySelector('[data-assignment-task-name]')?.value.trim() || '';
+        const taskName = requiredText.trim();
         const targetSelect = assignmentRow.querySelector('[data-target-department-select]');
         const selectedDepartments = Array.from(targetSelect?.selectedOptions || []).filter((option) => option.value).map((option) => {
           const dept = (departmentsCache || []).find((item) => String(item.id || item.name || '') === String(option.value));

@@ -7504,3 +7504,36 @@ body:has(#taskDetailsModal.is-open){
     grid-template-columns:1fr !important;
   }
 }
+
+
+/* Requested cleanup: details show only written required content, no task/car/type blocks */
+#taskDetailsModal .task-details-summary-card,
+#taskDetailsModal .task-details-summary-rows,
+#taskDetailsModal .task-detail-row,
+#taskDetailsModal .task-detail-meta-strip{
+  display:none !important;
+}
+#taskDetailsModal .task-details-required-only{
+  padding:16px 18px;
+  border:1px dashed rgba(75,36,31,.14);
+  border-radius:18px;
+  background:#fffaf7;
+}
+#taskDetailsModal .task-details-required-only p{
+  margin:0;
+  color:var(--brown-900,#4b241f);
+  font-weight:900;
+  line-height:2;
+  font-size:16px;
+  white-space:pre-wrap;
+}
+#taskDetailsModal .task-details-required-only p + p{
+  margin-top:10px;
+  padding-top:10px;
+  border-top:1px dashed rgba(75,36,31,.12);
+}
+/* remove task-name field from create-task flow if an older cached block remains */
+#createTaskModal [data-assignment-task-name],
+#createTaskModal label:has([data-assignment-task-name]){
+  display:none !important;
+}

@@ -746,9 +746,35 @@ function renderTaskDetailsSummary(deptTask, deptKeyValue) {
     ]);
   }
 
+  const quantityMap = Object.assign({},
+    safeTask?.contentTypeQuantities || {},
+    safeTask?.selectedContentTypeQuantities || {},
+    safeTask?.requiredDetails?.contentTypeQuantities || {},
+    safeTask?.requiredDetails?.selectedContentTypeQuantities || {}
+  );
+  const quantityItems = [
+    ...(Array.isArray(safeTask?.contentItems) ? safeTask.contentItems : []),
+    ...(Array.isArray(safeTask?.photoItems) ? safeTask.photoItems : []),
+    ...(Array.isArray(safeTask?.selectedDeliverables) ? safeTask.selectedDeliverables : []),
+    ...(Array.isArray(safeTask?.requiredDetails?.items) ? safeTask.requiredDetails.items : []),
+    ...(Array.isArray(safeTask?.requiredDetails?.deliverables) ? safeTask.requiredDetails.deliverables : []),
+    ...items
+  ];
+  quantityItems.forEach((entry) => {
+    if (!entry || typeof entry !== 'object') return;
+    const title = String(entry.contentType || entry.title || entry.name || '').trim();
+    const qty = String(entry.quantity || entry.qty || entry.count || entry.requiredCount || entry.requiredQuantity || '').trim();
+    if (title && qty && !quantityMap[title]) quantityMap[title] = qty;
+  });
+  const typeDisplayLines = contentTypes.map((type) => {
+    const key = String(type || '').trim();
+    const qty = String(quantityMap[key] || '').trim();
+    return qty ? `${key} — العدد: ${qty}` : key;
+  });
+
   const requiredHtml = `<section class="task-details-required-only"><small>المطلوب</small>${lines.length ? lines.map((item) => `<p>${escapeHTML(item)}</p>`).join('') : '<p>لا يوجد مطلوب مكتوب</p>'}</section>`;
   const carsHtml = `<section class="task-details-meta-lines"><small>السيارة المختارة</small>${cars.length ? cars.map((car) => `<p class="task-detail-car-line">${escapeHTML(car)}</p>`).join('') : '<p>—</p>'}</section>`;
-  const typesHtml = `<section class="task-details-meta-lines"><small>نوع المحتوى</small>${contentTypes.length ? contentTypes.map((type) => `<p>${escapeHTML(type)}</p>`).join('') : '<p>—</p>'}</section>`;
+  const typesHtml = `<section class="task-details-meta-lines"><small>نوع المحتوى</small>${typeDisplayLines.length ? typeDisplayLines.map((type) => `<p>${escapeHTML(type)}</p>`).join('') : '<p>—</p>'}</section>`;
   return `<div class="task-details-clean-stack">${requiredHtml}${carsHtml}${typesHtml}</div>`;
 }
 
@@ -2115,27 +2141,34 @@ function normalizeContentTaskDepartment(item, index = 0) {
   if (!item) return null;
   const name = item.name || item.title || item.departmentName || item.sectionName || item.department || ('قسم ' + (index + 1));
   const id = item.id || item.docId || item.uid || item.key || item.slug || item.departmentId || item.departmentKey || ('dept_' + index);
-  const usersRaw = item.users || item.members || item.responsibles || item.assignees || item.usersList || item.team || [];
-  const users = Array.isArray(usersRaw)
-    ? usersRaw.map((user) => {
-        const normalized = normalizeSystemUser(user);
-        if (!normalized) return null;
-        return {
-          ...normalized,
-          department: normalized.department || id,
-          departmentId: normalized.departmentId || id,
-          departmentName: normalized.departmentName || name,
-          label: normalized.label || normalized.name || normalized.email || normalized.id || normalized.uid
-        };
-      }).filter(Boolean)
-    : [];
-  const userIds = Array.isArray(item.userIds) ? item.userIds : [];
-  const memberUids = Array.isArray(item.memberUids) ? item.memberUids : [];
-  const memberEmails = Array.isArray(item.memberEmails) ? item.memberEmails : [];
-  const members = Array.isArray(item.members) ? item.members : [];
-  const assignees = Array.isArray(item.assignees) ? item.assignees : [];
-  const responsibles = Array.isArray(item.responsibles) ? item.responsibles : [];
-  const usersList = Array.isArray(item.usersList) ? item.usersList : [];
+  const localValuesAsArray = (value) => {
+    if (value == null || value === '') return [];
+    if (Array.isArray(value)) return value.flatMap(localValuesAsArray);
+    if (typeof value === 'object') {
+      if (value.email || value.uid || value.id || value.userId || value.name || value.displayName || value.fullName) return [value];
+      return Object.values(value).flatMap(localValuesAsArray);
+    }
+    return String(value).split(/[,،;\n]+/).map((entry) => entry.trim()).filter(Boolean);
+  };
+  const usersRaw = [item.users, item.members, item.responsibles, item.assignees, item.usersList, item.team, item.teamUsers, item.selectedUsers].flatMap(localValuesAsArray);
+  const users = usersRaw.map((user) => {
+    const normalized = normalizeSystemUser(user);
+    if (!normalized) return null;
+    return {
+      ...normalized,
+      department: normalized.department || id,
+      departmentId: normalized.departmentId || id,
+      departmentName: normalized.departmentName || name,
+      label: normalized.label || normalized.name || normalized.email || normalized.id || normalized.uid
+    };
+  }).filter(Boolean);
+  const userIds = localValuesAsArray(item.userIds || item.usersIds || item.departmentUserIds);
+  const memberUids = localValuesAsArray(item.memberUids || item.uids || item.userUids);
+  const memberEmails = localValuesAsArray(item.memberEmails || item.emails || item.userEmails);
+  const members = localValuesAsArray(item.members);
+  const assignees = localValuesAsArray(item.assignees);
+  const responsibles = localValuesAsArray(item.responsibles);
+  const usersList = localValuesAsArray(item.usersList || item.teamUsers || item.selectedUsers);
   return {
     ...item,
     id,
@@ -2320,7 +2353,8 @@ function renderUserOptions(users, departmentId = '', allowFallback = true) {
 // They must be global here because some helper functions are defined outside initCreateTaskModal().
 var departmentsCache = Array.isArray(MZJ_DEPARTMENTS_FALLBACK) ? MZJ_DEPARTMENTS_FALLBACK : [];
 var usersCache = [];
-const MZJ_ASSIGNMENT_LABEL = 'قسم المحتوى';
+const MZJ_CONTENT_HUB_LABEL = 'قسم المحتوى';
+const MZJ_ASSIGNMENT_LABEL = 'المطلوب';
 
 function normalizeDeptCompareValue(value) {
   return String(value || '')
@@ -2490,13 +2524,15 @@ function usersForDepartment(dept, allUsers) {
     const key = String(normalized?.uid || normalized?.id || normalized?.email || normalized?.name || '').trim().toLowerCase();
     if (key) merged.set(key, { ...normalized, department: normalized.department || dept?.id || '', departmentId: normalized.departmentId || dept?.id || '', departmentName: normalized.departmentName || dept?.name || '' });
   });
-  const finalUsers = Array.from(merged.values());
-  if (finalUsers.length) return finalUsers;
   const kind = deptKindFromName(dept?.name || dept?.kind || dept?.id || '');
   if (kind === 'content') {
-    const looseContentUsers = normalizedAllUsers.filter((user) => /content|محتو|كتابة|copy/i.test([user.department, user.departmentId, user.departmentName, user.role, user.team, user.teamName].filter(Boolean).join(' ')));
-    if (looseContentUsers.length) return looseContentUsers;
+    const looseContentUsers = normalizedAllUsers.filter((user) => /content|محتو|كتابة|copy/i.test([user.department, user.departmentId, user.departmentName, user.role, user.team, user.teamName, user.sectionName, user.deptName].filter(Boolean).join(' ')));
+    looseContentUsers.forEach((user) => {
+      const key = String(user.uid || user.id || user.email || user.name || '').trim().toLowerCase();
+      if (key) merged.set(key, { ...user, department: user.department || dept?.id || '', departmentId: user.departmentId || dept?.id || '', departmentName: user.departmentName || dept?.name || '' });
+    });
   }
+  const finalUsers = Array.from(merged.values());
   return finalUsers;
 }
 
@@ -3245,9 +3281,9 @@ function initCreateTaskFromTemplate() {
       <div class="department-row-head content-hub-head">
         <input type="checkbox" data-department-enabled hidden checked>
         <button class="department-toggle-btn content-hub-toggle" type="button" data-department-toggle>
-          <span class="content-hub-badge">${escapeHTML(MZJ_ASSIGNMENT_LABEL)}</span>
+          <span class="content-hub-badge">${escapeHTML(MZJ_CONTENT_HUB_LABEL)}</span>
           <span class="content-hub-copy">
-            <strong>${escapeHTML(MZJ_ASSIGNMENT_LABEL)}</strong>
+            <strong>${escapeHTML(MZJ_CONTENT_HUB_LABEL)}</strong>
           </span>
         </button>
       </div>
@@ -3270,7 +3306,7 @@ function initCreateTaskFromTemplate() {
 
   function renderAllDepartments() {
     departmentsList.innerHTML = '';
-    const contentDept = (departmentsCache || []).find((dept) => deptKindFromName(dept.name || '') === 'content') || { id: 'content', name: MZJ_ASSIGNMENT_LABEL };
+    const contentDept = (departmentsCache || []).find((dept) => deptKindFromName(dept.name || '') === 'content') || { id: 'content', name: MZJ_CONTENT_HUB_LABEL };
     createDepartmentRow(contentDept);
   }
 

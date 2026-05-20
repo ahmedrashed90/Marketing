@@ -7922,3 +7922,34 @@ body:has(#taskDetailsModal.is-open){
 #createTaskModal .matrix-user-chip {
   width: 100%;
 }
+
+/* MZJ dashboard requested cleanup: remove duplicated block borders but keep action buttons */
+#createTaskModal .content-hub-row{
+  border:none !important;
+  background:transparent !important;
+  box-shadow:none !important;
+  padding:0 !important;
+}
+#createTaskModal .content-hub-toggle{
+  border:none !important;
+  box-shadow:none !important;
+}
+#createTaskModal .content-assignments-head{
+  border:none !important;
+  background:transparent !important;
+  box-shadow:none !important;
+  padding:0 0 12px !important;
+}
+#createTaskModal .professional-assignment-card{
+  border:none !important;
+  box-shadow:none !important;
+  background:transparent !important;
+  padding:0 !important;
+}
+#createTaskModal .department-task-body{
+  border:none !important;
+  box-shadow:none !important;
+}
+#createTaskModal .department-assignments-list{
+  gap:22px !important;
+}

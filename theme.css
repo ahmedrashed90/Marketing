@@ -8746,3 +8746,49 @@ body[data-page="requiredContent"] .required-content-type-inline{
   background:#fbe7e7!important;
   color:#7c2020!important;
 }
+
+/* MZJ tweak: show quantity input only for selected content types */
+#createTaskModal .universal-content-type-card .universal-content-type-main{
+  flex:1 1 auto!important;
+  min-width:0!important;
+  display:grid!important;
+  gap:2px!important;
+}
+#createTaskModal .universal-content-type-card .universal-content-type-main strong{
+  font-size:13px!important;
+  font-weight:900!important;
+  color:inherit!important;
+}
+#createTaskModal .universal-content-type-card .content-type-quantity-field[hidden]{
+  display:none!important;
+}
+#createTaskModal .universal-content-type-card .content-type-quantity-field{
+  flex:0 0 92px!important;
+  margin:0!important;
+  padding:0!important;
+  border:0!important;
+  display:grid!important;
+  gap:4px!important;
+}
+#createTaskModal .universal-content-type-card .content-type-quantity-field small{
+  font-size:11px!important;
+  font-weight:900!important;
+  color:inherit!important;
+  text-align:center!important;
+}
+#createTaskModal .universal-content-type-card input[data-content-type-quantity]{
+  width:100%!important;
+  min-height:34px!important;
+  border-radius:10px!important;
+  border:1px solid rgba(62,36,32,.18)!important;
+  background:#fff!important;
+  color:#2f1a16!important;
+  padding:6px 8px!important;
+  text-align:center!important;
+  font-weight:900!important;
+}
+#createTaskModal .universal-content-type-card.is-checked input[data-content-type-quantity]{
+  background:#fff!important;
+  color:#2f1a16!important;
+  border-color:rgba(255,255,255,.65)!important;
+}

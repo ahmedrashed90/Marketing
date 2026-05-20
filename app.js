@@ -2896,8 +2896,14 @@ function renderUniversalContentChoiceCards(kind, sectionId = '', selected = []) 
     return `
     <label class="universal-content-type-card ${checked ? 'is-checked' : ''}" data-content-type-card>
       <input type="checkbox" data-universal-content-type value="${escapeHTML(item.title)}" data-desc="${escapeHTML(item.details || '')}" data-id="${escapeHTML(item.id)}" data-section-id="${escapeHTML(item.sectionId || '')}" data-section-name="${escapeHTML(item.sectionName || '')}" ${checked ? 'checked' : ''}>
-      <span>${escapeHTML(item.title)}</span>
-      ${item.details ? `<small>${escapeHTML(item.details)}</small>` : ''}
+      <span class="universal-content-type-main">
+        <strong>${escapeHTML(item.title)}</strong>
+        ${item.details ? `<small>${escapeHTML(item.details)}</small>` : ''}
+      </span>
+      <span class="content-type-quantity-field" data-content-type-quantity-wrap ${checked ? '' : 'hidden'}>
+        <small>العدد</small>
+        <input type="number" min="1" step="1" inputmode="numeric" data-content-type-quantity placeholder="اكتب العدد">
+      </span>
     </label>`;
   }).join('');
 }
@@ -3344,7 +3350,11 @@ function initCreateTaskFromTemplate() {
     root?.querySelectorAll?.('[data-universal-required-item]').forEach((item) => items.push(item));
     Array.from(new Set(items)).forEach((item) => {
       const cars = Array.from(item.querySelectorAll('[data-universal-car-choice]:checked')).map((input) => input.value);
-      const contentTypes = Array.from(item.querySelectorAll('[data-universal-content-type]:checked')).map((input) => input.value);
+      const contentTypes = Array.from(item.querySelectorAll('[data-universal-content-type]:checked')).map((input) => {
+        const card = input.closest('[data-content-type-card], .universal-content-type-card');
+        const qty = card?.querySelector('[data-content-type-quantity]')?.value.trim() || '';
+        return qty ? `${input.value} (${qty})` : input.value;
+      });
       setDropdownSummary(item.querySelector('[data-checkbox-dropdown]'), assignmentSummaryText(cars, 'اختار السيارة'));
       setDropdownSummary(item.querySelector('[data-content-type-dropdown]'), assignmentSummaryText(contentTypes, 'اختار أنواع المحتوى'));
     });

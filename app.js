@@ -5772,6 +5772,7 @@ initCreateTaskFromTemplate();
         </div>
       </section>
       <section class="workspace-card"><div id="campaignCalendarList" class="review-cards-grid"></div></section>
+      <div id="campaignTaskFullModal" class="campaign-full-modal" aria-hidden="true"></div>
       <div id="campaignReviewModal" class="review-modal" aria-hidden="true"></div>`;
     bindCampaignsCalendarEvents();
     renderCampaignsCalendarList('campaigns');
@@ -5794,7 +5795,18 @@ initCreateTaskFromTemplate();
     }
   }
   function renderTaskSummaryCard(task){
-    return `<article class="review-summary-card"><strong>${esc(task.campaignName || task.templateName || 'بدون اسم')}</strong><span>${esc(task.campaignTypeName || task.taskTypeLabel || '')}</span><small>${esc(task.campaignCode || '')}</small></article>`;
+    const id = esc(task.firestoreId || task.id || task.taskId || task.campaignCode || '');
+    const typeLabel = task.taskType === 'agenda' ? 'أجندة' : (task.taskTypeLabel || 'حملة');
+    const departmentCount = Array.isArray(task.departmentTasks) ? task.departmentTasks.length : 0;
+    return `<article class="review-summary-card campaign-calendar-card" data-calendar-task-card="${id}">
+      <strong>${esc(task.campaignName || task.templateName || task.agendaName || 'بدون اسم')}</strong>
+      <span>${esc(task.campaignTypeName || typeLabel || '')}</span>
+      <small>${esc(task.campaignCode || '')}</small>
+      <p>${departmentCount ? `${departmentCount} تكليف / قسم` : 'لا توجد تكليفات مرتبطة'}</p>
+      <div class="task-card-actions">
+        <button class="secondary-btn" type="button" data-open-calendar-task="${id}">فتح التفاصيل</button>
+      </div>
+    </article>`;
   }
   function renderReviewCard(review){
     const types = (review.contentTypes || []).slice(0, 6).map(esc).join('، ');
@@ -5846,9 +5858,200 @@ initCreateTaskFromTemplate();
         } catch (error) { alert('فشل مسح حملة المراجعة: ' + (error?.message || error)); }
         return;
       }
+      const taskOpenBtn = event.target.closest('[data-open-calendar-task]');
+      if (taskOpenBtn) {
+        event.preventDefault();
+        openCalendarTaskModal(taskOpenBtn.dataset.openCalendarTask);
+        return;
+      }
+      const closeTaskBtn = event.target.closest('[data-close-calendar-task-modal]');
+      if (closeTaskBtn) {
+        closeCalendarTaskModal();
+        return;
+      }
+      const editTaskBtn = event.target.closest('[data-edit-calendar-task]');
+      if (editTaskBtn) {
+        setCalendarTaskModalEditMode(true);
+        return;
+      }
+      const cancelTaskEditBtn = event.target.closest('[data-cancel-calendar-task-edit]');
+      if (cancelTaskEditBtn) {
+        setCalendarTaskModalEditMode(false);
+        return;
+      }
+      const saveTaskBtn = event.target.closest('[data-save-calendar-task]');
+      if (saveTaskBtn) {
+        saveCalendarTaskFromModal(saveTaskBtn.dataset.saveCalendarTask);
+        return;
+      }
       const openBtn = event.target.closest('[data-open-review]');
       if (openBtn) openReviewModal(openBtn.dataset.openReview);
     });
+  }
+
+  let activeCalendarTask = null;
+  function calendarTaskModal(){ return document.getElementById('campaignTaskFullModal'); }
+  function closeCalendarTaskModal(){
+    const modal = calendarTaskModal();
+    if (!modal) return;
+    modal.classList.remove('is-open');
+    modal.setAttribute('aria-hidden','true');
+    modal.innerHTML = '';
+    activeCalendarTask = null;
+  }
+  function taskDocId(task){ return String(task?.firestoreId || task?.id || task?.taskId || '').trim(); }
+  async function getCalendarTaskById(id){
+    const db = ensureFirebase();
+    const rawId = String(id || '').trim();
+    if (!rawId) throw new Error('لا يوجد ID للحملة / الأجندة');
+    const direct = await db.collection(TASK_COLLECTION).doc(rawId).get();
+    if (direct.exists) return { firestoreId: direct.id, ...(direct.data() || {}) };
+    const snap = await db.collection(TASK_COLLECTION).where('id','==',rawId).limit(1).get();
+    if (!snap.empty) {
+      const doc = snap.docs[0];
+      return { firestoreId: doc.id, ...(doc.data() || {}) };
+    }
+    const codeSnap = await db.collection(TASK_COLLECTION).where('campaignCode','==',rawId).limit(1).get();
+    if (!codeSnap.empty) {
+      const doc = codeSnap.docs[0];
+      return { firestoreId: doc.id, ...(doc.data() || {}) };
+    }
+    throw new Error('لم يتم العثور على الحملة / الأجندة');
+  }
+  function safeArray(value){ return Array.isArray(value) ? value : []; }
+  function prettyDate(value){ return esc(value || '—'); }
+  function fullModalInfoField(label, value, name, type='text'){
+    const inputValue = esc(value || '');
+    return `<label class="mzj-field calendar-full-edit-field"><span>${esc(label)}</span><input name="${esc(name)}" type="${esc(type)}" value="${inputValue}"></label>`;
+  }
+  function renderCalendarTaskInfoGrid(task){
+    const typeLabel = task.taskType === 'agenda' ? 'أجندة' : 'حملة';
+    return `<div class="campaign-full-info-grid">
+      <div><small>النوع</small><strong>${esc(task.taskTypeLabel || typeLabel)}</strong></div>
+      <div><small>الاسم</small><strong>${esc(task.campaignName || task.agendaName || task.templateName || '—')}</strong></div>
+      <div><small>الكود</small><strong>${esc(task.campaignCode || task.id || '—')}</strong></div>
+      <div><small>نوع الحملة / الأجندة</small><strong>${esc(task.campaignTypeName || '—')}</strong></div>
+      <div><small>تاريخ البداية</small><strong>${prettyDate(task.campaignStartDate || task.launchDate || task.taskDate)}</strong></div>
+      <div><small>تاريخ النهاية</small><strong>${prettyDate(task.campaignEndDate || task.endDate)}</strong></div>
+      <div><small>الهدف</small><strong>${esc(task.campaignGoal || '—')}</strong></div>
+      <div><small>الشهر / السنة</small><strong>${esc([task.agendaMonth, task.agendaYear].filter(Boolean).join(' / ') || '—')}</strong></div>
+    </div>`;
+  }
+  function renderCalendarTaskEditForm(task){
+    return `<form id="calendarTaskEditForm" class="campaign-full-edit-form" hidden>
+      <div class="campaign-full-form-grid">
+        ${fullModalInfoField('اسم الحملة / الأجندة', task.campaignName || task.agendaName || '', 'campaignName')}
+        ${fullModalInfoField('نوع الحملة / الأجندة', task.campaignTypeName || '', 'campaignTypeName')}
+        ${fullModalInfoField('كود الحملة / الأجندة', task.campaignCode || '', 'campaignCode')}
+        ${fullModalInfoField('تاريخ البداية', task.campaignStartDate || task.launchDate || '', 'campaignStartDate', 'date')}
+        ${fullModalInfoField('تاريخ النهاية', task.campaignEndDate || task.endDate || '', 'campaignEndDate', 'date')}
+        ${fullModalInfoField('الهدف', task.campaignGoal || '', 'campaignGoal')}
+      </div>
+      <label class="mzj-field"><span>شرح / وصف الحملة</span><textarea name="campaignDescription" rows="4">${esc(task.campaignDescription || task.campaignEndDescription || '')}</textarea></label>
+    </form>`;
+  }
+  function renderDepartmentTaskRows(task){
+    const rows = safeArray(task.departmentTasks);
+    if (!rows.length) return '<p class="task-empty-note">لا توجد تكليفات أقسام محفوظة لهذه الحملة / الأجندة.</p>';
+    return `<div class="campaign-full-table-wrap"><table class="campaign-full-table"><thead><tr><th>القسم</th><th>المسؤول</th><th>المطلوب</th><th>السيارات</th><th>نوع المحتوى</th><th>الحالة</th></tr></thead><tbody>
+      ${rows.map((row) => {
+        const cars = [...new Set([...(row.selectedCars||[]), ...(row.selectedCarValues||[]), row.carType, ...(row.contentItems||[]).map(i=>i?.carType), ...(row.photoItems||[]).map(i=>i?.carType)].filter(Boolean))];
+        const types = [...new Set([...(row.selectedContentTypes||[]), ...(row.selectedContentTypeTitles||[]), row.contentType, ...(row.contentItems||[]).map(i=>i?.contentType || i?.title), ...(row.photoItems||[]).map(i=>i?.contentType || i?.title)].filter(Boolean).filter(v=>!/^rct_/i.test(String(v))))];
+        return `<tr>
+          <td>${esc(row.departmentName || row.targetDepartmentName || row.departmentId || '—')}</td>
+          <td>${esc(row.assigneeName || row.userName || row.userDisplayName || row.assigneeEmail || row.userEmail || '—')}</td>
+          <td>${esc(row.requiredText || row.manualRequired || row.notes || row.deliveryDetails || '—')}</td>
+          <td>${cars.length ? cars.map(esc).join('<br>') : '—'}</td>
+          <td>${types.length ? types.map(esc).join('<br>') : '—'}</td>
+          <td>${row.received || row.receivedConfirmed ? 'تم الاستلام' : 'لم يتم الاستلام'}</td>
+        </tr>`;
+      }).join('')}
+    </tbody></table></div>`;
+  }
+  function renderPublishScheduleRows(task){
+    const entries = safeArray(task.publishScheduleEntries);
+    if (!entries.length) return '<p class="task-empty-note">لا يوجد جدول نشر محفوظ.</p>';
+    return `<div class="campaign-full-table-wrap"><table class="campaign-full-table"><thead><tr><th>اليوم</th><th>التاريخ</th><th>المحتوى</th></tr></thead><tbody>
+      ${entries.map((entry) => `<tr><td>${esc(entry.day || '—')}</td><td>${esc(entry.date || '—')}</td><td>${esc(entry.content || safeArray(entry.items).map((i)=>i?.content || i?.title || i).filter(Boolean).join('، ') || '—')}</td></tr>`).join('')}
+    </tbody></table></div>`;
+  }
+  function renderCampaignLogicRows(task){
+    const items = safeArray(task.campaignLogic);
+    if (!items.length) return '<p class="task-empty-note">لا توجد تفاصيل Campaign Logic محفوظة.</p>';
+    return `<div class="campaign-logic-grid">${items.map((item) => `<div><small>${esc(item.label || item.key || item.title || 'عنصر')}</small><strong>${esc(item.value || item.text || item.details || '')}</strong></div>`).join('')}</div>`;
+  }
+  async function openCalendarTaskModal(id){
+    const modal = calendarTaskModal();
+    if (!modal) return;
+    modal.classList.add('is-open');
+    modal.setAttribute('aria-hidden','false');
+    modal.innerHTML = '<section class="campaign-full-dialog"><p class="task-empty-note">جاري تحميل التفاصيل...</p></section>';
+    try {
+      const task = await getCalendarTaskById(id);
+      activeCalendarTask = task;
+      modal.innerHTML = renderCalendarTaskModal(task);
+    } catch (error) {
+      modal.innerHTML = `<section class="campaign-full-dialog"><button class="modal-close-btn" type="button" data-close-calendar-task-modal>×</button><p class="task-empty-note">⚠️ فشل فتح التفاصيل: ${esc(error?.message || error)}</p></section>`;
+    }
+  }
+  function renderCalendarTaskModal(task){
+    return `<section class="campaign-full-dialog" role="dialog" aria-modal="true">
+      <div class="campaign-full-head">
+        <div><span class="eyebrow">تفاصيل كاملة</span><h2>${esc(task.campaignName || task.agendaName || 'حملة / أجندة')}</h2><p>${esc(task.campaignCode || '')}</p></div>
+        <button class="modal-close-btn" type="button" data-close-calendar-task-modal>×</button>
+      </div>
+      <div class="campaign-full-actions">
+        <button class="primary-btn" type="button" data-edit-calendar-task>تعديل البيانات</button>
+        <button class="soft-btn" type="button" data-cancel-calendar-task-edit hidden>إلغاء التعديل</button>
+        <button class="primary-btn" type="button" data-save-calendar-task="${esc(taskDocId(task))}" hidden>حفظ التعديل</button>
+      </div>
+      <section class="workspace-card campaign-full-view-block" data-calendar-task-view>${renderCalendarTaskInfoGrid(task)}</section>
+      ${renderCalendarTaskEditForm(task)}
+      <section class="workspace-card"><h3>تكليفات الأقسام واليوزرات</h3>${renderDepartmentTaskRows(task)}</section>
+      <section class="workspace-card"><h3>جدول النشر</h3>${renderPublishScheduleRows(task)}</section>
+      <section class="workspace-card"><h3>تفاصيل الحملة</h3>${renderCampaignLogicRows(task)}</section>
+    </section>`;
+  }
+  function setCalendarTaskModalEditMode(enabled){
+    const modal = calendarTaskModal();
+    if (!modal) return;
+    modal.querySelector('[data-calendar-task-view]')?.toggleAttribute('hidden', enabled);
+    modal.querySelector('#calendarTaskEditForm')?.toggleAttribute('hidden', !enabled);
+    modal.querySelector('[data-edit-calendar-task]')?.toggleAttribute('hidden', enabled);
+    modal.querySelector('[data-cancel-calendar-task-edit]')?.toggleAttribute('hidden', !enabled);
+    modal.querySelector('[data-save-calendar-task]')?.toggleAttribute('hidden', !enabled);
+  }
+  async function saveCalendarTaskFromModal(id){
+    const modal = calendarTaskModal();
+    const form = modal?.querySelector('#calendarTaskEditForm');
+    if (!form || !activeCalendarTask) return;
+    const saveBtn = modal.querySelector('[data-save-calendar-task]');
+    const data = Object.fromEntries(new FormData(form).entries());
+    const payload = {
+      campaignName: data.campaignName || '',
+      campaignTypeName: data.campaignTypeName || '',
+      campaignCode: data.campaignCode || '',
+      campaignStartDate: data.campaignStartDate || '',
+      campaignEndDate: data.campaignEndDate || '',
+      campaignGoal: data.campaignGoal || '',
+      campaignDescription: data.campaignDescription || '',
+      updatedAt: new Date().toISOString()
+    };
+    if (activeCalendarTask.taskType === 'agenda') payload.taskTypeLabel = 'أجندة';
+    try {
+      if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'جاري الحفظ...'; }
+      const db = ensureFirebase();
+      const docId = String(id || taskDocId(activeCalendarTask));
+      await db.collection(TASK_COLLECTION).doc(docId).set(payload, { merge: true });
+      activeCalendarTask = { ...activeCalendarTask, ...payload };
+      modal.innerHTML = renderCalendarTaskModal(activeCalendarTask);
+      await renderCampaignsCalendarList(pageRoot?.querySelector('[data-calendar-tab].is-active')?.dataset.calendarTab || 'campaigns');
+      alert('تم حفظ التعديل');
+    } catch (error) {
+      alert('فشل حفظ التعديل: ' + (error?.message || error));
+    } finally {
+      if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'حفظ التعديل'; }
+    }
   }
 
   async function deleteReviewDocument(id){

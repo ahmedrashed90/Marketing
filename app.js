@@ -414,6 +414,49 @@ function normalizeDepartmentContentItems(deptTask) {
   });
 }
 
+function extractDepartmentTaskSummary(deptTask) {
+  const items = normalizeDepartmentContentItems(deptTask);
+  const taskName = String(deptTask?.taskName || deptTask?.requiredTaskName || deptTask?.taskTitle || deptTask?.title || deptTask?.name || '').trim() || departmentTaskShortName(deptTask);
+  const deptName = String(deptTask?.departmentName || '').trim();
+  const assignee = String(deptTask?.userName || deptTask?.userDisplayName || deptTask?.assigneeName || deptTask?.responsible || deptTask?.userEmail || deptTask?.assigneeEmail || '').trim();
+  const cars = mzjUniqueStrings([
+    ...items.map((item) => item?.carType),
+    ...mzjSplitMultiValue(deptTask?.carType)
+  ].map((value) => String(value || '').trim()).filter(Boolean));
+  const contentTypes = mzjUniqueStrings([
+    ...items.map((item) => item?.contentType),
+    ...mzjSplitMultiValue(deptTask?.contentType)
+  ].map((value) => String(value || '').trim()).filter(Boolean));
+  const requiredParts = mzjUniqueStrings([
+    ...items.map((item) => item?.requiredText || item?.details),
+    deptTask?.requiredText,
+    deptTask?.deliveryDetails,
+    deptTask?.required,
+    deptTask?.notes
+  ].map((value) => String(value || '').replace(/^اسم التاسك\s*:\s*.*$/gmi, '').trim()).filter(Boolean));
+  return { taskName, deptName, assignee, cars, contentTypes, requiredParts };
+}
+
+function renderTaskDetailsSummary(deptTask, deptKeyValue) {
+  const summary = extractDepartmentTaskSummary(deptTask || {});
+  const summaryRows = [
+    ['اسم التاسك', summary.taskName || '—'],
+    ['السيارة المختارة', summary.cars.join('، ') || '—'],
+    ['نوع المحتوى', summary.contentTypes.join('، ') || '—']
+  ];
+  const metaBadges = [
+    summary.deptName ? `<span class="task-detail-mini-badge">${escapeHTML(summary.deptName)}</span>` : '',
+    summary.assignee ? `<span class="task-detail-mini-badge">${escapeHTML(summary.assignee)}</span>` : ''
+  ].filter(Boolean).join('');
+  return `<section class="task-details-summary-card">
+    ${metaBadges ? `<div class="task-detail-meta-strip">${metaBadges}</div>` : ''}
+    <div class="task-details-summary-rows">
+      ${summaryRows.map(([label, value]) => `<div class="task-detail-row"><small>${escapeHTML(label)}</small><strong>${escapeHTML(value)}</strong></div>`).join('')}
+    </div>
+    ${summary.requiredParts.length ? `<div class="task-details-required-note"><small>المطلوب</small>${summary.requiredParts.map((item) => `<p>${escapeHTML(item)}</p>`).join('')}</div>` : ''}
+  </section>`;
+}
+
 function renderStructuredDepartmentRequirement(deptTask, deptKeyValue) {
   const items = normalizeDepartmentContentItems(deptTask);
   const taskName = String(deptTask?.taskName || deptTask?.requiredTaskName || deptTask?.taskTitle || deptTask?.title || '').trim();
@@ -1123,19 +1166,12 @@ function openTaskDetails(button) {
     const selectedAssignment = assignments[assignmentIndex] || assignments[0] || { dept: clickedDept };
     const selectedDeptForRender = (deptDataFromButton && deptDataFromButton.__contentTypeFilter && assignmentIndex === 0) ? deptDataFromButton : selectedAssignment.dept;
     if (taskDetailsRequired) {
-      taskDetailsRequired.innerHTML = renderStructuredDepartmentRequirement(selectedDeptForRender, deptKeyValue) || renderTaskRequirementDetails(formatDepartmentRequirement(selectedDeptForRender), deptKeyValue);
+      taskDetailsRequired.innerHTML = renderTaskDetailsSummary(selectedDeptForRender, deptKeyValue) || renderStructuredDepartmentRequirement(selectedDeptForRender, deptKeyValue) || renderTaskRequirementDetails(formatDepartmentRequirement(selectedDeptForRender), deptKeyValue);
     }
   };
   renderSelectedRequirement(0);
 
-  taskStepButtons.innerHTML = '';
-  const modalProgressRow = document.createElement('div');
-  modalProgressRow.className = 'assignment-modal-progress-row compact-modal-progress-row';
-  modalProgressRow.innerHTML = `
-    <span class="compact-progress-pill"><small>اكتمال التاسك</small><strong data-modal-task-percent>0%</strong></span>
-    <span class="compact-progress-pill"><small>مساهمة القسم في الحملة</small><strong data-modal-campaign-percent>0%</strong></span>
-  `;
-  taskStepButtons.appendChild(modalProgressRow);
+taskStepButtons.innerHTML = '';
 
   if (assignments.length > 1) {
     const switcher = document.createElement('div');
@@ -1189,19 +1225,20 @@ function openTaskDetails(button) {
     const assignmentTitle = dept.taskName || dept.requiredTaskName || dept.contentType || dept.deliverable || dept.taskNo || 'تكليف مطلوب';
 
     block.innerHTML = `
-      <div class="assignment-step-head">
-        <div class="assignment-step-title">
-          <span>تكليف ${assignmentIndex + 1}</span>
-          <strong>${escapeHTML(assignmentTitle || 'تكليف مطلوب')}</strong>
+      <div class="assignment-actions-panel">
+        <div class="assignment-actions-panel-head">
+          <div class="assignment-step-title compact-title-block">
+            <span>تكليف ${assignmentIndex + 1}</span>
+            <strong>${escapeHTML(assignmentTitle || 'تكليف مطلوب')}</strong>
+          </div>
+          <div class="assignment-step-progress compact-inline-progress">
+            <div><small>اكتمال التاسك</small><b data-assignment-task-percent>0%</b></div>
+            <div><small>مساهمة القسم</small><b data-assignment-campaign-percent>0%</b></div>
+          </div>
         </div>
-        <div class="assignment-step-progress">
-          <div><small>اكتمال التكليف</small><b data-assignment-task-percent>0%</b></div>
-          <div><small>نسبة الحملة</small><b data-assignment-campaign-percent>0%</b></div>
-        </div>
+        <div class="assignment-actions-title">إجراءات التكليف</div>
+        <div class="assignment-step-buttons" data-assignment-step-buttons></div>
       </div>
-      <div class="assignment-step-required">${renderStructuredDepartmentRequirement(dept, deptKeyValue) || renderTaskRequirementDetails(formatDepartmentRequirement(dept), deptKeyValue)}</div>
-      <div class="assignment-actions-title">إجراءات التكليف</div>
-      <div class="assignment-step-buttons" data-assignment-step-buttons></div>
     `;
 
     const buttonsWrap = block.querySelector('[data-assignment-step-buttons]');
@@ -1296,7 +1333,7 @@ document.addEventListener('click', (event) => {
     });
     const selectedMeta = activeTaskDetailsMeta?.relatedAssignments?.[index];
     if (selectedMeta?.deptData && taskDetailsRequired) {
-      taskDetailsRequired.innerHTML = renderStructuredDepartmentRequirement(selectedMeta.deptData, activeTaskDetailsMeta?.deptKey || '') || renderTaskRequirementDetails(formatDepartmentRequirement(selectedMeta.deptData), activeTaskDetailsMeta?.deptKey || '');
+      taskDetailsRequired.innerHTML = renderTaskDetailsSummary(selectedMeta.deptData, activeTaskDetailsMeta?.deptKey || '') || renderStructuredDepartmentRequirement(selectedMeta.deptData, activeTaskDetailsMeta?.deptKey || '') || renderTaskRequirementDetails(formatDepartmentRequirement(selectedMeta.deptData), activeTaskDetailsMeta?.deptKey || '');
     }
     syncTaskProgress();
     return;

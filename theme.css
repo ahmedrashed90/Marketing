@@ -7333,3 +7333,174 @@ body:has(#taskDetailsModal.is-open){
   overflow:visible!important;
   line-height:1.7!important;
 }
+
+/* Task details redesign: simple summary rows + compact progress + inline action buttons */
+#taskDetailsModal .task-required-box{
+  padding:22px 24px !important;
+}
+#taskDetailsModal .task-required-box > strong{
+  display:block;
+  margin-bottom:14px;
+}
+#taskDetailsModal .task-required-content{
+  display:block;
+}
+#taskDetailsModal .task-details-summary-card{
+  display:grid;
+  gap:14px;
+}
+#taskDetailsModal .task-detail-meta-strip{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+}
+#taskDetailsModal .task-detail-mini-badge{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  padding:7px 12px;
+  border-radius:999px;
+  background:rgba(75,36,31,.08);
+  color:var(--brown-900,#4b241f);
+  font-weight:900;
+  font-size:13px;
+}
+#taskDetailsModal .task-details-summary-rows{
+  display:grid;
+  gap:10px;
+}
+#taskDetailsModal .task-detail-row{
+  padding:14px 16px;
+  border:1px solid rgba(75,36,31,.10);
+  border-radius:18px;
+  background:#fff;
+  display:grid;
+  gap:6px;
+}
+#taskDetailsModal .task-detail-row small,
+#taskDetailsModal .task-details-required-note small{
+  color:var(--muted,#9a7d70);
+  font-weight:900;
+}
+#taskDetailsModal .task-detail-row strong{
+  color:var(--brown-900,#4b241f);
+  font-weight:900;
+  line-height:1.9;
+  white-space:normal;
+  overflow-wrap:anywhere;
+}
+#taskDetailsModal .task-details-required-note{
+  padding:14px 16px;
+  border:1px dashed rgba(75,36,31,.14);
+  border-radius:18px;
+  background:#fffaf7;
+}
+#taskDetailsModal .task-details-required-note p{
+  margin:8px 0 0;
+  color:var(--brown-900,#4b241f);
+  font-weight:800;
+  line-height:1.9;
+}
+#taskDetailsModal .department-progress-row{
+  display:flex !important;
+  flex-wrap:wrap;
+  gap:10px;
+  align-items:stretch;
+  margin-top:14px !important;
+  margin-bottom:12px !important;
+}
+#taskDetailsModal .department-progress-box{
+  flex:0 0 auto;
+  min-width:170px;
+  padding:12px 16px !important;
+  border-radius:18px !important;
+  background:#fff !important;
+  border:1px solid rgba(75,36,31,.10) !important;
+  box-shadow:none !important;
+}
+#taskDetailsModal .department-progress-box small{
+  display:block;
+  margin-bottom:6px;
+}
+#taskDetailsModal #taskStepButtons{
+  display:block !important;
+  margin-top:0 !important;
+}
+#taskDetailsModal .assignment-step-block{
+  padding:0 !important;
+  margin:0 0 14px !important;
+  border:none !important;
+  background:transparent !important;
+  box-shadow:none !important;
+}
+#taskDetailsModal .assignment-actions-panel{
+  border:1px solid rgba(75,36,31,.10);
+  border-radius:22px;
+  background:#fff;
+  padding:18px;
+  display:grid;
+  gap:14px;
+}
+#taskDetailsModal .assignment-actions-panel-head{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:12px;
+  flex-wrap:wrap;
+}
+#taskDetailsModal .compact-title-block span{
+  display:block;
+  margin-bottom:4px;
+  color:var(--muted,#9a7d70);
+  font-size:12px;
+  font-weight:900;
+}
+#taskDetailsModal .compact-title-block strong{
+  display:block;
+  color:var(--brown-900,#4b241f);
+  font-size:18px;
+  font-weight:900;
+  line-height:1.8;
+}
+#taskDetailsModal .compact-inline-progress{
+  min-width:auto !important;
+  display:flex !important;
+  flex-wrap:wrap;
+  gap:8px !important;
+  padding:0 !important;
+  border:none !important;
+  background:transparent !important;
+}
+#taskDetailsModal .compact-inline-progress > div{
+  min-width:150px;
+  padding:10px 12px !important;
+  border-radius:16px !important;
+  border:1px solid rgba(75,36,31,.10);
+  background:#fffaf6;
+}
+#taskDetailsModal .assignment-actions-title{
+  color:var(--brown-900,#4b241f);
+  font-size:18px;
+  font-weight:900;
+  margin:0;
+}
+#taskDetailsModal .assignment-step-buttons{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(170px,1fr)) !important;
+  gap:12px !important;
+}
+#taskDetailsModal .assignment-step-buttons .task-step-btn{
+  min-height:116px !important;
+}
+@media(max-width:760px){
+  #taskDetailsModal .task-required-box{
+    padding:16px !important;
+  }
+  #taskDetailsModal .department-progress-box,
+  #taskDetailsModal .compact-inline-progress > div{
+    min-width:100%;
+  }
+  #taskDetailsModal .assignment-step-buttons{
+    grid-template-columns:1fr !important;
+  }
+}

@@ -7236,3 +7236,100 @@ body:has(#taskDetailsModal.is-open){
 .assignment-step-title strong{
   unicode-bidi:plaintext;
 }
+
+
+/* Final task details cleanup */
+#taskDetailsModal #taskStepButtons{
+  display:block!important;
+  max-width:1500px!important;
+}
+#taskDetailsModal .compact-modal-progress-row{
+  display:flex!important;
+  flex-wrap:wrap;
+  gap:10px;
+  width:100%!important;
+  margin:0 0 12px!important;
+}
+#taskDetailsModal .compact-progress-pill{
+  display:inline-flex;
+  align-items:center;
+  gap:10px;
+  padding:8px 14px;
+  border-radius:999px;
+  border:1px solid rgba(75,36,31,.10);
+  background:#fffaf6;
+  color:var(--brown-900,#4b241f);
+  font-weight:900;
+}
+#taskDetailsModal .compact-progress-pill small{
+  color:var(--muted,#9a7d70);
+  font-weight:900;
+}
+#taskDetailsModal .compact-progress-pill strong{
+  font-size:16px;
+}
+#taskDetailsModal .assignment-step-progress{
+  min-width:0!important;
+  display:flex!important;
+  flex-wrap:wrap;
+  gap:8px!important;
+}
+#taskDetailsModal .assignment-step-progress > div{
+  min-width:110px!important;
+  padding:8px 12px!important;
+  border-radius:999px!important;
+}
+#taskDetailsModal .assignment-step-head{
+  align-items:center!important;
+}
+.user-task-brief-card{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
+  gap:10px;
+  margin-bottom:12px;
+}
+.user-task-brief-card > div{
+  padding:12px 14px;
+  border:1px solid rgba(75,36,31,.08);
+  border-radius:16px;
+  background:#fff;
+}
+.user-task-brief-card small,
+.content-type-notes small{
+  display:block;
+  color:var(--muted,#9a7d70);
+  font-weight:900;
+  margin-bottom:5px;
+}
+.user-task-brief-card strong{
+  color:var(--brown-900,#4b241f);
+  font-weight:900;
+  line-height:1.7;
+}
+.clean-task-detail-card{
+  border-radius:18px!important;
+  background:#fff!important;
+}
+.content-type-car-chip.full-car-name,
+#taskDetailsModal .content-type-car-chip.full-car-name{
+  display:block!important;
+  width:100%!important;
+  white-space:normal!important;
+  overflow:visible!important;
+  direction:rtl!important;
+  unicode-bidi:plaintext!important;
+  text-align:right!important;
+  line-height:1.9!important;
+}
+#taskDetailsModal .content-type-detail-head span{
+  white-space:nowrap;
+}
+#createTaskModal [data-add-department-assignment],
+#createTaskModal [data-remove-department-assignment]{
+  display:none!important;
+}
+#createTaskModal .stock-car-choice-card span{
+  white-space:normal!important;
+  overflow:visible!important;
+  line-height:1.7!important;
+}

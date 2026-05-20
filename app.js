@@ -416,28 +416,38 @@ function normalizeDepartmentContentItems(deptTask) {
 
 function renderStructuredDepartmentRequirement(deptTask, deptKeyValue) {
   const items = normalizeDepartmentContentItems(deptTask);
-  if (!items.length) return '';
+  const taskName = String(deptTask?.taskName || deptTask?.requiredTaskName || deptTask?.taskTitle || deptTask?.title || '').trim();
+  const deptName = String(deptTask?.departmentName || '').trim();
+  const assignee = String(deptTask?.userName || deptTask?.userDisplayName || deptTask?.assigneeName || deptTask?.responsible || deptTask?.userEmail || deptTask?.assigneeEmail || '').trim();
+  const baseNotes = mzjUniqueStrings([deptTask?.notes, deptTask?.deliveryDetails, deptTask?.requiredText].map((v) => String(v || '').replace(/^اسم التاسك\s*:\s*.*$/gmi,'').trim()));
+  if (!items.length && !taskName && !baseNotes.length) return '';
   const groups = new Map();
   items.forEach((item) => {
     const type = item.contentType || deptTask?.contentType || 'مطلوب';
     if (!groups.has(type)) groups.set(type, []);
     groups.get(type).push(item);
   });
+  if (!groups.size) groups.set(deptTask?.contentType || 'مطلوب', []);
+  const header = `<section class="user-task-brief-card">
+    <div><small>اسم التاسك</small><strong>${escapeHTML(taskName || departmentTaskShortName(deptTask))}</strong></div>
+    ${deptName ? `<div><small>القسم</small><strong>${escapeHTML(deptName)}</strong></div>` : ''}
+    ${assignee ? `<div><small>المسؤول</small><strong>${escapeHTML(assignee)}</strong></div>` : ''}
+  </section>`;
   const html = Array.from(groups.entries()).map(([type, groupItems]) => {
-    const cars = mzjUniqueStrings(groupItems.map((item) => item.carType));
-    const notes = mzjUniqueStrings(groupItems.map((item) => item.requiredText).filter((text) => !/^اسم التاسك\s*:/i.test(text)));
+    const cars = mzjUniqueStrings(groupItems.map((item) => item.carType).filter(Boolean));
+    const notes = mzjUniqueStrings(groupItems.map((item) => item.requiredText).concat(baseNotes).filter((text) => text && !/^اسم التاسك\s*:/i.test(text)));
     const sizes = mzjUniqueStrings(groupItems.map((item) => item.printSize));
-    return `<article class="content-type-detail-card">
+    return `<article class="content-type-detail-card clean-task-detail-card">
       <div class="content-type-detail-head">
         <strong>${escapeHTML(type || 'مطلوب')}</strong>
-        <span>${cars.length || groupItems.length} عنصر</span>
+        ${cars.length ? `<span>${cars.length} سيارة</span>` : ''}
       </div>
-      ${cars.length ? `<div class="content-type-car-list">${cars.map((car) => `<span class="content-type-car-chip">${escapeHTML(car)}</span>`).join('')}</div>` : ''}
+      ${cars.length ? `<div class="content-type-car-list">${cars.map((car) => `<span class="content-type-car-chip full-car-name">${escapeHTML(car)}</span>`).join('')}</div>` : ''}
       ${sizes.length ? `<div class="content-type-size-list"><small>المقاس</small><b>${escapeHTML(sizes.join('، '))}</b></div>` : ''}
-      ${notes.length ? `<div class="content-type-notes">${notes.map((note) => `<p>${escapeHTML(note)}</p>`).join('')}</div>` : ''}
+      ${notes.length ? `<div class="content-type-notes"><small>المطلوب</small>${notes.map((note) => `<p>${escapeHTML(note)}</p>`).join('')}</div>` : ''}
     </article>`;
   }).join('');
-  return `<div class="content-type-detail-grid">${html}</div>`;
+  return `${header}<div class="content-type-detail-grid">${html}</div>`;
 }
 
 function renderTaskRequirementDetails(requiredText, deptKeyValue) {
@@ -1120,16 +1130,10 @@ function openTaskDetails(button) {
 
   taskStepButtons.innerHTML = '';
   const modalProgressRow = document.createElement('div');
-  modalProgressRow.className = 'assignment-modal-progress-row';
+  modalProgressRow.className = 'assignment-modal-progress-row compact-modal-progress-row';
   modalProgressRow.innerHTML = `
-    <div class="department-progress-box">
-      <small>اكتمال التاسك</small>
-      <strong data-modal-task-percent>0%</strong>
-    </div>
-    <div class="department-progress-box">
-      <small>مساهمة القسم في الحملة</small>
-      <strong data-modal-campaign-percent>0%</strong>
-    </div>
+    <span class="compact-progress-pill"><small>اكتمال التاسك</small><strong data-modal-task-percent>0%</strong></span>
+    <span class="compact-progress-pill"><small>مساهمة القسم في الحملة</small><strong data-modal-campaign-percent>0%</strong></span>
   `;
   taskStepButtons.appendChild(modalProgressRow);
 
@@ -1182,11 +1186,7 @@ function openTaskDetails(button) {
     block.dataset.deptIndex = String(deptIndex);
     block.dataset.deptIdentity = mzjDetailsDeptIdentity(dept);
 
-    const assignmentTitle = [
-      dept.contentType || dept.deliverable || dept.taskNo || '',
-      dept.carType || '',
-      dept.requiredDate ? `مطلوب: ${dept.requiredDate}` : ''
-    ].filter(Boolean).join(' — ');
+    const assignmentTitle = dept.taskName || dept.requiredTaskName || dept.contentType || dept.deliverable || dept.taskNo || 'تكليف مطلوب';
 
     block.innerHTML = `
       <div class="assignment-step-head">

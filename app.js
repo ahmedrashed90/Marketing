@@ -295,10 +295,10 @@ function formatDepartmentRequirement(deptTask) {
   if (!deptTask) return 'لا يوجد مطلوب مكتوب';
   const kind = deptKindFromName(deptTask.departmentName);
   if (kind === 'photography' && Array.isArray(deptTask.photoItems) && deptTask.photoItems.length) {
-    return deptTask.photoItems.map((item, index) => `مطلوب ${index + 1}: نوع السيارة: ${item.carType || '—'} — نوع المحتوى: ${item.contentType || '—'}`).join(' | ');
+    return deptTask.photoItems.map((item, index) => `مطلوب ${index + 1}: نوع السيارة: ${item.carType || '—'} — نوع المحتوى: ${item.contentType || '—'}`).join('\n');
   }
   if ((kind === 'design' || kind === 'montage') && Array.isArray(deptTask.selectedDeliverables) && deptTask.selectedDeliverables.length) {
-    const text = deptTask.selectedDeliverables.map((item, index) => `مطلوب ${index + 1}: ${item.title || item.name || '—'} — ${item.desc || item.details || ''}`).join(' | ');
+    const text = deptTask.selectedDeliverables.map((item, index) => `مطلوب ${index + 1}: ${item.title || item.name || '—'} — ${item.desc || item.details || ''}`).join('\n');
     return [text, deptTask.requiredText].filter(Boolean).join(' | ملاحظات: ');
   }
   return deptTask.requiredText || deptTask.deliveryDetails || deptTask.required || 'لا يوجد مطلوب مكتوب';
@@ -445,7 +445,7 @@ function renderTaskRequirementDetails(requiredText, deptKeyValue) {
   if (!clean) return '<span class="task-required-line">لا يوجد مطلوب مكتوب</span>';
   const safe = (value) => escapeHTML(value);
   const splitRequirementParts = (text) => String(text || '')
-    .split(/\n|\r|\|/g)
+    .split(/\n|\r/g)
     .map(x => x.trim())
     .filter(Boolean);
   const parts = splitRequirementParts(clean);
@@ -455,7 +455,7 @@ function renderTaskRequirementDetails(requiredText, deptKeyValue) {
     const looksLikeCampaignDetails = parts.some((part) => /الهدف|الفكرة|وصف المحتوى|المطلوب من الكاتب|CTA/.test(part));
     if (looksLikePhotoItems && !looksLikeCampaignDetails) {
       const rows = parts.map((part, index) => {
-        const carMatch = part.match(/نوع السيارة\s*:?\s*([^—|]+)/);
+        const carMatch = part.match(/نوع السيارة\s*:?\s*(.+?)(?:\s+—\s+نوع المحتوى|$)/);
         const contentMatch = part.match(/نوع المحتوى\s*:?\s*(.+)$/);
         const car = carMatch ? carMatch[1].trim() : part.replace(/^مطلوب\s*\d+\s*:?/,'').trim();
         const content = contentMatch ? contentMatch[1].trim() : '—';
@@ -1199,7 +1199,7 @@ function openTaskDetails(button) {
           <div><small>نسبة الحملة</small><b data-assignment-campaign-percent>0%</b></div>
         </div>
       </div>
-      <div class="assignment-step-required">${renderTaskRequirementDetails(formatDepartmentRequirement(dept), deptKeyValue)}</div>
+      <div class="assignment-step-required">${renderStructuredDepartmentRequirement(dept, deptKeyValue) || renderTaskRequirementDetails(formatDepartmentRequirement(dept), deptKeyValue)}</div>
       <div class="assignment-actions-title">إجراءات التكليف</div>
       <div class="assignment-step-buttons" data-assignment-step-buttons></div>
     `;
@@ -1296,7 +1296,7 @@ document.addEventListener('click', (event) => {
     });
     const selectedMeta = activeTaskDetailsMeta?.relatedAssignments?.[index];
     if (selectedMeta?.deptData && taskDetailsRequired) {
-      taskDetailsRequired.innerHTML = renderTaskRequirementDetails(formatDepartmentRequirement(selectedMeta.deptData), activeTaskDetailsMeta?.deptKey || '');
+      taskDetailsRequired.innerHTML = renderStructuredDepartmentRequirement(selectedMeta.deptData, activeTaskDetailsMeta?.deptKey || '') || renderTaskRequirementDetails(formatDepartmentRequirement(selectedMeta.deptData), activeTaskDetailsMeta?.deptKey || '');
     }
     syncTaskProgress();
     return;
@@ -2360,13 +2360,13 @@ function renderUniversalRequiredItem(kind, removable = false) {
         <textarea rows="3" data-universal-required-text placeholder="اكتب تفاصيل المطلوب للتاسك هنا"></textarea>
       </label>
       <div class="universal-content-type-wrap full-width-field">
-        <div class="universal-content-type-head">اختيار السيارة من الاستوك (تقدر تختار أكتر من سيارة)</div>
+        <div class="universal-content-type-head">اختيار السيارة / السيارات</div>
         <div class="universal-content-type-grid stock-car-choice-grid" data-universal-car-grid>
           ${renderStockCarCheckboxCards()}
         </div>
       </div>
       <div class="universal-content-type-wrap full-width-field">
-        <div class="universal-content-type-head">نوع المحتوى</div>
+        <div class="universal-content-type-head">نوع المحتوى الخاص بالتكليف</div>
         <div class="universal-content-type-grid" data-universal-content-type-grid>
           ${renderUniversalContentChoiceCards(kind)}
         </div>
@@ -2394,9 +2394,8 @@ function buildSpecialDepartmentFields(kind) {
           <span class="content-box-eyebrow">قسم ${escapeHTML(kindLabel)}</span>
           <strong>تفاصيل المطلوب</strong>
         </div>
-        <button class="soft-btn" type="button" data-add-universal-required>+ إضافة مطلوب</button>
       </div>
-      <div class="required-content-note">اكتب المحتوى المطلوب بشكل واضح، اختار السيارات المطلوبة، ثم حدد نوع المحتوى قبل توزيع التاسك على الأقسام واليوزرات.</div>
+      <div class="required-content-note">اكتب اسم التاسك، اختار السيارة أو السيارات، حدد نوع المحتوى، وبعدها اختار الأقسام واليوزرات. التكليف كله بيتبني من نفس المكان بدون إضافة مطلوبات منفصلة.</div>
       <div class="universal-required-list" data-universal-required-list>
         ${renderUniversalRequiredItem(kind)}
       </div>
@@ -3663,12 +3662,12 @@ function initCreateTaskFromTemplate() {
     const exteriorColor = templateCellText(value.exteriorColor || value.extColor || value.color || value.outerColor || '');
     const interiorColor = templateCellText(value.interiorColor || value.intColor || value.insideColor || '');
     const status = templateCellText(value.status || '');
-    const display = [carName, statement, model, exteriorColor, interiorColor, vin ? `VIN: ${vin}` : '', status].filter(Boolean).join(' | ');
+    const display = [carName, statement, model, exteriorColor, interiorColor, vin ? `VIN: ${vin}` : '', status].filter(Boolean).join('\n');
     return { id: templateCellText(value.docId || vin || display), vin, carName, statement, model, exteriorColor, interiorColor, status, display };
   }
 
   function stockSpecKey(car) {
-    return [car?.carName || 'بدون ماركة', car?.statement || 'بدون مواصفة', car?.model || 'بدون موديل'].join(' | ');
+    return [car?.carName || 'بدون ماركة', car?.statement || 'بدون مواصفة', car?.model || 'بدون موديل'].join('\n');
   }
 
   function buildStockSpecsForDropdown(cars) {
@@ -3703,7 +3702,7 @@ function initCreateTaskFromTemplate() {
         item.carName,
         item.statement,
         item.model
-      ].filter(Boolean).join(' | ');
+      ].filter(Boolean).join('\n');
       return { ...item, display };
     }).filter((item) => item.display).sort((a, b) => {
       if (b.count !== a.count) return b.count - a.count;
@@ -4004,7 +4003,7 @@ function initCreateTaskFromTemplate() {
         clearAssignmentRequirement(assignmentRow);
         setAssignmentUserByValue(assignmentRow, mapItem.userValue);
         const carLine = templateCellText(mapItem.carValue || task.carType) ? `السيارة المطلوبة: ${templateCellText(mapItem.carValue || task.carType)}` : '';
-        const taskText = [carLine, task.requiredText || buildContentExecutionTaskText(task)].filter(Boolean).join(' | ');
+        const taskText = [carLine, task.requiredText || buildContentExecutionTaskText(task)].filter(Boolean).join('\n');
         fillAssignmentText(kind, assignmentRow, taskText);
         created += 1;
       });
@@ -4140,7 +4139,7 @@ function initCreateTaskFromTemplate() {
       if (requiredInput && requiredDate) requiredInput.value = requiredDate;
       if (deliveryInput && deliveryDate) deliveryInput.value = deliveryDate;
       const freeText = templateCellText(cells[col.text]);
-      const choices = [cells[col.choice1], cells[col.choice2], cells[col.choice3]].map(templateCellText).filter(Boolean).join(' | ');
+      const choices = [cells[col.choice1], cells[col.choice2], cells[col.choice3]].map(templateCellText).filter(Boolean).join('\n');
       if (kind === 'design' || kind === 'montage') {
         selectDeliverablesInsideAssignment(kind, assignmentRow, choices);
         const textarea = assignmentRow.querySelector('[data-required-text]');
@@ -4466,7 +4465,7 @@ function initCreateTaskFromTemplate() {
       item.carType ? `السيارة: ${item.carType}` : '',
       item.contentType ? `نوع المحتوى: ${item.contentType}` : '',
       item.printSize ? `المقاس: ${item.printSize}` : ''
-    ].filter(Boolean).join(' — ')).join(' | ');
+    ].filter(Boolean).join(' — ')).join('\n');
 
     const deliverables = uniqueItems.map((item) => ({
       title: item.contentType || item.requiredText || 'مطلوب',
@@ -4485,7 +4484,7 @@ function initCreateTaskFromTemplate() {
       contentType: mzjUniqueStrings(uniqueItems.map((item) => item.contentType)).join('، '),
       carType: mzjUniqueStrings(uniqueItems.map((item) => item.carType)).join('، '),
       printSize: mzjUniqueStrings(uniqueItems.map((item) => item.printSize)).join('، '),
-      notes: mzjUniqueStrings(uniqueItems.map((item) => item.requiredText)).join(' | '),
+      notes: mzjUniqueStrings(uniqueItems.map((item) => item.requiredText)).join('\n'),
       requiredText
     };
   }
@@ -4533,7 +4532,7 @@ function initCreateTaskFromTemplate() {
               departmentKind: targetDept.kind,
               departmentName: targetDept.name,
               assignmentIndex: assignmentNo,
-              assignmentLabel: (targetDept.name || '') + ' - ' + 'تكليف ' + assignmentNo + (selectedName ? ' - ' + selectedName : ''),
+              assignmentLabel: (targetDept.name || '') + ' / ' + 'تكليف ' + assignmentNo + (selectedName ? ' / ' + selectedName : ''),
               taskName,
               requiredTaskName: taskName,
               userId: selectedId,
@@ -4553,7 +4552,7 @@ function initCreateTaskFromTemplate() {
               receivedAt: '',
               receivedBy: '',
               attachmentLabel: attachmentLabelForKind(targetDept.kind),
-              requiredText: [taskName ? 'اسم التاسك: ' + taskName : '', requiredText].filter(Boolean).join(' | '),
+              requiredText: [taskName ? 'اسم التاسك: ' + taskName : '', requiredText].filter(Boolean).join('\n'),
               deliveryDetails: requiredText,
               requiredDetails: { ...special, assignedFromContentBlock: true, targetDepartmentId: targetDept.id, targetDepartmentName: targetDept.name },
               photoItems: targetDept.kind === 'photography' ? (special.items || []) : [],
@@ -5248,13 +5247,13 @@ initCreateTaskFromTemplate();
     const start = executionIndex >= 0 ? executionIndex + 1 : 0;
     for (let i = start; i < list.length; i += 1) {
       const cells = (list[i] || []).map((cell) => cellText(cell));
-      const joined = cells.join(' | ');
+      const joined = cells.join('\n');
       const hasContentType = /نوع المحتو[ىي]|Content Type/i.test(joined);
       const hasTaskNo = /رقم التاسك|Task/i.test(joined);
       if (hasContentType && hasTaskNo) return i;
     }
     return list.findIndex((row) => {
-      const joined = (row || []).map((cell) => cellText(cell)).join(' | ');
+      const joined = (row || []).map((cell) => cellText(cell)).join('\n');
       return /نوع المحتو[ىي]|Content Type/i.test(joined) && /رقم التاسك|Task/i.test(joined);
     });
   }

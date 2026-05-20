@@ -7190,3 +7190,49 @@ body:has(#taskDetailsModal.is-open){
     width:100%;
   }
 }
+
+
+/* Simplified assignment flow and full car-name display */
+#createTaskModal [data-add-universal-required],
+#createTaskModal [data-remove-universal-required]{
+  display:none!important;
+}
+#createTaskModal .universal-required-list{
+  display:block!important;
+}
+#createTaskModal .universal-required-item{
+  margin:0!important;
+}
+#createTaskModal .stock-car-choice-card span,
+#createTaskModal .content-type-car-chip,
+#taskDetailsRequired .content-type-car-chip,
+.assignment-step-required .content-type-car-chip{
+  direction:rtl;
+  unicode-bidi:plaintext;
+  text-align:right;
+  white-space:nowrap;
+  overflow-x:auto;
+  max-width:100%;
+}
+.content-type-car-list{
+  display:grid!important;
+  grid-template-columns:1fr!important;
+  gap:8px!important;
+}
+.content-type-car-chip{
+  width:100%;
+  justify-content:flex-start;
+  box-sizing:border-box;
+}
+.photo-required-row{
+  grid-template-columns:1fr!important;
+}
+.photo-required-cell strong{
+  white-space:nowrap;
+  overflow-x:auto;
+  max-width:100%;
+}
+.assignment-switch-btn small,
+.assignment-step-title strong{
+  unicode-bidi:plaintext;
+}

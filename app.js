@@ -440,21 +440,37 @@ function extractDepartmentTaskSummary(deptTask) {
 function cleanTaskRequiredDisplayText(value) {
   let text = String(value || '').replace(/\r/g, '\n').trim();
   if (!text) return '';
-  text = text
-    .replace(/^اسم التاسك\s*:\s*.*$/gmi, '')
-    .replace(/^مطلوب\s*\d+\s*[—\-–]\s*المطلوب\s*:?\s*/gmi, '')
-    .replace(/^مطلوب\s*\d+\s*:?\s*/gmi, '')
-    .replace(/^المطلوب\s*:?\s*/gmi, '')
-    .replace(/\n{3,}/g, '\n\n')
-    .trim();
-  return text;
+  const cleanLines = text.split(/\n+/g).map((line) => {
+    let item = String(line || '').trim();
+    if (!item) return '';
+    item = item.replace(/^اسم\s+التاسك\s*:\s*.*$/i, '').trim();
+    if (!item) return '';
+    const requiredMatch = item.match(/(?:^|[—\-–])\s*المطلوب\s*:\s*([\s\S]*?)(?=\s*[—\-–]\s*(?:السيارة|نوع\s+المحتوى|المقاس)\s*:|$)/i);
+    if (requiredMatch) item = requiredMatch[1].trim();
+    item = item
+      .replace(/^مطلوب\s*\d+\s*[—\-–]?\s*/i, '')
+      .replace(/^المطلوب\s*:?\s*/i, '')
+      .trim();
+    if (/^(?:السيارة|نوع\s+المحتوى|المقاس)\s*:/i.test(item)) return '';
+    if (/\s[—\-–]\s*(?:السيارة|نوع\s+المحتوى|المقاس)\s*:/i.test(item)) {
+      item = item.split(/\s[—\-–]\s*(?:السيارة|نوع\s+المحتوى|المقاس)\s*:/i)[0].trim();
+    }
+    return item;
+  }).filter(Boolean);
+  return mzjUniqueStrings(cleanLines).join('\n');
 }
 
 function renderTaskDetailsSummary(deptTask, deptKeyValue) {
-  const summary = extractDepartmentTaskSummary(deptTask || {});
-  const required = mzjUniqueStrings(summary.requiredParts.map(cleanTaskRequiredDisplayText).filter(Boolean));
-  const fallback = cleanTaskRequiredDisplayText(formatDepartmentRequirement(deptTask || {}));
-  const lines = required.length ? required : (fallback ? [fallback] : []);
+  const directSources = [
+    deptTask?.deliveryDetails,
+    deptTask?.notes,
+    deptTask?.requiredDetails?.notes,
+    deptTask?.requiredDetails?.manualRequired,
+    ...(Array.isArray(deptTask?.contentItems) ? deptTask.contentItems.map((item) => item?.requiredText) : []),
+    ...(Array.isArray(deptTask?.photoItems) ? deptTask.photoItems.map((item) => item?.requiredText) : []),
+    ...(Array.isArray(deptTask?.requiredDetails?.items) ? deptTask.requiredDetails.items.map((item) => item?.requiredText) : [])
+  ];
+  const lines = mzjUniqueStrings(directSources.map(cleanTaskRequiredDisplayText).filter(Boolean));
   if (!lines.length) return `<section class="task-details-required-only"><p>لا يوجد مطلوب مكتوب</p></section>`;
   return `<section class="task-details-required-only">${lines.map((item) => `<p>${escapeHTML(item)}</p>`).join('')}</section>`;
 }
@@ -4491,13 +4507,7 @@ function initCreateTaskFromTemplate() {
       return true;
     });
 
-    const requiredText = uniqueItems.map((item, index) => [
-      `مطلوب ${index + 1}`,
-      item.requiredText ? `المطلوب: ${item.requiredText}` : '',
-      item.carType ? `السيارة: ${item.carType}` : '',
-      item.contentType ? `نوع المحتوى: ${item.contentType}` : '',
-      item.printSize ? `المقاس: ${item.printSize}` : ''
-    ].filter(Boolean).join(' — ')).join('\n');
+    const requiredText = mzjUniqueStrings(uniqueItems.map((item) => item.requiredText)).join('\n');
 
     const deliverables = uniqueItems.map((item) => ({
       title: item.contentType || item.requiredText || 'مطلوب',
@@ -4517,6 +4527,7 @@ function initCreateTaskFromTemplate() {
       carType: mzjUniqueStrings(uniqueItems.map((item) => item.carType)).join('، '),
       printSize: mzjUniqueStrings(uniqueItems.map((item) => item.printSize)).join('، '),
       notes: mzjUniqueStrings(uniqueItems.map((item) => item.requiredText)).join('\n'),
+      manualRequired: requiredText,
       requiredText
     };
   }
@@ -4584,9 +4595,9 @@ function initCreateTaskFromTemplate() {
               receivedAt: '',
               receivedBy: '',
               attachmentLabel: attachmentLabelForKind(targetDept.kind),
-              requiredText: [taskName ? 'اسم التاسك: ' + taskName : '', requiredText].filter(Boolean).join('\n'),
+              requiredText: requiredText,
               deliveryDetails: requiredText,
-              requiredDetails: { ...special, assignedFromContentBlock: true, targetDepartmentId: targetDept.id, targetDepartmentName: targetDept.name },
+              requiredDetails: { ...special, manualRequired: requiredText, assignedFromContentBlock: true, targetDepartmentId: targetDept.id, targetDepartmentName: targetDept.name },
               photoItems: targetDept.kind === 'photography' ? (special.items || []) : [],
               contentItems: special.items || [],
               selectedDeliverables: special.deliverables || [],

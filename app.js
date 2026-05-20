@@ -2911,7 +2911,7 @@ function renderStockCarCheckboxCards(selected = []) {
   return cars.map((car) => {
     const value = car.display || car.name || car.carName || '';
     if (!value) return '';
-    return `<label class="universal-content-type-card stock-car-choice-card">
+    return `<label class="universal-content-type-card stock-car-choice-card ${selectedSet.has(value) ? 'is-checked' : ''}">
       <input type="checkbox" data-universal-car-choice value="${escapeHTML(value)}" ${selectedSet.has(value) ? 'checked' : ''}>
       <span>${escapeHTML(value)}</span>
     </label>`;
@@ -3321,6 +3321,47 @@ function initCreateTaskFromTemplate() {
     }).join('');
   }
 
+
+
+  function assignmentSummaryText(values, fallback) {
+    const clean = (values || []).map((value) => String(value || '').trim()).filter(Boolean);
+    if (!clean.length) return fallback;
+    if (clean.length <= 2) return clean.join('، ');
+    return clean.slice(0, 2).join('، ') + ' +' + (clean.length - 2);
+  }
+
+  function setDropdownSummary(details, text) {
+    const summary = details?.querySelector('summary');
+    if (!summary) return;
+    summary.textContent = text;
+    details.classList.toggle('has-selection', !/^اختار|^دروب|^Checkbox|^لا توجد/.test(String(text || '').trim()));
+  }
+
+  function updateAssignmentDropdownSummaries(scope = departmentsList) {
+    const root = scope || departmentsList;
+    const items = [];
+    if (root?.matches?.('[data-universal-required-item]')) items.push(root);
+    root?.querySelectorAll?.('[data-universal-required-item]').forEach((item) => items.push(item));
+    Array.from(new Set(items)).forEach((item) => {
+      const cars = Array.from(item.querySelectorAll('[data-universal-car-choice]:checked')).map((input) => input.value);
+      const contentTypes = Array.from(item.querySelectorAll('[data-universal-content-type]:checked')).map((input) => input.value);
+      setDropdownSummary(item.querySelector('[data-checkbox-dropdown]'), assignmentSummaryText(cars, 'اختار السيارة'));
+      setDropdownSummary(item.querySelector('[data-content-type-dropdown]'), assignmentSummaryText(contentTypes, 'اختار أنواع المحتوى'));
+    });
+
+    const rows = [];
+    if (root?.matches?.('[data-department-assignment-row]')) rows.push(root);
+    root?.querySelectorAll?.('[data-department-assignment-row]').forEach((row) => rows.push(row));
+    Array.from(new Set(rows)).forEach((row) => {
+      const deptSelect = row.querySelector('select[data-target-department-select]');
+      const userSelect = row.querySelector('select[data-user-select]');
+      const depts = Array.from(deptSelect?.selectedOptions || []).map((option) => option.textContent || option.value);
+      const users = Array.from(userSelect?.selectedOptions || []).map((option) => option.textContent || option.dataset.userValue || option.value);
+      setDropdownSummary(row.querySelector('[data-department-dropdown]'), assignmentSummaryText(depts, 'اختار الأقسام'));
+      setDropdownSummary(row.querySelector('[data-users-dropdown]'), assignmentSummaryText(users, 'اختار اليوزرات'));
+    });
+  }
+
   function hydrateAssignmentPickers(scope = departmentsList) {
     const rows = [];
     if (scope?.matches?.('[data-department-assignment-row]')) rows.push(scope);
@@ -3333,6 +3374,7 @@ function initCreateTaskFromTemplate() {
         refreshContentTypesForSection(item);
         refreshUniversalContentTypeCardState(item);
       });
+      updateAssignmentDropdownSummaries(assignmentRow);
     });
   }
 
@@ -5256,6 +5298,7 @@ function initCreateTaskFromTemplate() {
       await loadStockCarsForDropdown();
       refreshStockCarsDatalist();
       refreshStockCarCheckboxGrids();
+      updateAssignmentDropdownSummaries(departmentsList);
       refreshBudgetDropdownOptions();
       showModal();
     }).catch((error) => {
@@ -5515,6 +5558,26 @@ function initCreateTaskFromTemplate() {
     renderTemplateFieldInputs(null);
   });
 
+  document.addEventListener('click', (event) => {
+    if (!modal.classList.contains('is-open')) return;
+    modal.querySelectorAll('.checkbox-dropdown[open]').forEach((dropdown) => {
+      if (!dropdown.contains(event.target)) dropdown.removeAttribute('open');
+    });
+  }, true);
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape' || !modal.classList.contains('is-open')) return;
+    modal.querySelectorAll('.checkbox-dropdown[open]').forEach((dropdown) => dropdown.removeAttribute('open'));
+  });
+
+  departmentsList.addEventListener('toggle', (event) => {
+    const dropdown = event.target.closest?.('.checkbox-dropdown');
+    if (!dropdown || !dropdown.open) return;
+    departmentsList.querySelectorAll('.checkbox-dropdown[open]').forEach((other) => {
+      if (other !== dropdown) other.removeAttribute('open');
+    });
+  }, true);
+
   departmentsList.addEventListener('click', (event) => {
     const stockCarCard = event.target.closest('.stock-car-choice-card');
     if (stockCarCard) {
@@ -5523,6 +5586,7 @@ function initCreateTaskFromTemplate() {
         event.preventDefault();
         input.checked = !input.checked;
         stockCarCard.classList.toggle('is-checked', input.checked);
+        updateAssignmentDropdownSummaries(stockCarCard.closest('[data-universal-required-item]'));
         refreshPublishCalendarOptions();
         refreshBudgetDropdownOptions();
       }
@@ -5545,6 +5609,7 @@ function initCreateTaskFromTemplate() {
         if (wrap) wrap.hidden = !shouldShowSize;
         if (!shouldShowSize && sizeInput) sizeInput.value = '';
         if (input.checked) contentCard.querySelector('[data-content-type-quantity]')?.focus();
+        updateAssignmentDropdownSummaries(contentCard.closest('[data-universal-required-item]'));
         refreshPublishCalendarOptions();
         refreshBudgetDropdownOptions();
       }
@@ -5563,6 +5628,7 @@ function initCreateTaskFromTemplate() {
       const oldSelectedUsers = selectedValuesFromSelect(userSelect);
       if (userSelect) userSelect.innerHTML = renderUserOptionsForDepartmentIds(selectedDeptIds, oldSelectedUsers);
       renderDepartmentUserMatrix(assignmentRow);
+      updateAssignmentDropdownSummaries(assignmentRow);
       refreshPublishCalendarOptions();
       refreshBudgetDropdownOptions();
       return;
@@ -5580,6 +5646,7 @@ function initCreateTaskFromTemplate() {
       const option = Array.from(userSelect?.options || []).find((item) => item.value === value);
       if (option) option.selected = !option.selected;
       renderDepartmentUserMatrix(assignmentRow);
+      updateAssignmentDropdownSummaries(assignmentRow);
       return;
     }
 
@@ -5593,6 +5660,7 @@ function initCreateTaskFromTemplate() {
       renderDepartmentChipPicker(assignmentRow);
       renderUserChipPicker(assignmentRow);
       renderDepartmentUserMatrix(assignmentRow);
+      updateAssignmentDropdownSummaries(assignmentRow);
       refreshPublishCalendarOptions();
       refreshBudgetDropdownOptions();
       return;
@@ -5730,8 +5798,10 @@ function initCreateTaskFromTemplate() {
     if (contentSectionSelect) {
       const item = contentSectionSelect.closest('[data-universal-required-item]');
       refreshContentTypesForSection(item);
+      updateAssignmentDropdownSummaries(item);
       refreshPublishCalendarOptions();
       refreshBudgetDropdownOptions();
+      updateAssignmentDropdownSummaries(assignmentRow);
       return;
     }
 
@@ -5747,6 +5817,7 @@ function initCreateTaskFromTemplate() {
       if (!shouldShowSize && input) input.value = '';
       refreshPublishCalendarOptions();
       refreshBudgetDropdownOptions();
+      updateAssignmentDropdownSummaries(item);
       return;
     }
 

@@ -8683,3 +8683,40 @@ body[data-page="requiredContent"] .required-content-type-inline{
     min-width:1320px!important;
   }
 }
+
+
+/* MZJ final polish: clearer selected dropdown values and outside-click friendly panels */
+#createTaskModal .checkbox-dropdown.has-selection summary{
+  background:#3e2420!important;
+  border-color:#3e2420!important;
+  color:#fff!important;
+  box-shadow:0 8px 20px rgba(62,36,32,.14)!important;
+}
+#createTaskModal .checkbox-dropdown.has-selection summary::after{color:#fff!important;opacity:1!important;}
+#createTaskModal .dropdown-check-row.is-selected,
+#createTaskModal .universal-content-type-card.is-checked,
+#createTaskModal .stock-car-choice-card.is-checked{
+  background:#3e2420!important;
+  border-color:#3e2420!important;
+  color:#fff!important;
+  box-shadow:0 10px 24px rgba(62,36,32,.16)!important;
+}
+#createTaskModal .dropdown-check-row.is-selected *,
+#createTaskModal .universal-content-type-card.is-checked *,
+#createTaskModal .stock-car-choice-card.is-checked *{
+  color:#fff!important;
+}
+#createTaskModal .dropdown-check-row input,
+#createTaskModal .universal-content-type-card input,
+#createTaskModal .stock-car-choice-card input{
+  accent-color:#3e2420!important;
+  width:16px!important;
+  height:16px!important;
+  flex:0 0 16px!important;
+}
+#createTaskModal .checkbox-dropdown[open] .dropdown-checkbox-panel{
+  background:#fffaf6!important;
+}
+#createTaskModal .checkbox-dropdown[open] summary{
+  border-color:#3e2420!important;
+}

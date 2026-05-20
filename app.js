@@ -487,6 +487,26 @@ function mzjArrayFromAny(value) {
   return mzjSplitMultiValue(value);
 }
 
+
+function taskFieldList(value) {
+  if (value === undefined || value === null) return [];
+  if (Array.isArray(value)) {
+    return value.flatMap(taskFieldList);
+  }
+  if (typeof value === 'object') {
+    return taskFieldList(value.title || value.name || value.value || value.label || value.contentType || value.carType || value.car || value.vehicle || value.deliverable || value.display || '');
+  }
+  return mzjSplitMultiValue(String(value || '')).map((item) => item.trim()).filter(Boolean);
+}
+
+function normalizeSelectedContentTypeList(value) {
+  return taskFieldList(value).map((item) => String(item || '').trim()).filter(Boolean);
+}
+
+function normalizeSelectedCarList(value) {
+  return taskFieldList(value).map((item) => String(item || '').trim()).filter(Boolean);
+}
+
 function collectExplicitTaskValues(source, mode) {
   const values = [];
   const keyMatchers = mode === 'car'
@@ -557,9 +577,9 @@ function parseContentTypesFromTaskText(value) {
 
 function renderTaskDetailsSummary(deptTask, deptKeyValue) {
   const items = normalizeDepartmentContentItems(deptTask || {});
-  const rawSources = taskDetailsRawSources(deptTask || {});
   const directRequiredSources = [
     deptTask?.requiredDetails?.manualRequired,
+    deptTask?.requiredDetails?.requiredText,
     deptTask?.requiredDetails?.notes,
     deptTask?.notes,
     deptTask?.requiredText,
@@ -570,28 +590,28 @@ function renderTaskDetailsSummary(deptTask, deptKeyValue) {
     ...(Array.isArray(deptTask?.requiredDetails?.items) ? deptTask.requiredDetails.items.map((item) => item?.requiredText || item?.manualRequired || item?.notes) : [])
   ];
   const lines = mzjUniqueStrings(directRequiredSources.map(cleanTaskRequiredDisplayText).filter(Boolean));
-  const requiredKeys = new Set(lines.map((v) => String(v || '').trim().toLowerCase()).filter(Boolean));
-  const isNotRequiredText = (value) => {
+  const requiredKeys = new Set(lines.map((v) => String(v || '').replace(/\s+/g, ' ').trim().toLowerCase()).filter(Boolean));
+  const excludeRequiredText = (value) => {
     const clean = String(value || '').replace(/\s+/g, ' ').trim();
-    if (!clean) return false;
+    if (!clean || clean === '—' || clean === '-') return false;
     const key = clean.toLowerCase();
     if (requiredKeys.has(key)) return false;
-    if (Array.from(requiredKeys).some((req) => req && (key.includes(req) || req.includes(key)))) return false;
     if (/^مطلوب\s*\d+/i.test(clean) || /^المطلوب\s*:?/i.test(clean)) return false;
     return true;
   };
   const cars = mzjUniqueStrings([
-    ...collectExplicitTaskValues(deptTask || {}, 'car'),
+    ...normalizeSelectedCarList(deptTask?.selectedCars),
+    ...normalizeSelectedCarList(deptTask?.requiredDetails?.selectedCars),
     ...items.map((item) => item?.carType || item?.car || item?.vehicle),
-    ...mzjSplitMultiValue(deptTask?.carType),
-    ...rawSources.flatMap(parseCarsFromTaskText)
-  ].map((value) => String(value || '').trim()).filter(Boolean).filter(isNotRequiredText));
+    ...mzjSplitMultiValue(deptTask?.carType)
+  ].map((value) => String(value || '').trim()).filter(Boolean).filter(excludeRequiredText));
   const contentTypes = mzjUniqueStrings([
-    ...collectExplicitTaskValues(deptTask || {}, 'content'),
+    ...normalizeSelectedContentTypeList(deptTask?.selectedContentTypes),
+    ...normalizeSelectedContentTypeList(deptTask?.requiredDetails?.selectedContentTypes),
+    deptTask?.__contentTypeFilter,
     ...items.map((item) => item?.contentType),
-    ...mzjSplitMultiValue(deptTask?.contentType),
-    ...rawSources.flatMap(parseContentTypesFromTaskText)
-  ].map((value) => String(value || '').trim()).filter(Boolean).filter(isNotRequiredText));
+    ...mzjSplitMultiValue(deptTask?.contentType)
+  ].map((value) => String(value || '').trim()).filter(Boolean).filter(excludeRequiredText));
 
   const requiredHtml = `<section class="task-details-required-only"><small>المطلوب</small>${lines.length ? lines.map((item) => `<p>${escapeHTML(item)}</p>`).join('') : '<p>لا يوجد مطلوب مكتوب</p>'}</section>`;
   const carsHtml = `<section class="task-details-meta-lines"><small>السيارة المختارة</small>${cars.length ? cars.map((car) => `<p class="task-detail-car-line">${escapeHTML(car)}</p>`).join('') : '<p>—</p>'}</section>`;
@@ -4652,7 +4672,9 @@ function initCreateTaskFromTemplate() {
       printSize: mzjUniqueStrings(uniqueItems.map((item) => item.printSize)).join('، '),
       notes: mzjUniqueStrings(uniqueItems.map((item) => item.requiredText)).join('\n'),
       manualRequired: requiredText,
-      requiredText
+      requiredText,
+      selectedCars: mzjUniqueStrings(uniqueItems.map((item) => item.carType)),
+      selectedContentTypes: mzjUniqueStrings(uniqueItems.map((item) => item.contentType))
     };
   }
 
@@ -4722,6 +4744,8 @@ function initCreateTaskFromTemplate() {
               requiredText: requiredText,
               deliveryDetails: requiredText,
               requiredDetails: { ...special, manualRequired: requiredText, assignedFromContentBlock: true, targetDepartmentId: targetDept.id, targetDepartmentName: targetDept.name },
+              selectedCars: special.selectedCars || mzjUniqueStrings((special.items || []).map((entry) => entry.carType)),
+              selectedContentTypes: special.selectedContentTypes || mzjUniqueStrings((special.items || []).map((entry) => entry.contentType)),
               photoItems: targetDept.kind === 'photography' ? (special.items || []) : [],
               contentItems: special.items || [],
               selectedDeliverables: special.deliverables || [],
@@ -6485,6 +6509,8 @@ initCreateTaskFromTemplate();
       ...deptTask,
       __contentTypeFilter: contentType,
       contentType,
+      selectedContentTypes: contentType ? [contentType] : mzjUniqueStrings(filteredItems.map((item) => item.contentType)),
+      selectedCars: cars,
       carType: cars.join('، '),
       contentItems: filteredItems,
       photoItems: deptKey(deptTask.departmentName) === 'shooting' ? filteredItems : (Array.isArray(deptTask.photoItems) ? deptTask.photoItems : []),

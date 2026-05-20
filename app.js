@@ -5922,6 +5922,16 @@ initCreateTaskFromTemplate();
     </article>`;
   }
   function bindCampaignsCalendarEvents(){
+    // calendar edit task type change
+
+    document.addEventListener('change', (event) => {
+      const typeSelect = event.target.closest?.('[data-calendar-edit-task-type]');
+      if (!typeSelect) return;
+      const modal = calendarTaskModal();
+      const row = modal?.querySelector('[data-calendar-edit-agenda-row]');
+      if (row) row.hidden = typeSelect.value !== 'agenda';
+    });
+
     const fileInput = document.getElementById('reviewCampaignFile');
     const uploadBtn = document.getElementById('uploadReviewCampaignBtn');
     uploadBtn?.addEventListener('click', () => fileInput?.click());
@@ -6035,16 +6045,80 @@ initCreateTaskFromTemplate();
     </div>`;
   }
   function renderCalendarTaskEditForm(task){
-    return `<form id="calendarTaskEditForm" class="campaign-full-edit-form" hidden>
-      <div class="campaign-full-form-grid">
-        ${fullModalInfoField('اسم الحملة / الأجندة', task.campaignName || task.agendaName || '', 'campaignName')}
-        ${fullModalInfoField('نوع الحملة / الأجندة', task.campaignTypeName || '', 'campaignTypeName')}
-        ${fullModalInfoField('كود الحملة / الأجندة', task.campaignCode || '', 'campaignCode')}
-        ${fullModalInfoField('تاريخ البداية', task.campaignStartDate || task.launchDate || '', 'campaignStartDate', 'date')}
-        ${fullModalInfoField('تاريخ النهاية', task.campaignEndDate || task.endDate || '', 'campaignEndDate', 'date')}
-        ${fullModalInfoField('الهدف', task.campaignGoal || '', 'campaignGoal')}
-      </div>
-      <label class="mzj-field"><span>شرح / وصف الحملة</span><textarea name="campaignDescription" rows="4">${esc(task.campaignDescription || task.campaignEndDescription || '')}</textarea></label>
+    const selectedType = task.taskType === 'agenda' ? 'agenda' : 'campaign';
+    const campaignTypeValue = esc(task.campaignTypeName || '');
+    const descValue = esc(task.campaignDescription || task.campaignEndDescription || '');
+    return `<form id="calendarTaskEditForm" class="create-task-form campaign-full-edit-form calendar-create-like-edit" hidden>
+      <section class="create-task-section">
+        <div class="section-title-row">
+          <div>
+            <span class="eyebrow">تعديل البيانات</span>
+            <h4>اختيار النوع وبيانات الحملة</h4>
+            <p>نفس شكل فورم إنشاء تاسك، لكن الحفظ يعدل نفس الحملة / الأجندة المفتوحة.</p>
+          </div>
+        </div>
+
+        <div class="create-task-grid">
+          <label class="mzj-field">
+            <span>نوع التاسك</span>
+            <select name="taskType" data-calendar-edit-task-type>
+              <option value="campaign" ${selectedType === 'campaign' ? 'selected' : ''}>حملة</option>
+              <option value="agenda" ${selectedType === 'agenda' ? 'selected' : ''}>أجندة</option>
+            </select>
+          </label>
+
+          <label class="mzj-field">
+            <span>التاريخ</span>
+            <input name="taskDate" type="date" value="${esc(task.taskDate || task.launchDate || task.campaignStartDate || '')}">
+          </label>
+
+          <label class="mzj-field">
+            <span>اسم الحملة / الأجندة</span>
+            <input name="campaignName" type="text" value="${esc(task.campaignName || task.agendaName || '')}" placeholder="اكتب الاسم">
+          </label>
+
+          <label class="mzj-field code-field-wrap">
+            <span>كود الحملة / الأجندة</span>
+            <input name="campaignCode" type="text" value="${esc(task.campaignCode || '')}" placeholder="كود الحملة / الأجندة">
+          </label>
+
+          <label class="mzj-field">
+            <span>نوع الحملة / الأجندة</span>
+            <input name="campaignTypeName" type="text" value="${campaignTypeValue}" placeholder="اكتب نوع الحملة / الأجندة">
+          </label>
+
+          <div class="agenda-month-year-row calendar-edit-agenda-row" data-calendar-edit-agenda-row ${selectedType === 'agenda' ? '' : 'hidden'}>
+            <label class="mzj-field">
+              <span>شهر الأجندة</span>
+              <input name="agendaMonth" type="text" value="${esc(task.agendaMonth || '')}" placeholder="مثال: مايو">
+            </label>
+            <label class="mzj-field">
+              <span>سنة الأجندة</span>
+              <input name="agendaYear" type="text" value="${esc(task.agendaYear || '')}" placeholder="مثال: 2026">
+            </label>
+          </div>
+
+          <label class="mzj-field">
+            <span>الهدف من الحملة</span>
+            <input name="campaignGoal" type="text" value="${esc(task.campaignGoal || '')}" placeholder="اكتب الهدف">
+          </label>
+
+          <label class="mzj-field">
+            <span>تاريخ بداية الحملة</span>
+            <input name="campaignStartDate" type="date" value="${esc(task.campaignStartDate || task.launchDate || '')}">
+          </label>
+
+          <label class="mzj-field">
+            <span>تاريخ نهاية الحملة</span>
+            <input name="campaignEndDate" type="date" value="${esc(task.campaignEndDate || task.endDate || '')}">
+          </label>
+
+          <label class="mzj-field full-width-field">
+            <span>شرح تحت نهاية الحملة</span>
+            <textarea name="campaignDescription" rows="3" placeholder="اكتب شرح أو ملاحظات تظهر مع نهاية الحملة">${descValue}</textarea>
+          </label>
+        </div>
+      </section>
     </form>`;
   }
   function renderDepartmentTaskRows(task){
@@ -6125,16 +6199,24 @@ initCreateTaskFromTemplate();
     const saveBtn = modal.querySelector('[data-save-calendar-task]');
     const data = Object.fromEntries(new FormData(form).entries());
     const payload = {
+      taskType: data.taskType || activeCalendarTask.taskType || 'campaign',
+      taskTypeLabel: (data.taskType || activeCalendarTask.taskType) === 'agenda' ? 'أجندة' : 'حملة',
+      taskDate: data.taskDate || data.campaignStartDate || '',
+      launchDate: data.campaignStartDate || data.taskDate || '',
+      endDate: data.campaignEndDate || '',
       campaignName: data.campaignName || '',
+      agendaName: data.campaignName || '',
       campaignTypeName: data.campaignTypeName || '',
       campaignCode: data.campaignCode || '',
+      agendaMonth: data.agendaMonth || '',
+      agendaYear: data.agendaYear || '',
       campaignStartDate: data.campaignStartDate || '',
       campaignEndDate: data.campaignEndDate || '',
       campaignGoal: data.campaignGoal || '',
       campaignDescription: data.campaignDescription || '',
+      campaignEndDescription: data.campaignDescription || '',
       updatedAt: new Date().toISOString()
     };
-    if (activeCalendarTask.taskType === 'agenda') payload.taskTypeLabel = 'أجندة';
     try {
       if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'جاري الحفظ...'; }
       const db = ensureFirebase();

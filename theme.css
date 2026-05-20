@@ -7850,3 +7850,50 @@ body:has(#taskDetailsModal.is-open){
 @media(max-width:760px){
   #createTaskModal .department-user-matrix{grid-template-columns:1fr;}
 }
+
+/* Campaigns / agendas edit form matching create-task form style */
+.campaign-full-modal .calendar-create-like-edit{
+  max-width:1500px;
+  margin-inline:auto;
+  padding:0;
+  border:0;
+  background:transparent;
+  box-shadow:none;
+}
+.campaign-full-modal .calendar-create-like-edit .create-task-section{
+  padding:24px;
+  border-radius:28px;
+  background:linear-gradient(180deg, rgba(255,255,255,.90), rgba(255,248,239,.72));
+  border:1px solid rgba(62,36,32,.08);
+  box-shadow:0 18px 40px rgba(75,36,31,.05);
+}
+.campaign-full-modal .calendar-create-like-edit .section-title-row h4{
+  font-size:24px;
+}
+.campaign-full-modal .calendar-create-like-edit .section-title-row p{
+  margin:6px 0 0;
+  color:var(--muted,#9a7d70);
+  font-weight:800;
+  line-height:1.8;
+}
+.campaign-full-modal .calendar-create-like-edit .agenda-month-year-row{
+  grid-column:span 2;
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:12px;
+}
+.campaign-full-modal .calendar-create-like-edit .agenda-month-year-row[hidden]{
+  display:none!important;
+}
+.campaign-full-modal .calendar-create-like-edit .full-width-field{
+  grid-column:1 / -1;
+}
+@media(max-width:900px){
+  .campaign-full-modal .calendar-create-like-edit .create-task-grid{
+    grid-template-columns:1fr!important;
+  }
+  .campaign-full-modal .calendar-create-like-edit .agenda-month-year-row{
+    grid-column:1 / -1;
+    grid-template-columns:1fr;
+  }
+}

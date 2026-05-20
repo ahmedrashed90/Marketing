@@ -7953,3 +7953,97 @@ body:has(#taskDetailsModal.is-open){
 #createTaskModal .department-assignments-list{
   gap:22px !important;
 }
+
+/* Required content sections */
+.required-sections-list{
+  display:grid;
+  gap:18px;
+}
+.required-section-card{
+  border:1px solid rgba(62,36,32,.10);
+  border-radius:28px;
+  background:linear-gradient(180deg,#fff 0%,#fffaf6 100%);
+  padding:18px;
+  display:grid;
+  gap:16px;
+  box-shadow:0 14px 34px rgba(62,36,32,.06);
+}
+.required-section-head{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:14px;
+  padding-bottom:14px;
+  border-bottom:1px solid rgba(62,36,32,.08);
+}
+.required-section-head h4{
+  margin:4px 0;
+  color:var(--brown-900);
+  font-size:26px;
+}
+.required-section-head p{
+  margin:0;
+  color:var(--muted);
+  font-weight:900;
+}
+.required-type-inline-form{
+  display:grid;
+  grid-template-columns:minmax(180px,1fr) minmax(180px,1fr) auto;
+  gap:12px;
+  align-items:end;
+  padding:14px;
+  border-radius:22px;
+  background:#fffaf6;
+  border:1px dashed rgba(62,36,32,.14);
+}
+.required-type-inline-form .form-actions-row{
+  align-items:end;
+  padding-bottom:2px;
+}
+.required-section-types-grid{
+  grid-template-columns:repeat(auto-fill,minmax(220px,1fr));
+}
+.compact-required-type h4{
+  font-size:19px;
+}
+.required-content-choice-section,
+.universal-content-section{
+  grid-column:1/-1;
+  border:1px solid rgba(62,36,32,.10);
+  border-radius:20px;
+  background:#fffaf6;
+  padding:12px;
+  display:grid;
+  gap:10px;
+}
+.required-content-choice-section-title,
+.universal-content-section-head strong{
+  color:var(--brown-900);
+  font-weight:900;
+  font-size:15px;
+}
+.universal-content-section-head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+}
+.universal-content-section-head small{
+  color:#9a7d70;
+  font-weight:800;
+}
+.required-content-choice-section-grid,
+.universal-content-section-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(180px,1fr));
+  gap:10px;
+}
+@media(max-width:760px){
+  .required-section-head,
+  .universal-content-section-head{
+    flex-direction:column;
+  }
+  .required-type-inline-form{
+    grid-template-columns:1fr;
+  }
+}

@@ -2731,15 +2731,28 @@ function attachmentLabelForKind(kind) {
 }
 
 
+function requiredContentSlug(text) {
+  return String(text || '').trim().toLowerCase().replace(/\s+/g, '_').replace(/[^\u0600-\u06FFa-z0-9_-]/g, '') || 'section_general';
+}
+
+function isRequiredContentSectionDoc(row) {
+  return row?.docType === 'section' || row?.kind === 'section' || row?.isSection === true;
+}
+
 function normalizeRequiredContentType(row, id) {
+  if (isRequiredContentSectionDoc(row)) return null;
   const title = String(row?.title || row?.name || row?.contentType || row?.label || '').trim();
   if (!title) return null;
+  const categoryName = String(row?.categoryName || row?.contentSectionName || row?.sectionName || row?.groupName || row?.departmentName || '').trim();
+  const categoryId = String(row?.categoryId || row?.sectionId || row?.contentSectionId || '').trim();
   return {
     id: id || row?.id || row?.docId || ('content_type_' + Date.now()),
     title,
     details: String(row?.details || row?.description || row?.desc || '').trim(),
+    categoryId: categoryId || (categoryName ? requiredContentSlug(categoryName) : 'section_general'),
+    categoryName: categoryName || 'عام',
     departmentKind: 'global',
-    departmentName: 'كل الأقسام',
+    departmentName: categoryName || 'عام',
     active: row?.active !== false,
     createdAt: row?.createdAt || '',
     updatedAt: row?.updatedAt || ''
@@ -2762,7 +2775,10 @@ async function loadRequiredContentTypes() {
   }
   const map = new Map();
   collected.forEach((item) => map.set(String(item.id || item.title), item));
-  window.MZJRequiredContentTypesCache = Array.from(map.values()).sort((a,b) => String(a.title || '').localeCompare(String(b.title || ''), 'ar'));
+  window.MZJRequiredContentTypesCache = Array.from(map.values()).sort((a,b) => {
+    const cat = String(a.categoryName || '').localeCompare(String(b.categoryName || ''), 'ar');
+    return cat || String(a.title || '').localeCompare(String(b.title || ''), 'ar');
+  });
   return window.MZJRequiredContentTypesCache;
 }
 
@@ -2771,24 +2787,45 @@ function requiredContentTypesForKind(kind) {
   return cache.filter((item) => item.active !== false);
 }
 
+function groupRequiredContentTypes(items) {
+  const map = new Map();
+  (items || []).forEach((item) => {
+    const key = String(item.categoryId || requiredContentSlug(item.categoryName || 'عام'));
+    if (!map.has(key)) map.set(key, { id: key, title: item.categoryName || 'عام', items: [] });
+    map.get(key).items.push(item);
+  });
+  return Array.from(map.values()).sort((a,b) => String(a.title || '').localeCompare(String(b.title || ''), 'ar'));
+}
+
 function renderRequiredContentOptions(kind, selected = '') {
   const items = requiredContentTypesForKind(kind);
   const current = String(selected || '').trim();
   if (!items.length) return '<option value="">لا توجد أنواع محتوى مضافة</option>';
-  return '<option value="">اختار نوع المحتوى</option>' + items.map((item) => `<option value="${escapeHTML(item.title)}" data-desc="${escapeHTML(item.details || '')}" data-id="${escapeHTML(item.id)}" ${current === item.title ? 'selected' : ''}>${escapeHTML(item.title)}${item.details ? ' — ' + escapeHTML(item.details) : ''}</option>`).join('');
+  return '<option value="">اختار نوع المحتوى</option>' + groupRequiredContentTypes(items).map((group) => `
+    <optgroup label="${escapeHTML(group.title || 'عام')}">
+      ${group.items.map((item) => `<option value="${escapeHTML(item.title)}" data-desc="${escapeHTML(item.details || '')}" data-id="${escapeHTML(item.id)}" data-category-id="${escapeHTML(item.categoryId || '')}" data-category-name="${escapeHTML(item.categoryName || '')}" ${current === item.title ? 'selected' : ''}>${escapeHTML(item.title)}${item.details ? ' — ' + escapeHTML(item.details) : ''}</option>`).join('')}
+    </optgroup>
+  `).join('');
 }
 
 function renderRequiredContentCards(kind, attrName) {
   const items = requiredContentTypesForKind(kind);
   if (!items.length) {
-    return `<div class="required-content-empty">لا توجد أنواع محتوى مضافة. افتح صفحة المحتوى المطلوب وأضف الأنواع.</div>`;
+    return `<div class="required-content-empty">لا توجد أنواع محتوى مضافة. افتح صفحة المحتوى المطلوب وأضف الأقسام والأنواع.</div>`;
   }
-  return items.map((item) => `
-    <label class="multi-choice-card required-content-choice-card">
-      <input type="checkbox" ${attrName} value="${escapeHTML(item.title)}" data-desc="${escapeHTML(item.details || '')}" data-title="${escapeHTML(item.title)}" data-required-content-id="${escapeHTML(item.id)}">
-      <span class="multi-choice-title">${escapeHTML(item.title)}</span>
-      ${item.details ? `<small>${escapeHTML(item.details)}</small>` : '<small>نوع محتوى من صفحة المحتوى المطلوب</small>'}
-    </label>
+  return groupRequiredContentTypes(items).map((group) => `
+    <section class="required-content-choice-section">
+      <div class="required-content-choice-section-title">${escapeHTML(group.title || 'عام')}</div>
+      <div class="required-content-choice-section-grid">
+        ${group.items.map((item) => `
+          <label class="multi-choice-card required-content-choice-card">
+            <input type="checkbox" ${attrName} value="${escapeHTML(item.title)}" data-desc="${escapeHTML(item.details || '')}" data-title="${escapeHTML(item.title)}" data-required-content-id="${escapeHTML(item.id)}" data-category-id="${escapeHTML(item.categoryId || '')}" data-category-name="${escapeHTML(item.categoryName || '')}">
+            <span class="multi-choice-title">${escapeHTML(item.title)}</span>
+            ${item.details ? `<small>${escapeHTML(item.details)}</small>` : `<small>${escapeHTML(group.title || 'قسم محتوى')}</small>`}
+          </label>
+        `).join('')}
+      </div>
+    </section>
   `).join('');
 }
 
@@ -2807,23 +2844,35 @@ function isOfflinePrintContent(value) {
 function renderUniversalContentChoiceCards(kind) {
   const items = requiredContentTypesForKind(kind);
   if (!items.length) {
-    return `<div class="required-content-empty">لا توجد أنواع محتوى مضافة. افتح صفحة المحتوى المطلوب وأضف الأنواع.</div>`;
+    return `<div class="required-content-empty">لا توجد أنواع محتوى مضافة. افتح صفحة المحتوى المطلوب وأضف الأقسام والأنواع.</div>`;
   }
-  return items.map((item, index) => {
-    const qtyId = `content-qty-${String(item.id || index).replace(/[^a-zA-Z0-9_-]/g, '')}-${index}`;
-    return `
-    <div class="universal-content-type-card" data-content-type-card>
-      <label class="universal-content-type-main">
-        <input type="checkbox" data-universal-content-type value="${escapeHTML(item.title)}" data-desc="${escapeHTML(item.details || '')}" data-id="${escapeHTML(item.id)}" data-quantity-input-id="${escapeHTML(qtyId)}">
-        <span>${escapeHTML(item.title)}</span>
-        ${item.details ? `<small>${escapeHTML(item.details)}</small>` : '<small>اضغط للاختيار وكتابة العدد</small>'}
-      </label>
-      <label class="content-type-quantity-field" data-content-type-quantity-wrap hidden>
-        <small>العدد المطلوب</small>
-        <input type="number" min="1" step="1" id="${escapeHTML(qtyId)}" data-content-type-quantity data-content-type-title="${escapeHTML(item.title)}" placeholder="اكتب العدد">
-      </label>
-    </div>`;
-  }).join('');
+  let counter = 0;
+  return groupRequiredContentTypes(items).map((group) => `
+    <section class="universal-content-section" data-universal-content-section="${escapeHTML(group.id || '')}">
+      <div class="universal-content-section-head">
+        <strong>${escapeHTML(group.title || 'عام')}</strong>
+        <small>اختار نوع أو أكثر من هذا القسم</small>
+      </div>
+      <div class="universal-content-section-grid">
+        ${group.items.map((item) => {
+          const index = counter++;
+          const qtyId = `content-qty-${String(item.id || index).replace(/[^a-zA-Z0-9_-]/g, '')}-${index}`;
+          return `
+            <div class="universal-content-type-card" data-content-type-card>
+              <label class="universal-content-type-main">
+                <input type="checkbox" data-universal-content-type value="${escapeHTML(item.title)}" data-desc="${escapeHTML(item.details || '')}" data-id="${escapeHTML(item.id)}" data-category-id="${escapeHTML(item.categoryId || '')}" data-category-name="${escapeHTML(item.categoryName || group.title || '')}" data-quantity-input-id="${escapeHTML(qtyId)}">
+                <span>${escapeHTML(item.title)}</span>
+                ${item.details ? `<small>${escapeHTML(item.details)}</small>` : '<small>اضغط للاختيار وكتابة العدد</small>'}
+              </label>
+              <label class="content-type-quantity-field" data-content-type-quantity-wrap hidden>
+                <small>العدد المطلوب</small>
+                <input type="number" min="1" step="1" id="${escapeHTML(qtyId)}" data-content-type-quantity data-content-type-title="${escapeHTML(item.title)}" placeholder="اكتب العدد">
+              </label>
+            </div>`;
+        }).join('')}
+      </div>
+    </section>
+  `).join('');
 }
 
 function renderStockCarCheckboxCards(selected = []) {

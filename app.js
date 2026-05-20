@@ -461,19 +461,72 @@ function cleanTaskRequiredDisplayText(value) {
 }
 
 function taskDetailsRawSources(deptTask) {
-  return [
-    deptTask?.carType,
-    deptTask?.contentType,
-    deptTask?.deliveryDetails,
-    deptTask?.notes,
-    deptTask?.required,
-    deptTask?.requiredText,
-    deptTask?.requiredDetails?.notes,
-    deptTask?.requiredDetails?.manualRequired,
-    ...(Array.isArray(deptTask?.contentItems) ? deptTask.contentItems.flatMap((item) => [item?.carType, item?.car, item?.vehicle, item?.contentType, item?.title, item?.name, item?.requiredText, item?.details]) : []),
-    ...(Array.isArray(deptTask?.photoItems) ? deptTask.photoItems.flatMap((item) => [item?.carType, item?.car, item?.vehicle, item?.contentType, item?.title, item?.name, item?.requiredText, item?.details]) : []),
-    ...(Array.isArray(deptTask?.requiredDetails?.items) ? deptTask.requiredDetails.items.flatMap((item) => [item?.carType, item?.car, item?.vehicle, item?.contentType, item?.title, item?.name, item?.requiredText, item?.details]) : [])
-  ].map((value) => String(value || '').trim()).filter(Boolean);
+  const values = [];
+  const visit = (value, depth = 0) => {
+    if (depth > 5 || value === undefined || value === null) return;
+    if (typeof value === 'string' || typeof value === 'number') {
+      const clean = String(value || '').trim();
+      if (clean) values.push(clean);
+      return;
+    }
+    if (Array.isArray(value)) {
+      value.forEach((item) => visit(item, depth + 1));
+      return;
+    }
+    if (typeof value === 'object') {
+      Object.values(value).forEach((item) => visit(item, depth + 1));
+    }
+  };
+  visit(deptTask || {});
+  return mzjUniqueStrings(values);
+}
+
+function mzjArrayFromAny(value) {
+  if (Array.isArray(value)) return value;
+  if (value && typeof value === 'object') return [value];
+  return mzjSplitMultiValue(value);
+}
+
+function collectExplicitTaskValues(source, mode) {
+  const values = [];
+  const keyMatchers = mode === 'car'
+    ? [/car/i, /vehicle/i, /سيارة/i, /سيارات/i]
+    : [/contenttype/i, /content_type/i, /deliverable/i, /نوع.?المحتوى/i, /نوع.?المحتوي/i];
+  const blockedKeys = mode === 'content'
+    ? [/required/i, /notes/i, /details/i, /manual/i, /delivery/i, /المطلوب/i, /ملاحظات/i]
+    : [/required/i, /notes/i, /manual/i, /delivery/i, /المطلوب/i, /نوع.?المحتوى/i, /نوع.?المحتوي/i];
+  const pushValue = (value) => {
+    if (value === undefined || value === null) return;
+    if (Array.isArray(value)) {
+      value.forEach(pushValue);
+      return;
+    }
+    if (typeof value === 'object') {
+      if (mode === 'content') {
+        pushValue(value.title || value.name || value.value || value.label || value.contentType || value.deliverable);
+      } else {
+        pushValue(value.display || value.name || value.title || value.value || value.label || value.carType || value.car || value.vehicle);
+      }
+      return;
+    }
+    const clean = String(value || '').replace(/\s+/g, ' ').trim();
+    if (clean) values.push(clean);
+  };
+  const visit = (obj, depth = 0) => {
+    if (!obj || depth > 6) return;
+    if (Array.isArray(obj)) {
+      obj.forEach((item) => visit(item, depth + 1));
+      return;
+    }
+    if (typeof obj !== 'object') return;
+    Object.entries(obj).forEach(([key, value]) => {
+      const keyText = String(key || '');
+      if (keyMatchers.some((rx) => rx.test(keyText)) && !blockedKeys.some((rx) => rx.test(keyText))) pushValue(value);
+      if (value && typeof value === 'object') visit(value, depth + 1);
+    });
+  };
+  visit(source || {});
+  return mzjUniqueStrings(values);
 }
 
 function parseCarsFromTaskText(value) {
@@ -483,7 +536,7 @@ function parseCarsFromTaskText(value) {
   text.split(/\n+/g).forEach((line) => {
     let item = String(line || '').trim();
     if (!item) return;
-    const labeled = item.match(/السيارة\s*:?\s*([\s\S]*?)(?=\s*[—\-–]\s*(?:نوع\s+المحتوى|المقاس|المطلوب)\s*:|$)/i);
+    const labeled = item.match(/(?:السيارة|السيارات|نوع\s+السيارة)\s*:?[\sـ-]*([\s\S]*?)(?=\s*[—–]\s*(?:نوع\s+المحتوى|المقاس|المطلوب)\s*:|$)/i);
     if (labeled && labeled[1]) found.push(labeled[1].trim());
     const beforeType = item.match(/^([\s\S]+?)\s*[—–]\s*نوع\s+المحتوى\s*:/i);
     if (!labeled && beforeType && beforeType[1] && !/المطلوب\s*:/i.test(beforeType[1])) found.push(beforeType[1].trim());
@@ -496,7 +549,7 @@ function parseContentTypesFromTaskText(value) {
   if (!text) return [];
   const found = [];
   text.split(/\n+/g).forEach((line) => {
-    const match = String(line || '').match(/نوع\s+المحتوى\s*:?\s*([\s\S]*?)(?=\s*(?:مطلوب\s*\d+|[—\-–]\s*(?:المطلوب|السيارة|المقاس)\s*:)|$)/i);
+    const match = String(line || '').match(/نوع\s+المحتوى\s*:?[\sـ-]*([\s\S]*?)(?=\s*(?:مطلوب\s*\d+|[—–]\s*(?:المطلوب|السيارة|المقاس)\s*:)|$)/i);
     if (match && match[1]) found.push(match[1].trim());
   });
   return mzjUniqueStrings(found.filter(Boolean));
@@ -506,29 +559,43 @@ function renderTaskDetailsSummary(deptTask, deptKeyValue) {
   const items = normalizeDepartmentContentItems(deptTask || {});
   const rawSources = taskDetailsRawSources(deptTask || {});
   const directRequiredSources = [
-    deptTask?.deliveryDetails,
-    deptTask?.notes,
-    deptTask?.requiredDetails?.notes,
     deptTask?.requiredDetails?.manualRequired,
-    ...(Array.isArray(deptTask?.contentItems) ? deptTask.contentItems.map((item) => item?.requiredText || item?.details) : []),
-    ...(Array.isArray(deptTask?.photoItems) ? deptTask.photoItems.map((item) => item?.requiredText || item?.details) : []),
-    ...(Array.isArray(deptTask?.requiredDetails?.items) ? deptTask.requiredDetails.items.map((item) => item?.requiredText || item?.details) : [])
+    deptTask?.requiredDetails?.notes,
+    deptTask?.notes,
+    deptTask?.requiredText,
+    deptTask?.deliveryDetails,
+    deptTask?.required,
+    ...(Array.isArray(deptTask?.contentItems) ? deptTask.contentItems.map((item) => item?.requiredText || item?.manualRequired || item?.notes) : []),
+    ...(Array.isArray(deptTask?.photoItems) ? deptTask.photoItems.map((item) => item?.requiredText || item?.manualRequired || item?.notes) : []),
+    ...(Array.isArray(deptTask?.requiredDetails?.items) ? deptTask.requiredDetails.items.map((item) => item?.requiredText || item?.manualRequired || item?.notes) : [])
   ];
   const lines = mzjUniqueStrings(directRequiredSources.map(cleanTaskRequiredDisplayText).filter(Boolean));
+  const requiredKeys = new Set(lines.map((v) => String(v || '').trim().toLowerCase()).filter(Boolean));
+  const isNotRequiredText = (value) => {
+    const clean = String(value || '').replace(/\s+/g, ' ').trim();
+    if (!clean) return false;
+    const key = clean.toLowerCase();
+    if (requiredKeys.has(key)) return false;
+    if (Array.from(requiredKeys).some((req) => req && (key.includes(req) || req.includes(key)))) return false;
+    if (/^مطلوب\s*\d+/i.test(clean) || /^المطلوب\s*:?/i.test(clean)) return false;
+    return true;
+  };
   const cars = mzjUniqueStrings([
-    ...items.map((item) => item?.carType),
+    ...collectExplicitTaskValues(deptTask || {}, 'car'),
+    ...items.map((item) => item?.carType || item?.car || item?.vehicle),
     ...mzjSplitMultiValue(deptTask?.carType),
     ...rawSources.flatMap(parseCarsFromTaskText)
-  ].map((value) => String(value || '').trim()).filter(Boolean));
+  ].map((value) => String(value || '').trim()).filter(Boolean).filter(isNotRequiredText));
   const contentTypes = mzjUniqueStrings([
+    ...collectExplicitTaskValues(deptTask || {}, 'content'),
     ...items.map((item) => item?.contentType),
     ...mzjSplitMultiValue(deptTask?.contentType),
     ...rawSources.flatMap(parseContentTypesFromTaskText)
-  ].map((value) => String(value || '').trim()).filter(Boolean));
+  ].map((value) => String(value || '').trim()).filter(Boolean).filter(isNotRequiredText));
 
   const requiredHtml = `<section class="task-details-required-only"><small>المطلوب</small>${lines.length ? lines.map((item) => `<p>${escapeHTML(item)}</p>`).join('') : '<p>لا يوجد مطلوب مكتوب</p>'}</section>`;
-  const carsHtml = cars.length ? `<section class="task-details-meta-lines"><small>السيارة المختارة</small>${cars.map((car) => `<p class="task-detail-car-line">${escapeHTML(car)}</p>`).join('')}</section>` : '';
-  const typesHtml = contentTypes.length ? `<section class="task-details-meta-lines"><small>نوع المحتوى</small>${contentTypes.map((type) => `<p>${escapeHTML(type)}</p>`).join('')}</section>` : '';
+  const carsHtml = `<section class="task-details-meta-lines"><small>السيارة المختارة</small>${cars.length ? cars.map((car) => `<p class="task-detail-car-line">${escapeHTML(car)}</p>`).join('') : '<p>—</p>'}</section>`;
+  const typesHtml = `<section class="task-details-meta-lines"><small>نوع المحتوى</small>${contentTypes.length ? contentTypes.map((type) => `<p>${escapeHTML(type)}</p>`).join('') : '<p>—</p>'}</section>`;
   return `<div class="task-details-clean-stack">${requiredHtml}${carsHtml}${typesHtml}</div>`;
 }
 

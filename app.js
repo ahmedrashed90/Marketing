@@ -681,6 +681,7 @@ function mzjCleanSelectionValues(values, requiredLines) {
 function renderTaskDetailsSummary(deptTask, deptKeyValue) {
   const safeTask = deptTask || {};
   const items = normalizeDepartmentContentItems(safeTask);
+
   const directRequiredSources = [
     safeTask?.requiredDetails?.manualRequired,
     safeTask?.requiredDetails?.requiredText,
@@ -695,45 +696,55 @@ function renderTaskDetailsSummary(deptTask, deptKeyValue) {
   ];
   const lines = mzjUniqueStrings(directRequiredSources.map(cleanTaskRequiredDisplayText).filter(Boolean));
   const requiredKeys = new Set(lines.map((v) => String(v || '').replace(/\s+/g, ' ').trim().toLowerCase()).filter(Boolean));
-  const excludeRequiredText = (value) => {
-    const clean = String(value || '').replace(/\s+/g, ' ').trim();
-    if (!clean || clean === '—' || clean === '-') return false;
-    const key = clean.toLowerCase();
-    if (requiredKeys.has(key)) return false;
-    if (/^مطلوب\s*\d+/i.test(clean) || /^المطلوب\s*:?/i.test(clean)) return false;
-    return true;
-  };
-  const fallbackTextForSelection = taskDetailsRawSources(safeTask).join('\n');
-  const cars = mzjCleanSelectionValues([
-    ...mzjPickStringListFromObject({
-      __selectedCarsFromButton: safeTask?.__selectedCarsFromButton,
-      selectedCars: safeTask?.selectedCars,
-      selectedCarValues: safeTask?.selectedCarValues,
-      carType: safeTask?.carType,
-      requiredDetails: safeTask?.requiredDetails,
-      contentItems: safeTask?.contentItems,
-      photoItems: safeTask?.photoItems,
-      selectedDeliverables: safeTask?.selectedDeliverables
-    }, 'car'),
-    ...items.map((item) => item?.carType || item?.car || item?.vehicle || item?.carValue),
-    ...parseCarsFromTaskText(fallbackTextForSelection)
-  ], lines);
 
-  const contentTypes = mzjCleanSelectionValues([
-    ...mzjPickStringListFromObject({
-      __selectedContentTypesFromButton: safeTask?.__selectedContentTypesFromButton,
-      selectedContentTypes: safeTask?.selectedContentTypes,
-      selectedContentTypeTitles: safeTask?.selectedContentTypeTitles,
-      contentType: safeTask?.contentType,
-      __contentTypeFilter: safeTask?.__contentTypeFilter,
-      requiredDetails: safeTask?.requiredDetails,
-      contentItems: safeTask?.contentItems,
-      photoItems: safeTask?.photoItems,
-      selectedDeliverables: safeTask?.selectedDeliverables
-    }, 'content'),
-    ...items.map((item) => item?.contentType || item?.contentTypeTitle || item?.deliverable),
-    ...parseContentTypesFromTaskText(fallbackTextForSelection)
-  ], lines);
+  const cleanSelection = (values) => mzjUniqueStrings((values || []).flatMap(taskFieldList).map((value) => String(value || '').replace(/\s+/g, ' ').trim()).filter((value) => {
+    if (!value || value === '—' || value === '-') return false;
+    const key = value.toLowerCase();
+    if (requiredKeys.has(key)) return false;
+    if (/^مطلوب\s*\d+/i.test(value) || /^المطلوب\s*:?/i.test(value)) return false;
+    if (/^rct_\d+/i.test(value) || /^tpl_\d+/i.test(value) || /^task_\d+/i.test(value)) return false;
+    return true;
+  }));
+
+  // IMPORTANT: use the exact saved selection fields first. Do not derive display values from
+  // `details` strings because those can contain mixed text like "السيارة: ... — المطلوب".
+  let cars = cleanSelection([
+    safeTask?.__selectedCarsFromButton,
+    safeTask?.selectedCars,
+    safeTask?.selectedCarValues,
+    safeTask?.requiredDetails?.selectedCars,
+    safeTask?.requiredDetails?.selectedCarValues
+  ]);
+  if (!cars.length) {
+    cars = cleanSelection([
+      safeTask?.carType,
+      safeTask?.requiredDetails?.carType,
+      ...(Array.isArray(safeTask?.contentItems) ? safeTask.contentItems.map((item) => item?.carType) : []),
+      ...(Array.isArray(safeTask?.photoItems) ? safeTask.photoItems.map((item) => item?.carType) : []),
+      ...(Array.isArray(safeTask?.requiredDetails?.items) ? safeTask.requiredDetails.items.map((item) => item?.carType) : []),
+      ...(Array.isArray(safeTask?.requiredDetails?.deliverables) ? safeTask.requiredDetails.deliverables.map((item) => item?.carType) : []),
+      ...items.map((item) => item?.carType)
+    ]);
+  }
+
+  let contentTypes = cleanSelection([
+    safeTask?.__selectedContentTypesFromButton,
+    safeTask?.selectedContentTypes,
+    safeTask?.selectedContentTypeTitles,
+    safeTask?.requiredDetails?.selectedContentTypes,
+    safeTask?.requiredDetails?.selectedContentTypeTitles
+  ]);
+  if (!contentTypes.length) {
+    contentTypes = cleanSelection([
+      safeTask?.contentType,
+      safeTask?.requiredDetails?.contentType,
+      ...(Array.isArray(safeTask?.contentItems) ? safeTask.contentItems.map((item) => item?.contentType || item?.title) : []),
+      ...(Array.isArray(safeTask?.photoItems) ? safeTask.photoItems.map((item) => item?.contentType || item?.title) : []),
+      ...(Array.isArray(safeTask?.requiredDetails?.items) ? safeTask.requiredDetails.items.map((item) => item?.contentType || item?.title) : []),
+      ...(Array.isArray(safeTask?.requiredDetails?.deliverables) ? safeTask.requiredDetails.deliverables.map((item) => item?.contentType || item?.title) : []),
+      ...items.map((item) => item?.contentType)
+    ]);
+  }
 
   const requiredHtml = `<section class="task-details-required-only"><small>المطلوب</small>${lines.length ? lines.map((item) => `<p>${escapeHTML(item)}</p>`).join('') : '<p>لا يوجد مطلوب مكتوب</p>'}</section>`;
   const carsHtml = `<section class="task-details-meta-lines"><small>السيارة المختارة</small>${cars.length ? cars.map((car) => `<p class="task-detail-car-line">${escapeHTML(car)}</p>`).join('') : '<p>—</p>'}</section>`;

@@ -8276,3 +8276,138 @@ body[data-page="requiredContent"] .required-content-type-pill{
   pointer-events:none;
   flex:0 0 auto;
 }
+
+
+/* MZJ final fix: table-like task creation row and cleaner required-content page */
+#createTaskModal .assignment-table-header,
+#createTaskModal .create-assignment-table-row{
+  grid-template-columns:minmax(260px,1.4fr) minmax(150px,.72fr) minmax(175px,.82fr) minmax(190px,.9fr) minmax(190px,.9fr) minmax(260px,1.25fr)!important;
+}
+#createTaskModal .assignment-table-wrap{
+  overflow:visible!important;
+  border-radius:18px!important;
+  background:#fff!important;
+}
+#createTaskModal .assignment-table-header{
+  background:#fff!important;
+  border-bottom:1px solid #d8cec6!important;
+  color:#2f1a16!important;
+  font-size:14px!important;
+}
+#createTaskModal .assignment-table-header span,
+#createTaskModal .assignment-table-cell{
+  padding:7px 9px!important;
+  min-height:44px!important;
+  border-inline-start:1px solid #e3d8cf!important;
+}
+#createTaskModal .create-assignment-table-row{
+  background:#fff!important;
+  min-height:48px!important;
+}
+#createTaskModal .assignment-table-cell textarea,
+#createTaskModal .assignment-table-cell select,
+#createTaskModal .checkbox-dropdown summary{
+  min-height:38px!important;
+  font-size:13px!important;
+}
+#createTaskModal .assignment-required-cell textarea{
+  height:38px!important;
+  min-height:38px!important;
+  resize:vertical!important;
+  padding:8px 10px!important;
+  background:#fff!important;
+}
+#createTaskModal .table-select-field,
+#createTaskModal .table-select-field select{
+  width:100%!important;
+  margin:0!important;
+}
+#createTaskModal .table-select-field span{display:none!important;}
+#createTaskModal .checkbox-dropdown{
+  border:0!important;
+  border-radius:0!important;
+  background:transparent!important;
+  min-height:38px!important;
+}
+#createTaskModal .checkbox-dropdown summary{
+  padding:9px 8px!important;
+  border:0!important;
+  color:#2f1a16!important;
+  font-weight:700!important;
+}
+#createTaskModal .checkbox-dropdown[open] summary{border-bottom:0!important;}
+#createTaskModal .checkbox-dropdown[open] .dropdown-checkbox-panel{
+  min-width:280px!important;
+  background:#fff!important;
+  border:1px solid #d8cec6!important;
+  border-radius:14px!important;
+  box-shadow:0 16px 34px rgba(62,36,32,.15)!important;
+}
+#createTaskModal .universal-content-type-card,
+#createTaskModal .stock-car-choice-card,
+#createTaskModal .dropdown-check-row{
+  display:flex!important;
+  align-items:center!important;
+  justify-content:flex-start!important;
+  gap:8px!important;
+  width:100%!important;
+  min-height:36px!important;
+  padding:8px 10px!important;
+  border:1px solid rgba(62,36,32,.12)!important;
+  border-radius:10px!important;
+  background:#fff!important;
+  text-align:right!important;
+  color:#2f1a16!important;
+}
+#createTaskModal .universal-content-type-card.is-checked,
+#createTaskModal .stock-car-choice-card.is-checked,
+#createTaskModal .dropdown-check-row.is-selected{
+  background:#f7eee6!important;
+  border-color:#3e2420!important;
+}
+#createTaskModal .universal-content-type-card small{display:block;width:100%;opacity:.65;font-size:11px;}
+#createTaskModal .department-user-matrix-card{
+  border:0!important;
+  padding:0!important;
+  background:transparent!important;
+  box-shadow:none!important;
+}
+#createTaskModal .compact-users-title{
+  display:block;
+  margin:4px 0 6px;
+  font-size:12px;
+  color:#7b5b51;
+}
+#createTaskModal .matrix-users-row{display:grid!important;gap:7px!important;}
+#createTaskModal .universal-print-size-field,
+#createTaskModal [data-universal-print-size-wrap]{display:none!important;}
+body[data-page="requiredContent"] .required-content-grid{
+  display:grid!important;
+  grid-template-columns:repeat(auto-fit,minmax(420px,1fr))!important;
+  gap:22px!important;
+}
+body[data-page="requiredContent"] .required-content-section-card{
+  overflow:visible!important;
+  padding:22px!important;
+  border:1px solid rgba(62,36,32,.10)!important;
+  border-radius:24px!important;
+}
+body[data-page="requiredContent"] .required-content-section-head{
+  display:grid!important;
+  grid-template-columns:1fr auto!important;
+  gap:14px!important;
+}
+body[data-page="requiredContent"] .required-content-type-inline{
+  grid-template-columns:minmax(180px,1fr) minmax(180px,1fr) auto!important;
+  align-items:center!important;
+}
+@media(max-width:1180px){
+  #createTaskModal .assignment-table-wrap{overflow-x:auto!important;}
+  #createTaskModal .assignment-table-header,
+  #createTaskModal .create-assignment-table-row{min-width:1250px!important;}
+}
+@media(max-width:760px){
+  body[data-page="requiredContent"] .required-content-grid{grid-template-columns:1fr!important;}
+  body[data-page="requiredContent"] .required-content-section-head,
+  body[data-page="requiredContent"] .required-content-type-inline{grid-template-columns:1fr!important;}
+}

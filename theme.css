@@ -7719,3 +7719,134 @@ body:has(#taskDetailsModal.is-open){
   .campaign-full-head{position:relative;flex-direction:column;}
   .campaign-full-head h2{font-size:22px;}
 }
+
+/* Create task: renamed content hub to required + quantity per content type + one-row department/user picker */
+#createTaskModal .universal-content-type-card{
+  overflow:visible;
+}
+#createTaskModal .universal-content-type-main{
+  display:grid;
+  gap:6px;
+  cursor:pointer;
+}
+#createTaskModal .content-type-quantity-field{
+  margin-top:8px;
+  padding-top:10px;
+  border-top:1px dashed rgba(255,255,255,.30);
+  display:grid;
+  gap:6px;
+}
+#createTaskModal .universal-content-type-card:not(.is-checked) .content-type-quantity-field{
+  border-top-color:rgba(73,36,30,.10);
+}
+#createTaskModal .content-type-quantity-field small{
+  color:inherit;
+  font-weight:900;
+}
+#createTaskModal .universal-content-type-card input[data-content-type-quantity]{
+  position:static!important;
+  opacity:1!important;
+  pointer-events:auto!important;
+  width:100%;
+  min-height:42px;
+  border-radius:14px;
+  border:1px solid rgba(73,36,30,.16);
+  background:#fff;
+  color:var(--brown-900,#3e2420);
+  padding:8px 10px;
+  font-weight:900;
+  text-align:center;
+}
+#createTaskModal .universal-content-type-card.is-checked input[data-content-type-quantity],
+#createTaskModal .universal-content-type-card:has(input[data-universal-content-type]:checked) input[data-content-type-quantity]{
+  border-color:rgba(255,255,255,.34);
+  background:rgba(255,255,255,.96);
+}
+#createTaskModal .distribution-matrix-picker{
+  display:block!important;
+  margin-top:14px;
+}
+#createTaskModal .department-user-matrix{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(240px,1fr));
+  gap:12px;
+}
+#createTaskModal .department-user-matrix-card{
+  border:1px solid rgba(73,36,30,.10);
+  border-radius:22px;
+  background:linear-gradient(180deg,#fff,rgba(255,248,239,.70));
+  padding:12px;
+  display:grid;
+  gap:10px;
+  transition:.16s ease;
+}
+#createTaskModal .department-user-matrix-card.is-selected{
+  border-color:rgba(73,36,30,.32);
+  box-shadow:0 16px 30px rgba(75,36,31,.10);
+}
+#createTaskModal .matrix-department-head{
+  border:0;
+  border-radius:18px;
+  background:rgba(75,36,31,.07);
+  padding:12px 14px;
+  display:grid;
+  gap:4px;
+  text-align:right;
+  color:var(--brown-900,#3e2420);
+  cursor:pointer;
+  font:inherit;
+}
+#createTaskModal .department-user-matrix-card.is-selected .matrix-department-head{
+  background:linear-gradient(135deg,var(--brown-900,#3e2420),#6c4037);
+  color:var(--cream,#fff7ec);
+}
+#createTaskModal .matrix-department-head strong{
+  font-weight:900;
+  font-size:16px;
+}
+#createTaskModal .matrix-department-head small{
+  color:inherit;
+  opacity:.72;
+  font-weight:900;
+}
+#createTaskModal .matrix-users-row{
+  display:grid;
+  gap:8px;
+}
+#createTaskModal .matrix-user-chip{
+  border:1px solid rgba(73,36,30,.10);
+  border-radius:16px;
+  background:#fff;
+  color:var(--brown-900,#3e2420);
+  padding:10px 12px;
+  display:grid;
+  gap:4px;
+  text-align:right;
+  cursor:pointer;
+  font:inherit;
+  transition:.16s ease;
+}
+#createTaskModal .matrix-user-chip:disabled{
+  opacity:.45;
+  cursor:not-allowed;
+}
+#createTaskModal .matrix-user-chip span{
+  font-weight:900;
+  line-height:1.4;
+}
+#createTaskModal .matrix-user-chip small{
+  color:var(--muted,#7f6b64);
+  font-weight:800;
+}
+#createTaskModal .matrix-user-chip.is-selected{
+  background:linear-gradient(135deg,#5b3a32,#8b695f);
+  color:#fff;
+  border-color:transparent;
+  box-shadow:0 12px 24px rgba(75,36,31,.14);
+}
+#createTaskModal .matrix-user-chip.is-selected small{
+  color:rgba(255,248,239,.74);
+}
+@media(max-width:760px){
+  #createTaskModal .department-user-matrix{grid-template-columns:1fr;}
+}

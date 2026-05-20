@@ -2313,6 +2313,7 @@ function renderUserOptions(users, departmentId = '', allowFallback = true) {
 // They must be global here because some helper functions are defined outside initCreateTaskModal().
 var departmentsCache = Array.isArray(MZJ_DEPARTMENTS_FALLBACK) ? MZJ_DEPARTMENTS_FALLBACK : [];
 var usersCache = [];
+const MZJ_ASSIGNMENT_LABEL = 'المطلوب';
 
 function normalizeDeptCompareValue(value) {
   return String(value || '')
@@ -2743,13 +2744,21 @@ function renderUniversalContentChoiceCards(kind) {
   if (!items.length) {
     return `<div class="required-content-empty">لا توجد أنواع محتوى مضافة. افتح صفحة المحتوى المطلوب وأضف الأنواع.</div>`;
   }
-  return items.map((item, index) => `
-    <label class="universal-content-type-card">
-      <input type="checkbox" data-universal-content-type value="${escapeHTML(item.title)}" data-desc="${escapeHTML(item.details || '')}" data-id="${escapeHTML(item.id)}">
-      <span>${escapeHTML(item.title)}</span>
-      ${item.details ? `<small>${escapeHTML(item.details)}</small>` : ''}
-    </label>
-  `).join('');
+  return items.map((item, index) => {
+    const qtyId = `content-qty-${String(item.id || index).replace(/[^a-zA-Z0-9_-]/g, '')}-${index}`;
+    return `
+    <div class="universal-content-type-card" data-content-type-card>
+      <label class="universal-content-type-main">
+        <input type="checkbox" data-universal-content-type value="${escapeHTML(item.title)}" data-desc="${escapeHTML(item.details || '')}" data-id="${escapeHTML(item.id)}" data-quantity-input-id="${escapeHTML(qtyId)}">
+        <span>${escapeHTML(item.title)}</span>
+        ${item.details ? `<small>${escapeHTML(item.details)}</small>` : '<small>اضغط للاختيار وكتابة العدد</small>'}
+      </label>
+      <label class="content-type-quantity-field" data-content-type-quantity-wrap hidden>
+        <small>العدد المطلوب</small>
+        <input type="number" min="1" step="1" id="${escapeHTML(qtyId)}" data-content-type-quantity data-content-type-title="${escapeHTML(item.title)}" placeholder="اكتب العدد">
+      </label>
+    </div>`;
+  }).join('');
 }
 
 function renderStockCarCheckboxCards(selected = []) {
@@ -2808,7 +2817,7 @@ function renderUniversalRequiredItem(kind, removable = false) {
 function buildSpecialDepartmentFields(kind) {
   const kindLabel = ({
     photography: 'التصوير',
-    content: 'المحتوى',
+    content: 'المطلوب',
     design: 'التصميم',
     montage: 'المونتاج',
     publish: 'النشر'
@@ -2818,11 +2827,11 @@ function buildSpecialDepartmentFields(kind) {
     <div class="dept-special-fields universal-required-fields" data-special-kind="${escapeHTML(kind)}">
       <div class="dept-special-head">
         <div>
-          <span class="content-box-eyebrow">قسم ${escapeHTML(kindLabel)}</span>
+          <span class="content-box-eyebrow">${escapeHTML(MZJ_ASSIGNMENT_LABEL)}</span>
           <strong>تفاصيل المطلوب</strong>
         </div>
       </div>
-      <div class="required-content-note">اكتب اسم التاسك، اختار السيارة أو السيارات، حدد نوع المحتوى، وبعدها اختار الأقسام واليوزرات. التكليف كله بيتبني من نفس المكان بدون إضافة مطلوبات منفصلة.</div>
+      <div class="required-content-note">اكتب المطلوب، اختار السيارة أو السيارات، حدد نوع المحتوى والعدد المطلوب، وبعدها اختار الأقسام واليوزرات من نفس السطر.</div>
       <div class="universal-required-list" data-universal-required-list>
         ${renderUniversalRequiredItem(kind)}
       </div>
@@ -3083,10 +3092,65 @@ function initCreateTaskFromTemplate() {
     }).join('');
   }
 
+  function refreshUniversalContentTypeCardState(item) {
+    if (!item) return;
+    item.querySelectorAll('[data-content-type-card], .universal-content-type-card').forEach((card) => {
+      const input = card.querySelector('[data-universal-content-type]');
+      const quantityWrap = card.querySelector('[data-content-type-quantity-wrap]');
+      const quantityInput = card.querySelector('[data-content-type-quantity]');
+      const checked = Boolean(input?.checked);
+      card.classList.toggle('is-checked', checked);
+      if (quantityWrap) quantityWrap.hidden = !checked;
+      if (!checked && quantityInput) quantityInput.value = '';
+    });
+  }
+
+  function renderDepartmentUserMatrix(assignmentRow) {
+    const deptSelect = assignmentRow?.querySelector('select[data-target-department-select]');
+    const userSelect = assignmentRow?.querySelector('select[data-user-select]');
+    const matrix = assignmentRow?.querySelector('[data-department-user-matrix]');
+    if (!deptSelect || !userSelect || !matrix) return;
+    const selectedDeptIds = selectedValuesFromSelect(deptSelect);
+    const selectedUsers = selectedValuesFromSelect(userSelect);
+    userSelect.innerHTML = renderUserOptionsForDepartmentIds(selectedDeptIds, selectedUsers);
+    const activeDeptSet = new Set(selectedDeptIds.map(String));
+    const activeUserSet = new Set(selectedValuesFromSelect(userSelect).map(String));
+    const depts = Array.from(deptSelect.options || []).filter((option) => option.value).map((option) => {
+      const dept = (departmentsCache || []).find((item) => String(item.id || item.name || '') === String(option.value));
+      return { id: dept?.id || option.value, name: dept?.name || option.dataset.departmentName || option.textContent || option.value, kind: deptKindFromName(dept?.name || option.dataset.departmentKind || option.textContent || '') };
+    });
+    if (!depts.length) {
+      matrix.innerHTML = '<p class="required-content-empty">لا توجد أقسام محفوظة.</p>';
+      return;
+    }
+    matrix.innerHTML = depts.map((dept) => {
+      const active = activeDeptSet.has(String(dept.id || ''));
+      const users = usersForDepartment(dept, usersCache).map(normalizeSystemUser).filter(Boolean);
+      const userCards = users.length ? users.map((user) => {
+        const actualValue = user.email || user.name || user.id || user.uid || '';
+        const optionValue = optionValueForDepartmentUser(user, dept);
+        const selected = activeUserSet.has(String(optionValue)) || activeUserSet.has(String(actualValue));
+        return `<button class="matrix-user-chip ${selected ? 'is-selected' : ''}" type="button" data-matrix-user-chip value="${escapeHTML(optionValue)}" ${active ? '' : 'disabled'}>
+          <span>${escapeHTML(user.label || actualValue)}</span>
+          <small>${selected ? 'مختار' : 'اختيار'}</small>
+        </button>`;
+      }).join('') : '<p class="required-content-empty">لا يوجد يوزرات في هذا القسم.</p>';
+      return `<section class="department-user-matrix-card ${active ? 'is-selected' : ''}" data-matrix-department-card="${escapeHTML(dept.id || '')}">
+        <button class="matrix-department-head" type="button" data-matrix-department-chip value="${escapeHTML(dept.id || '')}">
+          <strong>${escapeHTML(dept.name || dept.id || 'قسم')}</strong>
+          <small>${active ? 'القسم مختار' : 'اضغط لاختيار القسم'}</small>
+        </button>
+        <div class="matrix-users-row">${userCards}</div>
+      </section>`;
+    }).join('');
+  }
+
   function hydrateAssignmentPickers(scope = departmentsList) {
     scope?.querySelectorAll?.('[data-department-assignment-row]').forEach((assignmentRow) => {
       renderDepartmentChipPicker(assignmentRow);
       renderUserChipPicker(assignmentRow);
+      renderDepartmentUserMatrix(assignmentRow);
+      assignmentRow.querySelectorAll('[data-universal-required-item]').forEach(refreshUniversalContentTypeCardState);
     });
   }
 
@@ -3097,8 +3161,8 @@ function initCreateTaskFromTemplate() {
         <div class="department-assignment-head">
           <div class="assignment-title-group">
             <span class="assignment-number-chip">تكليف ${escapeHTML(index)}</span>
-            <strong>قسم المحتوى</strong>
-            <small>اكتب اسم التاسك وتفاصيل المطلوب، وبعد اختيار نوع المحتوى وزّعه على الأقسام واليوزرات.</small>
+            <strong>${escapeHTML(MZJ_ASSIGNMENT_LABEL)}</strong>
+            <small>اكتب المطلوب، اختار السيارات، حدد نوع المحتوى والعدد، ثم اختار الأقسام واليوزرات.</small>
           </div>
           <button class="soft-danger-btn" type="button" data-remove-department-assignment>مسح التكليف</button>
         </div>
@@ -3111,23 +3175,10 @@ function initCreateTaskFromTemplate() {
             <strong>الأقسام واليوزرات</strong>
             <small>اختار الأقسام المطلوبة الأول، وبعدها هتظهر اليوزرات الخاصة بالأقسام المختارة.</small>
           </div>
-          <div class="distribution-pro-picker" data-distribution-pro-picker>
+          <div class="distribution-pro-picker distribution-matrix-picker" data-distribution-pro-picker>
             <select data-target-department-select multiple hidden>${renderDepartmentTargetOptions()}</select>
             <select data-user-select multiple hidden>${renderUserOptionsForDepartmentIds([])}</select>
-            <div class="pro-picker-column">
-              <div class="field-panel-head">
-                <strong>الأقسام المطلوبة</strong>
-                <small>اختيار بكروت بدل القائمة القديمة</small>
-              </div>
-              <div class="pro-chip-grid" data-department-chip-grid></div>
-            </div>
-            <div class="pro-picker-column">
-              <div class="field-panel-head">
-                <strong>اليوزرات / المسؤولين</strong>
-                <small>بيظهروا حسب الأقسام المختارة</small>
-              </div>
-              <div class="pro-chip-grid" data-user-chip-grid></div>
-            </div>
+            <div class="department-user-matrix" data-department-user-matrix></div>
           </div>
         </div>
       </article>
@@ -3138,8 +3189,8 @@ function initCreateTaskFromTemplate() {
     if (!deptRow) return;
     Array.from(deptRow.querySelectorAll('[data-department-assignment-row]')).forEach((assignment, index) => {
       assignment.dataset.assignmentIndex = String(index + 1);
-      const title = assignment.querySelector('.department-assignment-head strong');
-      if (title) title.textContent = '\u062a\u0643\u0644\u064a\u0641 ' + (index + 1);
+      const chip = assignment.querySelector('.assignment-number-chip');
+      if (chip) chip.textContent = '\u062a\u0643\u0644\u064a\u0641 ' + (index + 1);
     });
   }
 
@@ -3171,10 +3222,10 @@ function initCreateTaskFromTemplate() {
       <div class="department-row-head content-hub-head">
         <input type="checkbox" data-department-enabled hidden checked>
         <button class="department-toggle-btn content-hub-toggle" type="button" data-department-toggle>
-          <span class="content-hub-badge">قسم المحتوى</span>
+          <span class="content-hub-badge">${escapeHTML(MZJ_ASSIGNMENT_LABEL)}</span>
           <span class="content-hub-copy">
-            <strong>لوحة إدارة المطلوب والتوزيع</strong>
-            <small>من هنا فقط اكتب المطلوب، اختار الأقسام المطلوبة، ثم اختار يوزر أو أكثر لتنفيذ التاسك.</small>
+            <strong>لوحة المطلوب والتوزيع</strong>
+            <small>من هنا اكتب المطلوب، اختار السيارات ونوع المحتوى والعدد، ثم وزّع على الأقسام واليوزرات.</small>
           </span>
           <span class="content-hub-status">جاهز للتوزيع</span>
         </button>
@@ -3191,7 +3242,7 @@ function initCreateTaskFromTemplate() {
         <div class="department-assignments-list" data-department-assignments-list>
           ${createDepartmentAssignmentHTML(dept, 1)}
         </div>
-        <p class="admin-only-note department-receive-note">تم إلغاء بلوكات الأقسام المنفصلة. أي تاسك جديد بيتكتب من هنا داخل قسم المحتوى فقط.</p>
+        <p class="admin-only-note department-receive-note">تم إلغاء بلوكات الأقسام المنفصلة. أي تكليف جديد بيتكتب من هنا داخل المطلوب فقط.</p>
       </div>
     `;
     departmentsList.appendChild(row);
@@ -3200,7 +3251,7 @@ function initCreateTaskFromTemplate() {
 
   function renderAllDepartments() {
     departmentsList.innerHTML = '';
-    const contentDept = (departmentsCache || []).find((dept) => deptKindFromName(dept.name || '') === 'content') || { id: 'content', name: 'قسم المحتوى' };
+    const contentDept = (departmentsCache || []).find((dept) => deptKindFromName(dept.name || '') === 'content') || { id: 'content', name: MZJ_ASSIGNMENT_LABEL };
     createDepartmentRow(contentDept);
   }
 
@@ -4845,11 +4896,16 @@ function initCreateTaskFromTemplate() {
     const items = [];
     Array.from(row.querySelectorAll('[data-universal-required-item]')).forEach((item) => {
       const selectedTypeInputs = Array.from(item.querySelectorAll('[data-universal-content-type]')).filter((input) => input.checked || input.closest('.universal-content-type-card')?.classList.contains('is-checked'));
-      const selectedTypes = selectedTypeInputs.map((input) => ({
-        title: input.value.trim(),
-        id: input.dataset.id || '',
-        details: input.dataset.desc || ''
-      })).filter((entry) => entry.title);
+      const selectedTypes = selectedTypeInputs.map((input) => {
+        const card = input.closest('[data-content-type-card], .universal-content-type-card');
+        const qty = card?.querySelector('[data-content-type-quantity]')?.value.trim() || '';
+        return {
+          title: input.value.trim(),
+          id: input.dataset.id || '',
+          details: input.dataset.desc || '',
+          quantity: qty
+        };
+      }).filter((entry) => entry.title);
       const manualRequired = item.querySelector('[data-universal-required-text]')?.value.trim() || item.querySelector('[data-universal-car-type]')?.value.trim() || '';
       const selectedCarInputs = Array.from(item.querySelectorAll('[data-universal-car-choice]')).filter((input) => input.checked || input.closest('.stock-car-choice-card')?.classList.contains('is-checked'));
       const selectedCars = selectedCarInputs.map((input) => input.value.trim()).filter(Boolean);
@@ -4866,6 +4922,7 @@ function initCreateTaskFromTemplate() {
             contentType: typeEntry.title || '',
             contentTypeId: typeEntry.id || '',
             details: typeEntry.details || '',
+            quantity: typeEntry.quantity || '',
             printSize
           };
           if (rowItem.requiredText || rowItem.carType || rowItem.contentType || rowItem.printSize) items.push(rowItem);
@@ -4886,7 +4943,8 @@ function initCreateTaskFromTemplate() {
     const deliverables = uniqueItems.map((item) => ({
       title: item.contentType || item.requiredText || 'مطلوب',
       contentType: item.contentType,
-      details: [item.details, item.carType ? `السيارة: ${item.carType}` : '', item.printSize ? `المقاس: ${item.printSize}` : '', item.requiredText].filter(Boolean).join(' — '),
+      details: [item.details, item.quantity ? `العدد: ${item.quantity}` : '', item.carType ? `السيارة: ${item.carType}` : '', item.printSize ? `المقاس: ${item.printSize}` : '', item.requiredText].filter(Boolean).join(' — '),
+      quantity: item.quantity,
       carType: item.carType,
       printSize: item.printSize,
       requiredText: item.requiredText,
@@ -4900,6 +4958,10 @@ function initCreateTaskFromTemplate() {
       contentType: mzjUniqueStrings(uniqueItems.map((item) => item.contentType)).join('، '),
       carType: mzjUniqueStrings(uniqueItems.map((item) => item.carType)).join('، '),
       printSize: mzjUniqueStrings(uniqueItems.map((item) => item.printSize)).join('، '),
+      contentTypeQuantities: uniqueItems.reduce((acc, item) => {
+        if (item.contentType && item.quantity) acc[item.contentType] = item.quantity;
+        return acc;
+      }, {}),
       notes: mzjUniqueStrings(uniqueItems.map((item) => item.requiredText)).join('\n'),
       manualRequired: requiredText,
       requiredText,
@@ -4929,7 +4991,7 @@ function initCreateTaskFromTemplate() {
             kind: deptKindFromName(dept?.name || option.dataset.departmentKind || option.textContent || '')
           };
         });
-        const targetDepartments = selectedDepartments.length ? selectedDepartments : [{ id: 'content', name: 'قسم المحتوى', kind: 'content' }];
+        const targetDepartments = selectedDepartments.length ? selectedDepartments : [{ id: 'content', name: MZJ_ASSIGNMENT_LABEL, kind: 'content' }];
         const userSelect = assignmentRow.querySelector('[data-user-select]');
         const selectedOptions = Array.from(userSelect?.selectedOptions || []).filter((option) => option.value);
         const assignmentNo = assignmentIndex + 1;
@@ -4980,6 +5042,8 @@ function initCreateTaskFromTemplate() {
               selectedCarValues: special.selectedCarValues || special.selectedCars || mzjUniqueStrings((special.items || []).map((entry) => entry.carType)),
               selectedContentTypes: special.selectedContentTypes || mzjUniqueStrings((special.items || []).map((entry) => entry.contentType)),
               selectedContentTypeTitles: special.selectedContentTypeTitles || special.selectedContentTypes || mzjUniqueStrings((special.items || []).map((entry) => entry.contentType)),
+              selectedContentTypeQuantities: special.contentTypeQuantities || {},
+              contentTypeQuantities: special.contentTypeQuantities || {},
               photoItems: targetDept.kind === 'photography' ? (special.items || []) : [],
               contentItems: special.items || [],
               selectedDeliverables: special.deliverables || [],
@@ -5174,21 +5238,55 @@ function initCreateTaskFromTemplate() {
 
     const contentCard = event.target.closest('.universal-content-type-card');
     if (contentCard) {
+      if (event.target.closest('[data-content-type-quantity]')) return;
       const input = contentCard.querySelector('[data-universal-content-type]');
       const item = contentCard.closest('[data-universal-required-item]');
       if (input) {
         event.preventDefault();
         input.checked = !input.checked;
-        contentCard.classList.toggle('is-checked', input.checked);
+        refreshUniversalContentTypeCardState(item);
         const wrap = item?.querySelector('[data-universal-print-size-wrap]');
         const sizeInput = item?.querySelector('[data-universal-print-size]');
         const selectedTexts = Array.from(item?.querySelectorAll('[data-universal-content-type]:checked') || []).map((checked) => checked.value || '');
         const shouldShowSize = selectedTexts.some(isOfflinePrintContent);
         if (wrap) wrap.hidden = !shouldShowSize;
         if (!shouldShowSize && sizeInput) sizeInput.value = '';
+        if (input.checked) contentCard.querySelector('[data-content-type-quantity]')?.focus();
         refreshPublishCalendarOptions();
         refreshBudgetDropdownOptions();
       }
+      return;
+    }
+
+    const matrixDeptChip = event.target.closest('[data-matrix-department-chip]');
+    if (matrixDeptChip) {
+      const assignmentRow = matrixDeptChip.closest('[data-department-assignment-row]');
+      const deptSelect = assignmentRow?.querySelector('select[data-target-department-select]');
+      const userSelect = assignmentRow?.querySelector('select[data-user-select]');
+      const value = matrixDeptChip.getAttribute('value') || '';
+      const option = Array.from(deptSelect?.options || []).find((item) => item.value === value);
+      if (option) option.selected = !option.selected;
+      const selectedDeptIds = selectedValuesFromSelect(deptSelect);
+      const oldSelectedUsers = selectedValuesFromSelect(userSelect);
+      if (userSelect) userSelect.innerHTML = renderUserOptionsForDepartmentIds(selectedDeptIds, oldSelectedUsers);
+      renderDepartmentUserMatrix(assignmentRow);
+      refreshPublishCalendarOptions();
+      refreshBudgetDropdownOptions();
+      return;
+    }
+
+    const matrixUserChip = event.target.closest('[data-matrix-user-chip]');
+    if (matrixUserChip) {
+      const assignmentRow = matrixUserChip.closest('[data-department-assignment-row]');
+      const deptSelect = assignmentRow?.querySelector('select[data-target-department-select]');
+      const userSelect = assignmentRow?.querySelector('select[data-user-select]');
+      const selectedDeptIds = selectedValuesFromSelect(deptSelect);
+      const currentUsers = selectedValuesFromSelect(userSelect);
+      if (userSelect) userSelect.innerHTML = renderUserOptionsForDepartmentIds(selectedDeptIds, currentUsers);
+      const value = matrixUserChip.getAttribute('value') || '';
+      const option = Array.from(userSelect?.options || []).find((item) => item.value === value);
+      if (option) option.selected = !option.selected;
+      renderDepartmentUserMatrix(assignmentRow);
       return;
     }
 
@@ -5201,6 +5299,7 @@ function initCreateTaskFromTemplate() {
       if (option) option.selected = !option.selected;
       renderDepartmentChipPicker(assignmentRow);
       renderUserChipPicker(assignmentRow);
+      renderDepartmentUserMatrix(assignmentRow);
       refreshPublishCalendarOptions();
       refreshBudgetDropdownOptions();
       return;
@@ -5213,6 +5312,7 @@ function initCreateTaskFromTemplate() {
       const option = Array.from(select?.options || []).find((item) => item.value === value);
       if (option) option.selected = !option.selected;
       renderUserChipPicker(assignmentRow);
+      renderDepartmentUserMatrix(assignmentRow);
       return;
     }
 
@@ -5336,10 +5436,7 @@ function initCreateTaskFromTemplate() {
     const universalSelect = event.target.closest('[data-universal-content-type]');
     if (universalSelect) {
       const item = universalSelect.closest('[data-universal-required-item]');
-      item?.querySelectorAll('.universal-content-type-card').forEach((card) => {
-        const input = card.querySelector('[data-universal-content-type]');
-        card.classList.toggle('is-checked', Boolean(input?.checked));
-      });
+      refreshUniversalContentTypeCardState(item);
       const wrap = item?.querySelector('[data-universal-print-size-wrap]');
       const input = item?.querySelector('[data-universal-print-size]');
       const selectedTexts = Array.from(item?.querySelectorAll('[data-universal-content-type]:checked') || []).map((checked) => checked.value || '');
@@ -5370,7 +5467,7 @@ function initCreateTaskFromTemplate() {
   });
 
   departmentsList.addEventListener('input', (event) => {
-    if (event.target.closest('[data-design-print-size], [data-universal-print-size], [data-universal-car-type], [data-universal-car-choice], [data-universal-required-text]')) {
+    if (event.target.closest('[data-design-print-size], [data-universal-print-size], [data-universal-car-type], [data-universal-car-choice], [data-universal-required-text], [data-content-type-quantity]')) {
       refreshPublishCalendarOptions();
       refreshBudgetDropdownOptions();
     }

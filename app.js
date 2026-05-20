@@ -631,6 +631,53 @@ function mergeTaskDetailDeptData(primary, secondary) {
   return merged;
 }
 
+
+function mzjPickStringListFromObject(source, mode) {
+  const values = [];
+  const carKeys = new Set(['selectedCars','selectedCarValues','chosenCars','cars','carType','car','vehicle','vehicles','__selectedCarsFromButton']);
+  const typeKeys = new Set(['selectedContentTypes','selectedContentTypeTitles','chosenContentTypes','contentTypes','contentType','contentTypeTitle','deliverable','title','name','__selectedContentTypesFromButton']);
+  const blockedForType = /required|notes|details|manual|delivery|المطلوب|ملاحظات/i;
+  const blockedForCar = /required|notes|manual|delivery|المطلوب|contentType|نوع.?المحتوى|نوع.?المحتوي/i;
+  const push = (value) => {
+    if (value === undefined || value === null) return;
+    if (Array.isArray(value)) { value.forEach(push); return; }
+    if (typeof value === 'object') {
+      if (mode === 'car') push(value.carType || value.car || value.vehicle || value.value || value.label || value.title || value.name || value.display);
+      else push(value.contentType || value.contentTypeTitle || value.title || value.name || value.deliverable || value.value || value.label);
+      return;
+    }
+    const clean = String(value || '').replace(/\s+/g, ' ').trim();
+    if (clean && clean !== '—' && clean !== '-') values.push(clean);
+  };
+  const visit = (obj, depth = 0) => {
+    if (!obj || depth > 8) return;
+    if (Array.isArray(obj)) { obj.forEach((item) => visit(item, depth + 1)); return; }
+    if (typeof obj !== 'object') return;
+    Object.entries(obj).forEach(([key, value]) => {
+      const k = String(key || '');
+      if (mode === 'car') {
+        if ((carKeys.has(k) || /car|vehicle|سيارة|سيارات/i.test(k)) && !blockedForCar.test(k)) push(value);
+      } else {
+        if ((typeKeys.has(k) || /content.?type|deliverable|نوع.?المحتوى|نوع.?المحتوي/i.test(k)) && !blockedForType.test(k)) push(value);
+      }
+      if (value && typeof value === 'object') visit(value, depth + 1);
+    });
+  };
+  visit(source || {});
+  return mzjUniqueStrings(values);
+}
+
+function mzjCleanSelectionValues(values, requiredLines) {
+  const blocked = new Set((requiredLines || []).map((v) => String(v || '').replace(/\s+/g, ' ').trim().toLowerCase()).filter(Boolean));
+  return mzjUniqueStrings((values || []).map((value) => String(value || '').replace(/\s+/g, ' ').trim()).filter((value) => {
+    if (!value || value === '—' || value === '-') return false;
+    const key = value.toLowerCase();
+    if (blocked.has(key)) return false;
+    if (/^مطلوب\s*\d+/i.test(value) || /^المطلوب\s*:?/i.test(value)) return false;
+    return true;
+  }));
+}
+
 function renderTaskDetailsSummary(deptTask, deptKeyValue) {
   const safeTask = deptTask || {};
   const items = normalizeDepartmentContentItems(safeTask);
@@ -656,42 +703,37 @@ function renderTaskDetailsSummary(deptTask, deptKeyValue) {
     if (/^مطلوب\s*\d+/i.test(clean) || /^المطلوب\s*:?/i.test(clean)) return false;
     return true;
   };
-  const explicitCars = mzjUniqueStrings([
-    ...normalizeSelectedCarList(safeTask?.selectedCars),
-    ...normalizeSelectedCarList(safeTask?.selectedCarValues),
-    ...normalizeSelectedCarList(safeTask?.chosenCars),
-    ...normalizeSelectedCarList(safeTask?.cars),
-    ...normalizeSelectedCarList(safeTask?.requiredDetails?.selectedCars),
-    ...normalizeSelectedCarList(safeTask?.requiredDetails?.selectedCarValues),
-    ...collectExplicitTaskValues(safeTask, 'car')
-  ].filter(excludeRequiredText));
-  const itemCars = mzjUniqueStrings([
-    ...items.map((item) => item?.carType || item?.car || item?.vehicle || item?.carValue),
-    ...(Array.isArray(safeTask?.requiredDetails?.items) ? safeTask.requiredDetails.items.map((item) => item?.carType || item?.car || item?.vehicle || item?.carValue) : []),
-    ...(Array.isArray(safeTask?.selectedDeliverables) ? safeTask.selectedDeliverables.map((item) => item?.carType || item?.car || item?.vehicle || item?.carValue) : []),
-    ...mzjSplitMultiValue(safeTask?.carType)
-  ].map((value) => String(value || '').trim()).filter(Boolean).filter(excludeRequiredText));
   const fallbackTextForSelection = taskDetailsRawSources(safeTask).join('\n');
-  const parsedCarsFromText = parseCarsFromTaskText(fallbackTextForSelection).filter(excludeRequiredText);
-  const cars = explicitCars.length ? explicitCars : (itemCars.length ? itemCars : parsedCarsFromText);
+  const cars = mzjCleanSelectionValues([
+    ...mzjPickStringListFromObject({
+      __selectedCarsFromButton: safeTask?.__selectedCarsFromButton,
+      selectedCars: safeTask?.selectedCars,
+      selectedCarValues: safeTask?.selectedCarValues,
+      carType: safeTask?.carType,
+      requiredDetails: safeTask?.requiredDetails,
+      contentItems: safeTask?.contentItems,
+      photoItems: safeTask?.photoItems,
+      selectedDeliverables: safeTask?.selectedDeliverables
+    }, 'car'),
+    ...items.map((item) => item?.carType || item?.car || item?.vehicle || item?.carValue),
+    ...parseCarsFromTaskText(fallbackTextForSelection)
+  ], lines);
 
-  const explicitTypes = mzjUniqueStrings([
-    ...normalizeSelectedContentTypeList(safeTask?.selectedContentTypes),
-    ...normalizeSelectedContentTypeList(safeTask?.selectedContentTypeTitles),
-    ...normalizeSelectedContentTypeList(safeTask?.chosenContentTypes),
-    ...normalizeSelectedContentTypeList(safeTask?.requiredDetails?.selectedContentTypes),
-    ...normalizeSelectedContentTypeList(safeTask?.requiredDetails?.selectedContentTypeTitles),
-    ...collectExplicitTaskValues(safeTask, 'content'),
-    safeTask?.__contentTypeFilter
-  ].map((value) => String(value || '').trim()).filter(Boolean).filter(excludeRequiredText));
-  const itemTypes = mzjUniqueStrings([
+  const contentTypes = mzjCleanSelectionValues([
+    ...mzjPickStringListFromObject({
+      __selectedContentTypesFromButton: safeTask?.__selectedContentTypesFromButton,
+      selectedContentTypes: safeTask?.selectedContentTypes,
+      selectedContentTypeTitles: safeTask?.selectedContentTypeTitles,
+      contentType: safeTask?.contentType,
+      __contentTypeFilter: safeTask?.__contentTypeFilter,
+      requiredDetails: safeTask?.requiredDetails,
+      contentItems: safeTask?.contentItems,
+      photoItems: safeTask?.photoItems,
+      selectedDeliverables: safeTask?.selectedDeliverables
+    }, 'content'),
     ...items.map((item) => item?.contentType || item?.contentTypeTitle || item?.deliverable),
-    ...(Array.isArray(safeTask?.requiredDetails?.items) ? safeTask.requiredDetails.items.map((item) => item?.contentType || item?.contentTypeTitle || item?.deliverable) : []),
-    ...(Array.isArray(safeTask?.selectedDeliverables) ? safeTask.selectedDeliverables.map((item) => item?.contentType || item?.title || item?.name) : []),
-    ...mzjSplitMultiValue(safeTask?.contentType)
-  ].map((value) => String(value || '').trim()).filter(Boolean).filter(excludeRequiredText));
-  const parsedTypesFromText = parseContentTypesFromTaskText(fallbackTextForSelection).filter(excludeRequiredText);
-  const contentTypes = explicitTypes.length ? explicitTypes : (itemTypes.length ? itemTypes : parsedTypesFromText);
+    ...parseContentTypesFromTaskText(fallbackTextForSelection)
+  ], lines);
 
   const requiredHtml = `<section class="task-details-required-only"><small>المطلوب</small>${lines.length ? lines.map((item) => `<p>${escapeHTML(item)}</p>`).join('') : '<p>لا يوجد مطلوب مكتوب</p>'}</section>`;
   const carsHtml = `<section class="task-details-meta-lines"><small>السيارة المختارة</small>${cars.length ? cars.map((car) => `<p class="task-detail-car-line">${escapeHTML(car)}</p>`).join('') : '<p>—</p>'}</section>`;
@@ -1360,6 +1402,20 @@ function openTaskDetails(button) {
 
   const datasetCars = mzjDecodeJsonDataAttr(button.dataset.selectedCarsJson || '', []);
   const datasetContentTypes = mzjDecodeJsonDataAttr(button.dataset.selectedContentTypesJson || '', []);
+  if (deptDataFromButton) {
+    deptDataFromButton.__selectedCarsFromButton = datasetCars;
+    deptDataFromButton.__selectedContentTypesFromButton = datasetContentTypes;
+    if (datasetCars.length) {
+      deptDataFromButton.selectedCars = datasetCars;
+      deptDataFromButton.selectedCarValues = datasetCars;
+      deptDataFromButton.carType = datasetCars.join('، ');
+    }
+    if (datasetContentTypes.length) {
+      deptDataFromButton.selectedContentTypes = datasetContentTypes;
+      deptDataFromButton.selectedContentTypeTitles = datasetContentTypes;
+      deptDataFromButton.contentType = datasetContentTypes.join('، ');
+    }
+  }
   if (deptDataFromButton && (datasetCars.length || datasetContentTypes.length)) {
     const existingItems = normalizeDepartmentContentItems(deptDataFromButton);
     const carsForItems = datasetCars.length ? datasetCars : mzjUniqueStrings(existingItems.map((item) => item.carType));
@@ -1436,6 +1492,20 @@ function openTaskDetails(button) {
     deptData: deptDataFromButton,
     relatedAssignments: assignments.map(({ dept, index }, assignmentIndex) => {
       const mergedDept = assignmentIndex === 0 ? mergeTaskDetailDeptData(dept, deptDataFromButton || clickedDept) : dept;
+      if (assignmentIndex === 0) {
+        if (datasetCars.length) {
+          mergedDept.__selectedCarsFromButton = datasetCars;
+          mergedDept.selectedCars = datasetCars;
+          mergedDept.selectedCarValues = datasetCars;
+          mergedDept.carType = datasetCars.join('، ');
+        }
+        if (datasetContentTypes.length) {
+          mergedDept.__selectedContentTypesFromButton = datasetContentTypes;
+          mergedDept.selectedContentTypes = datasetContentTypes;
+          mergedDept.selectedContentTypeTitles = datasetContentTypes;
+          mergedDept.contentType = datasetContentTypes.join('، ');
+        }
+      }
       return {
         deptIdentity: mzjDetailsDeptIdentity(mergedDept),
         readinessKey: mzjDetailsReadinessKey(mergedDept, index),
@@ -1460,6 +1530,20 @@ function openTaskDetails(button) {
     const selectedDeptForRender = assignmentIndex === 0
       ? mergeTaskDetailDeptData(selectedAssignment.dept, deptDataFromButton || clickedDept)
       : selectedAssignment.dept;
+    if (assignmentIndex === 0) {
+      if (datasetCars.length) {
+        selectedDeptForRender.__selectedCarsFromButton = datasetCars;
+        selectedDeptForRender.selectedCars = datasetCars;
+        selectedDeptForRender.selectedCarValues = datasetCars;
+        selectedDeptForRender.carType = datasetCars.join('، ');
+      }
+      if (datasetContentTypes.length) {
+        selectedDeptForRender.__selectedContentTypesFromButton = datasetContentTypes;
+        selectedDeptForRender.selectedContentTypes = datasetContentTypes;
+        selectedDeptForRender.selectedContentTypeTitles = datasetContentTypes;
+        selectedDeptForRender.contentType = datasetContentTypes.join('، ');
+      }
+    }
     if (taskDetailsRequired) {
       taskDetailsRequired.innerHTML = renderTaskDetailsSummary(selectedDeptForRender, deptKeyValue) || renderStructuredDepartmentRequirement(selectedDeptForRender, deptKeyValue) || renderTaskRequirementDetails(formatDepartmentRequirement(selectedDeptForRender), deptKeyValue);
     }

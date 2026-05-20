@@ -3174,8 +3174,15 @@ function initCreateTaskFromTemplate() {
     const activeDeptSet = new Set(selectedDeptIds.map(String));
     const activeUserSet = new Set(selectedValuesFromSelect(userSelect).map(String));
     const depts = Array.from(deptSelect.options || []).filter((option) => option.value).map((option) => {
-      const dept = (departmentsCache || []).find((item) => String(item.id || item.name || '') === String(option.value));
-      return { id: dept?.id || option.value, name: dept?.name || option.dataset.departmentName || option.textContent || option.value, kind: deptKindFromName(dept?.name || option.dataset.departmentKind || option.textContent || '') };
+      const dept = (departmentsCache || []).find((item) => String(item.id || item.name || '') === String(option.value)) || {};
+      const id = dept.id || option.value;
+      const name = dept.name || option.dataset.departmentName || option.textContent || option.value;
+      return {
+        ...dept,
+        id,
+        name,
+        kind: dept.kind || deptKindFromName(dept.name || option.dataset.departmentKind || option.textContent || id)
+      };
     });
     if (!depts.length) {
       matrix.innerHTML = '<p class="required-content-empty">لا توجد أقسام محفوظة.</p>';

@@ -6093,6 +6093,7 @@ function initCreateTaskFromTemplate() {
     }
     if (typeof window.refreshWorkspaceTasksFromFirestore === 'function') await window.refreshWorkspaceTasksFromFirestore();
     else if (typeof window.renderDashboardTasks === 'function') window.renderDashboardTasks();
+    if (typeof window.MZJRefreshCampaignsCalendarList === 'function') await window.MZJRefreshCampaignsCalendarList();
     delete form.dataset.editingTaskId;
     delete form.dataset.editingTaskMode;
     delete form.dataset.originalCreatedAt;
@@ -6302,6 +6303,12 @@ initCreateTaskFromTemplate();
       list.innerHTML = `<p class="task-empty-note">⚠️ فشل تحميل البيانات: ${esc(error?.message || error)}</p>`;
     }
   }
+  window.MZJRefreshCampaignsCalendarList = async function(tab){
+    if (!pageRoot) return;
+    const activeTab = tab || pageRoot.querySelector('[data-calendar-tab].is-active')?.dataset.calendarTab || 'campaigns';
+    await renderCampaignsCalendarList(activeTab);
+  };
+
   function renderTaskSummaryCard(task){
     const id = esc(task.firestoreId || task.id || task.taskId || task.campaignCode || '');
     const typeLabel = task.taskType === 'agenda' ? 'أجندة' : (task.taskTypeLabel || 'حملة');
@@ -6607,15 +6614,29 @@ initCreateTaskFromTemplate();
   }
   async function openCalendarTaskModal(id){
     const modal = calendarTaskModal();
-    if (!modal) return;
-    modal.classList.add('is-open');
-    modal.setAttribute('aria-hidden','false');
-    modal.innerHTML = '<section class="campaign-full-dialog"><p class="task-empty-note">جاري تحميل التفاصيل...</p></section>';
     try {
       const task = await getCalendarTaskById(id);
       activeCalendarTask = task;
+      if (window.MZJOpenTaskInCreateModalForEdit) {
+        if (modal) {
+          modal.classList.remove('is-open');
+          modal.setAttribute('aria-hidden','true');
+          modal.innerHTML = '';
+        }
+        await window.MZJOpenTaskInCreateModalForEdit(task);
+        return;
+      }
+      if (!modal) return;
+      modal.classList.add('is-open');
+      modal.setAttribute('aria-hidden','false');
       modal.innerHTML = renderCalendarTaskModal(task);
     } catch (error) {
+      if (!modal) {
+        alert('فشل فتح الحملة / الأجندة: ' + (error?.message || error));
+        return;
+      }
+      modal.classList.add('is-open');
+      modal.setAttribute('aria-hidden','false');
       modal.innerHTML = `<section class="campaign-full-dialog"><button class="modal-close-btn" type="button" data-close-calendar-task-modal>×</button><p class="task-empty-note">⚠️ فشل فتح التفاصيل: ${esc(error?.message || error)}</p></section>`;
     }
   }

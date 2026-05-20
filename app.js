@@ -1594,43 +1594,87 @@ const MZJ_DEPARTMENTS_FALLBACK = [
   { id: 'publishing', name: 'قسم النشر', users: [] }
 ];
 
-function normalizeContentTaskDepartment(item, index) {
-  const name = item?.name || item?.title || item?.departmentName || item?.sectionName || item?.department || ('قسم ' + (index + 1));
-  const usersRaw = item?.users || item?.members || item?.responsibles || item?.assignees || item?.team || [];
+function normalizeContentTaskDepartment(item, index = 0) {
+  if (!item) return null;
+  const name = item.name || item.title || item.departmentName || item.sectionName || item.department || ('قسم ' + (index + 1));
+  const id = item.id || item.docId || item.uid || item.key || item.slug || item.departmentId || item.departmentKey || ('dept_' + index);
+  const usersRaw = item.users || item.members || item.responsibles || item.assignees || item.usersList || item.team || [];
   const users = Array.isArray(usersRaw)
     ? usersRaw.map((user) => {
-        if (typeof user === 'string') return { name: user, email: user, label: user };
-        const userName = user?.name || user?.displayName || user?.fullName || user?.email || '';
-        const userEmail = user?.email || '';
-        const userId = user?.id || user?.uid || userEmail || userName;
-        if (!userId && !userName && !userEmail) return null;
+        const normalized = normalizeSystemUser(user);
+        if (!normalized) return null;
         return {
-          id: userId,
-          name: userName,
-          email: userEmail,
-          department: user?.department || user?.departmentId || '',
-          label: userEmail && userName && userEmail !== userName ? `${userName} — ${userEmail}` : (userName || userEmail || userId)
+          ...normalized,
+          department: normalized.department || id,
+          departmentId: normalized.departmentId || id,
+          departmentName: normalized.departmentName || name,
+          label: normalized.label || normalized.name || normalized.email || normalized.id || normalized.uid
         };
       }).filter(Boolean)
     : [];
-  const userIds = Array.isArray(item?.userIds) ? item.userIds : [];
-  const memberUids = Array.isArray(item?.memberUids) ? item.memberUids : [];
-  const memberEmails = Array.isArray(item?.memberEmails) ? item.memberEmails : [];
+  const userIds = Array.isArray(item.userIds) ? item.userIds : [];
+  const memberUids = Array.isArray(item.memberUids) ? item.memberUids : [];
+  const memberEmails = Array.isArray(item.memberEmails) ? item.memberEmails : [];
+  const members = Array.isArray(item.members) ? item.members : [];
+  const assignees = Array.isArray(item.assignees) ? item.assignees : [];
+  const responsibles = Array.isArray(item.responsibles) ? item.responsibles : [];
+  const usersList = Array.isArray(item.usersList) ? item.usersList : [];
   return {
-    id: item?.id || item?.docId || ('dept_' + index),
+    ...item,
+    id,
     name,
+    kind: item.kind || deptKindFromName(name || id),
     users,
+    members,
+    assignees,
+    responsibles,
+    usersList,
     userIds,
     memberUids,
-    memberEmails
+    memberEmails,
+    departmentId: item.departmentId || id,
+    departmentName: item.departmentName || name
   };
 }
 
 async function loadDepartmentsFromContentTasks() {
+  const normalizeList = (rows) => (rows || []).map(normalizeContentTaskDepartment).filter(Boolean);
+  const mergeDepartments = (...groups) => {
+    const byAlias = new Map();
+    const getKey = (dept) => {
+      const kind = deptKindFromName(dept?.name || dept?.kind || dept?.id || '');
+      return kind || normalizeDeptCompareValue(dept?.id || dept?.name || '');
+    };
+    groups.flat().filter(Boolean).forEach((dept) => {
+      const key = getKey(dept);
+      if (!key) return;
+      const old = byAlias.get(key) || {};
+      const users = [...(old.users || []), ...(dept.users || [])];
+      const members = [...(old.members || []), ...(dept.members || [])];
+      const userIds = [...(old.userIds || []), ...(dept.userIds || [])];
+      const memberUids = [...(old.memberUids || []), ...(dept.memberUids || [])];
+      const memberEmails = [...(old.memberEmails || []), ...(dept.memberEmails || [])];
+      byAlias.set(key, {
+        ...old,
+        ...dept,
+        id: old.id || dept.id,
+        name: dept.name || old.name,
+        users,
+        members,
+        userIds,
+        memberUids,
+        memberEmails
+      });
+    });
+    return Array.from(byAlias.values()).map(normalizeContentTaskDepartment).filter(Boolean);
+  };
+
+  const defaults = normalizeList(MZJ_DEPARTMENTS_FALLBACK);
+
   if (window.MZJDepartments?.loadDepartments) {
     try {
       const managedDepartments = await window.MZJDepartments.loadDepartments();
-      if (Array.isArray(managedDepartments) && managedDepartments.length) return managedDepartments.map(normalizeContentTaskDepartment);
+      if (Array.isArray(managedDepartments) && managedDepartments.length) return mergeDepartments(defaults, normalizeList(managedDepartments));
     } catch (error) {}
   }
 
@@ -1640,7 +1684,7 @@ async function loadDepartmentsFromContentTasks() {
       const snap = await firebase.firestore().collection('departments').get();
       const cloudDepartments = [];
       snap.forEach((doc) => cloudDepartments.push({ id: doc.id, ...(doc.data() || {}) }));
-      if (cloudDepartments.length) return cloudDepartments.map(normalizeContentTaskDepartment);
+      if (cloudDepartments.length) return mergeDepartments(defaults, normalizeList(cloudDepartments));
     } catch (error) { console.warn('departments firestore fallback:', error); }
   }
 
@@ -1655,17 +1699,17 @@ async function loadDepartmentsFromContentTasks() {
     try {
       const parsed = JSON.parse(localStorage.getItem(key) || '[]');
       if (Array.isArray(parsed) && parsed.length) {
-        return parsed.map(normalizeContentTaskDepartment);
+        return mergeDepartments(defaults, normalizeList(parsed));
       }
     } catch (error) {}
   }
 
   // Firebase-ready hook: عند تفعيل Firebase SDK وتوفير window.MZJ_DB يمكن قراءة collection content_tasks من هنا.
   if (window.MZJ_CONTENT_TASKS && Array.isArray(window.MZJ_CONTENT_TASKS)) {
-    return window.MZJ_CONTENT_TASKS.map(normalizeContentTaskDepartment);
+    return mergeDepartments(defaults, normalizeList(window.MZJ_CONTENT_TASKS));
   }
 
-  return MZJ_DEPARTMENTS_FALLBACK;
+  return defaults;
 }
 
 function renderDepartmentOptions(departments) {
@@ -1686,7 +1730,7 @@ function normalizeSystemUser(user) {
   const id = String(user.id || user.uid || user.userId || email || user.name || user.displayName || '').trim();
   const name = String(user.name || user.displayName || user.fullName || user.username || email || id || uid || '').trim();
   if (!id && !uid && !name && !email) return null;
-  const department = user.department || user.departmentId || user.departmentName || user.section || user.sectionId || '';
+  const department = user.department || user.departmentId || user.departmentName || user.section || user.sectionId || user.dept || user.deptId || user.team || user.teamId || '';
   return {
     ...user,
     id: id || uid || email || name,
@@ -1695,8 +1739,8 @@ function normalizeSystemUser(user) {
     displayName: user.displayName || name || email || id || uid,
     email,
     department,
-    departmentId: user.departmentId || user.department || '',
-    departmentName: user.departmentName || user.sectionName || '',
+    departmentId: user.departmentId || user.department || user.sectionId || user.deptId || user.teamId || '',
+    departmentName: user.departmentName || user.sectionName || user.deptName || user.teamName || '',
     role: user.role || 'user',
     label: email && name && email !== name ? `${name} — ${email}` : (name || email || id || uid)
   };
@@ -2313,8 +2357,8 @@ function initCreateTaskFromTemplate() {
 
   if (!modal || !form || !typeSelect || !templateSelect || !departmentsList) return;
 
-  let departmentsCache = [];
-  let usersCache = [];
+  departmentsCache = Array.isArray(departmentsCache) ? departmentsCache : [];
+  usersCache = Array.isArray(usersCache) ? usersCache : [];
   let departmentIndex = 0;
   let platformsCache = [];
   let funnelsCache = [];
@@ -2502,7 +2546,11 @@ function initCreateTaskFromTemplate() {
 
     const options = Array.from(userSelect.options).filter((option) => option.value);
     grid.innerHTML = selectedDepartments.map((dept) => {
-      const deptOptions = options.filter((option) => String(option.dataset.userDepartmentId || '') === String(dept.id || dept.name || ''));
+      const deptOptions = options.filter((option) => {
+        const optionDeptId = String(option.dataset.userDepartmentId || '');
+        const optionDeptName = String(option.dataset.userDepartmentName || '');
+        return optionDeptId === String(dept.id || '') || optionDeptId === String(dept.name || '') || optionDeptName === String(dept.name || '') || optionDeptName === String(dept.id || '');
+      });
       const cards = deptOptions.length ? deptOptions.map((option) => {
         const isActive = active.has(option.value);
         return `<button class="pro-select-chip user-chip ${isActive ? 'is-selected' : ''}" type="button" data-user-chip value="${escapeHTML(option.value)}" data-user-department-id="${escapeHTML(dept.id || '')}">
@@ -4361,7 +4409,9 @@ function initCreateTaskFromTemplate() {
         targetDepartments.forEach((targetDept) => {
           const deptOptions = selectedOptions.filter((option) => {
             const optionDeptId = String(option.dataset.userDepartmentId || '');
-            return optionDeptId && optionDeptId === String(targetDept.id || targetDept.name || '');
+            const optionDeptName = String(option.dataset.userDepartmentName || '');
+            return (optionDeptId && (optionDeptId === String(targetDept.id || '') || optionDeptId === String(targetDept.name || ''))) ||
+              (optionDeptName && (optionDeptName === String(targetDept.name || '') || optionDeptName === String(targetDept.id || '')));
           });
           const optionsToSave = deptOptions.length ? deptOptions : [null];
           optionsToSave.forEach((selectedOption) => {

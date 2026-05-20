@@ -7897,3 +7897,28 @@ body:has(#taskDetailsModal.is-open){
     grid-template-columns:1fr;
   }
 }
+
+/* Clean create-task notes and ensure assignment distribution is visible per assignment */
+#createTaskModal .required-content-note,
+#createTaskModal .department-receive-note,
+#createTaskModal .content-hub-status,
+#createTaskModal .assignment-title-group small,
+#createTaskModal .assignment-distribution-head small,
+#createTaskModal .create-task-section .admin-only-note {
+  display: none !important;
+}
+#createTaskModal .department-user-matrix {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 12px;
+}
+#createTaskModal .department-user-matrix-card {
+  min-width: 0;
+}
+#createTaskModal .matrix-users-row {
+  display: grid;
+  gap: 8px;
+}
+#createTaskModal .matrix-user-chip {
+  width: 100%;
+}

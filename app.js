@@ -2170,6 +2170,9 @@ async function loadDepartmentsFromContentTasks() {
       const userIds = [...(old.userIds || []), ...(dept.userIds || [])];
       const memberUids = [...(old.memberUids || []), ...(dept.memberUids || [])];
       const memberEmails = [...(old.memberEmails || []), ...(dept.memberEmails || [])];
+      const assignees = [...(old.assignees || []), ...(dept.assignees || [])];
+      const responsibles = [...(old.responsibles || []), ...(dept.responsibles || [])];
+      const usersList = [...(old.usersList || []), ...(dept.usersList || [])];
       byAlias.set(key, {
         ...old,
         ...dept,
@@ -2177,6 +2180,9 @@ async function loadDepartmentsFromContentTasks() {
         name: dept.name || old.name,
         users,
         members,
+        assignees,
+        responsibles,
+        usersList,
         userIds,
         memberUids,
         memberEmails
@@ -2374,9 +2380,10 @@ function collectDepartmentValuesFromUser(user) {
     user.department, user.departmentId, user.departmentName, user.departmentKey,
     user.deptId, user.dept, user.deptName, user.section, user.sectionId,
     user.sectionName, user.team, user.teamId, user.teamName, user.roleDepartment,
-    user.assignedDepartment, user.assignedDepartmentId, user.assignedDepartments,
-    user.departments, user.departmentIds, user.departmentNames, user.sections,
-    user.teams, user.groups, user.permissionsDepartments
+    user.assignedDepartment, user.assignedDepartmentId, user.assignedDepartmentIds, user.assignedDepartments,
+    user.departments, user.departmentIds, user.departmentsIds, user.departmentNames, user.sections,
+    user.teams, user.groups, user.permissionsDepartments, user.allowedDepartments, user.allowedDepartmentIds,
+    user.managedDepartments, user.departmentRoles, user.rolesDepartments
   ].forEach(push);
   return values.map(normalizeDeptCompareValue).filter(Boolean);
 }
@@ -2449,12 +2456,16 @@ function usersForDepartment(dept, allUsers) {
   const explicitUsers = Array.isArray(dept?.users) ? dept.users.map(normalizeSystemUser).filter(Boolean) : [];
   const deptKeys = []
     .concat(Array.isArray(dept?.userIds) ? dept.userIds : [])
+    .concat(Array.isArray(dept?.uids) ? dept.uids : [])
     .concat(Array.isArray(dept?.memberUids) ? dept.memberUids : [])
     .concat(Array.isArray(dept?.memberEmails) ? dept.memberEmails : [])
+    .concat(Array.isArray(dept?.emails) ? dept.emails : [])
     .concat(Array.isArray(dept?.members) ? dept.members : [])
     .concat(Array.isArray(dept?.assignees) ? dept.assignees : [])
     .concat(Array.isArray(dept?.responsibles) ? dept.responsibles : [])
-    .concat(Array.isArray(dept?.usersList) ? dept.usersList : []);
+    .concat(Array.isArray(dept?.usersList) ? dept.usersList : [])
+    .concat(Array.isArray(dept?.selectedUsers) ? dept.selectedUsers : [])
+    .concat(Array.isArray(dept?.teamUsers) ? dept.teamUsers : []);
   const linkedUsers = deptKeys.map((key) => {
     if (key && typeof key === 'object') return normalizeSystemUser(key);
     return byKey.get(String(key || '').trim().toLowerCase());
@@ -2831,7 +2842,6 @@ function buildSpecialDepartmentFields(kind) {
           <strong>تفاصيل المطلوب</strong>
         </div>
       </div>
-      <div class="required-content-note">اكتب المطلوب، اختار السيارة أو السيارات، حدد نوع المحتوى والعدد المطلوب، وبعدها اختار الأقسام واليوزرات من نفس السطر.</div>
       <div class="universal-required-list" data-universal-required-list>
         ${renderUniversalRequiredItem(kind)}
       </div>
@@ -3146,7 +3156,10 @@ function initCreateTaskFromTemplate() {
   }
 
   function hydrateAssignmentPickers(scope = departmentsList) {
-    scope?.querySelectorAll?.('[data-department-assignment-row]').forEach((assignmentRow) => {
+    const rows = [];
+    if (scope?.matches?.('[data-department-assignment-row]')) rows.push(scope);
+    scope?.querySelectorAll?.('[data-department-assignment-row]').forEach((assignmentRow) => rows.push(assignmentRow));
+    Array.from(new Set(rows)).forEach((assignmentRow) => {
       renderDepartmentChipPicker(assignmentRow);
       renderUserChipPicker(assignmentRow);
       renderDepartmentUserMatrix(assignmentRow);
@@ -3162,7 +3175,6 @@ function initCreateTaskFromTemplate() {
           <div class="assignment-title-group">
             <span class="assignment-number-chip">تكليف ${escapeHTML(index)}</span>
             <strong>${escapeHTML(MZJ_ASSIGNMENT_LABEL)}</strong>
-            <small>اكتب المطلوب، اختار السيارات، حدد نوع المحتوى والعدد، ثم اختار الأقسام واليوزرات.</small>
           </div>
           <button class="soft-danger-btn" type="button" data-remove-department-assignment>مسح التكليف</button>
         </div>
@@ -3173,7 +3185,6 @@ function initCreateTaskFromTemplate() {
           <div class="assignment-distribution-head">
             <span class="content-box-eyebrow">التوزيع بعد نوع المحتوى</span>
             <strong>الأقسام واليوزرات</strong>
-            <small>اختار الأقسام المطلوبة الأول، وبعدها هتظهر اليوزرات الخاصة بالأقسام المختارة.</small>
           </div>
           <div class="distribution-pro-picker distribution-matrix-picker" data-distribution-pro-picker>
             <select data-target-department-select multiple hidden>${renderDepartmentTargetOptions()}</select>
@@ -3224,25 +3235,21 @@ function initCreateTaskFromTemplate() {
         <button class="department-toggle-btn content-hub-toggle" type="button" data-department-toggle>
           <span class="content-hub-badge">${escapeHTML(MZJ_ASSIGNMENT_LABEL)}</span>
           <span class="content-hub-copy">
-            <strong>لوحة المطلوب والتوزيع</strong>
-            <small>من هنا اكتب المطلوب، اختار السيارات ونوع المحتوى والعدد، ثم وزّع على الأقسام واليوزرات.</small>
+            <strong>${escapeHTML(MZJ_ASSIGNMENT_LABEL)}</strong>
           </span>
-          <span class="content-hub-status">جاهز للتوزيع</span>
         </button>
       </div>
 
       <div class="department-task-body" data-department-body>
         <div class="department-assignments-head content-assignments-head">
           <div>
-            <span class="content-box-eyebrow">content workflow</span>
-            <strong>التكليفات الحالية</strong>
+            <strong>التكليفات</strong>
           </div>
           <button class="soft-btn" type="button" data-add-department-assignment>+ إضافة تكليف جديد</button>
         </div>
         <div class="department-assignments-list" data-department-assignments-list>
           ${createDepartmentAssignmentHTML(dept, 1)}
         </div>
-        <p class="admin-only-note department-receive-note">تم إلغاء بلوكات الأقسام المنفصلة. أي تكليف جديد بيتكتب من هنا داخل المطلوب فقط.</p>
       </div>
     `;
     departmentsList.appendChild(row);

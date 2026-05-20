@@ -2861,31 +2861,6 @@ function renderContentSectionOptions(selected = '') {
   return '<option value="">اختار قسم المحتوى</option>' + sections.map((section) => `<option value="${escapeHTML(section.id)}" ${current === String(section.id) ? 'selected' : ''}>${escapeHTML(section.title || section.name || 'قسم محتوى')}</option>`).join('');
 }
 
-function renderUniversalContentChoiceCards(kind, sectionId = '', selected = []) {
-  const selectedSet = new Set((Array.isArray(selected) ? selected : String(selected || '').split('،')).map((item) => String(item || '').trim()).filter(Boolean));
-  if (!sectionId) return `<div class="required-content-empty">اختار قسم المحتوى الأول علشان تظهر الأنواع الخاصة به.</div>`;
-  const items = requiredContentTypesForSection(sectionId);
-  if (!items.length) {
-    return `<div class="required-content-empty">لا توجد أنواع محتوى داخل هذا القسم. افتح صفحة المحتوى المطلوب وأضف الأنواع.</div>`;
-  }
-  return items.map((item, index) => {
-    const qtyId = `content-qty-${String(item.id || index).replace(/[^a-zA-Z0-9_-]/g, '')}-${index}`;
-    const checked = selectedSet.has(item.title);
-    return `
-    <div class="universal-content-type-card ${checked ? 'is-checked' : ''}" data-content-type-card>
-      <label class="universal-content-type-main">
-        <input type="checkbox" data-universal-content-type value="${escapeHTML(item.title)}" data-desc="${escapeHTML(item.details || '')}" data-id="${escapeHTML(item.id)}" data-section-id="${escapeHTML(item.sectionId || '')}" data-section-name="${escapeHTML(item.sectionName || '')}" data-quantity-input-id="${escapeHTML(qtyId)}" ${checked ? 'checked' : ''}>
-        <span>${escapeHTML(item.title)}</span>
-        ${item.details ? `<small>${escapeHTML(item.details)}</small>` : '<small>اضغط للاختيار وكتابة العدد</small>'}
-      </label>
-      <label class="content-type-quantity-field" data-content-type-quantity-wrap ${checked ? '' : 'hidden'}>
-        <small>العدد المطلوب</small>
-        <input type="number" min="1" step="1" id="${escapeHTML(qtyId)}" data-content-type-quantity data-content-type-title="${escapeHTML(item.title)}" placeholder="اكتب العدد">
-      </label>
-    </div>`;
-  }).join('');
-}
-
 function refreshContentTypesForSection(item) {
   if (!item) return;
   const sectionSelect = item.querySelector('[data-content-section-select]');
@@ -2909,21 +2884,24 @@ function isOfflinePrintContent(value) {
   );
 }
 
-function renderUniversalContentChoiceCards(kind) {
-  const items = requiredContentTypesForKind(kind);
+function renderUniversalContentChoiceCards(kind, sectionId = '', selected = []) {
+  const selectedSet = new Set((Array.isArray(selected) ? selected : String(selected || '').split('،')).map((item) => String(item || '').trim()).filter(Boolean));
+  if (!sectionId) return `<div class="required-content-empty">اختار القسم الأول علشان تظهر الأنواع الخاصة به.</div>`;
+  const items = requiredContentTypesForSection(sectionId);
   if (!items.length) {
-    return `<div class="required-content-empty">لا توجد أنواع محتوى مضافة. افتح صفحة المحتوى المطلوب وأضف الأنواع.</div>`;
+    return `<div class="required-content-empty">لا توجد أنواع محتوى داخل هذا القسم. افتح صفحة المحتوى المطلوب وأضف الأنواع.</div>`;
   }
   return items.map((item, index) => {
     const qtyId = `content-qty-${String(item.id || index).replace(/[^a-zA-Z0-9_-]/g, '')}-${index}`;
+    const checked = selectedSet.has(item.title);
     return `
-    <div class="universal-content-type-card" data-content-type-card>
+    <div class="universal-content-type-card ${checked ? 'is-checked' : ''}" data-content-type-card>
       <label class="universal-content-type-main">
-        <input type="checkbox" data-universal-content-type value="${escapeHTML(item.title)}" data-desc="${escapeHTML(item.details || '')}" data-id="${escapeHTML(item.id)}" data-quantity-input-id="${escapeHTML(qtyId)}">
+        <input type="checkbox" data-universal-content-type value="${escapeHTML(item.title)}" data-desc="${escapeHTML(item.details || '')}" data-id="${escapeHTML(item.id)}" data-section-id="${escapeHTML(item.sectionId || '')}" data-section-name="${escapeHTML(item.sectionName || '')}" data-quantity-input-id="${escapeHTML(qtyId)}" ${checked ? 'checked' : ''}>
         <span>${escapeHTML(item.title)}</span>
         ${item.details ? `<small>${escapeHTML(item.details)}</small>` : '<small>اضغط للاختيار وكتابة العدد</small>'}
       </label>
-      <label class="content-type-quantity-field" data-content-type-quantity-wrap hidden>
+      <label class="content-type-quantity-field" data-content-type-quantity-wrap ${checked ? '' : 'hidden'}>
         <small>العدد المطلوب</small>
         <input type="number" min="1" step="1" id="${escapeHTML(qtyId)}" data-content-type-quantity data-content-type-title="${escapeHTML(item.title)}" placeholder="اكتب العدد">
       </label>
@@ -2960,42 +2938,48 @@ function refreshStockCarCheckboxGrids() {
 
 function renderUniversalRequiredItem(kind, removable = false) {
   return `
-    <article class="universal-required-item create-assignment-horizontal" data-universal-required-item>
-      <label class="mzj-field assignment-required-field">
-        <span>المطلوب</span>
-        <textarea rows="2" data-universal-required-text placeholder="اكتب المطلوب"></textarea>
-      </label>
+    <article class="universal-required-item create-assignment-table-row" data-universal-required-item>
+      <div class="assignment-table-cell assignment-required-cell" data-cell-title="المطلوب">
+        <label class="mzj-field assignment-required-field">
+          <span>المطلوب</span>
+          <textarea rows="2" data-universal-required-text placeholder="اكتب المطلوب"></textarea>
+        </label>
+      </div>
 
-      <details class="checkbox-dropdown assignment-dropdown" data-checkbox-dropdown>
-        <summary>اختيار السيارة / السيارات</summary>
-        <div class="universal-content-type-grid stock-car-choice-grid dropdown-checkbox-panel" data-universal-car-grid>
-          ${renderStockCarCheckboxCards()}
-        </div>
-      </details>
+      <div class="assignment-table-cell" data-cell-title="السيارة">
+        <details class="checkbox-dropdown assignment-dropdown" data-checkbox-dropdown>
+          <summary>اختيار السيارة</summary>
+          <div class="universal-content-type-grid stock-car-choice-grid dropdown-checkbox-panel" data-universal-car-grid>
+            ${renderStockCarCheckboxCards()}
+          </div>
+        </details>
+      </div>
 
-      <label class="mzj-field assignment-section-field">
-        <span>قسم المحتوى</span>
-        <select data-content-section-select>
-          ${renderContentSectionOptions()}
-        </select>
-      </label>
+      <div class="assignment-table-cell" data-cell-title="القسم">
+        <label class="mzj-field assignment-section-field">
+          <span>القسم</span>
+          <select data-content-section-select>
+            ${renderContentSectionOptions()}
+          </select>
+        </label>
+      </div>
 
-      <details class="checkbox-dropdown assignment-dropdown" data-content-type-dropdown>
-        <summary>أنواع المحتوى</summary>
-        <div class="universal-content-type-grid dropdown-checkbox-panel" data-universal-content-type-grid>
-          ${renderUniversalContentChoiceCards(kind, '')}
-        </div>
-      </details>
+      <div class="assignment-table-cell" data-cell-title="أنواع المحتوى">
+        <details class="checkbox-dropdown assignment-dropdown" data-content-type-dropdown>
+          <summary>أنواع المحتوى</summary>
+          <div class="universal-content-type-grid dropdown-checkbox-panel" data-universal-content-type-grid>
+            ${renderUniversalContentChoiceCards(kind, '')}
+          </div>
+        </details>
+      </div>
 
-      <div class="assignment-distribution-panel assignment-distribution-inline" data-assignment-distribution-panel>
-        <div class="assignment-distribution-head compact-assignment-head">
-          <strong>الأقسام واليوزرات</strong>
-          <small>اختار قسم، بعدها اختار يوزر أو أكثر</small>
-        </div>
-        <div class="distribution-pro-picker distribution-matrix-picker" data-distribution-pro-picker>
-          <select data-target-department-select multiple hidden>${renderDepartmentTargetOptions()}</select>
-          <select data-user-select multiple hidden>${renderUserOptionsForDepartmentIds([])}</select>
-          <div class="department-user-matrix" data-department-user-matrix></div>
+      <div class="assignment-table-cell assignment-users-cell" data-cell-title="الأقسام واليوزرات">
+        <div class="assignment-distribution-panel assignment-distribution-inline" data-assignment-distribution-panel>
+          <div class="distribution-pro-picker distribution-matrix-picker" data-distribution-pro-picker>
+            <select data-target-department-select multiple hidden>${renderDepartmentTargetOptions()}</select>
+            <select data-user-select multiple hidden>${renderUserOptionsForDepartmentIds([])}</select>
+            <div class="department-user-matrix" data-department-user-matrix></div>
+          </div>
         </div>
       </div>
 
@@ -3323,12 +3307,14 @@ function initCreateTaskFromTemplate() {
         const optionValue = optionValueForDepartmentUser(user, dept);
         const selected = activeUserSet.has(String(optionValue)) || activeUserSet.has(String(actualValue));
         return `<button class="matrix-user-chip ${selected ? 'is-selected' : ''}" type="button" data-matrix-user-chip value="${escapeHTML(optionValue)}" ${active ? '' : 'disabled'}>
+          <input type="checkbox" tabindex="-1" ${selected ? 'checked' : ''} ${active ? '' : 'disabled'} aria-hidden="true">
           <span>${escapeHTML(user.label || actualValue)}</span>
           <small>${selected ? 'مختار' : 'اختيار'}</small>
         </button>`;
       }).join('') : '<p class="required-content-empty">لا يوجد يوزرات في هذا القسم.</p>';
       return `<section class="department-user-matrix-card ${active ? 'is-selected' : ''}" data-matrix-department-card="${escapeHTML(dept.id || '')}">
         <button class="matrix-department-head" type="button" data-matrix-department-chip value="${escapeHTML(dept.id || '')}">
+          <input type="checkbox" tabindex="-1" ${active ? 'checked' : ''} aria-hidden="true">
           <strong>${escapeHTML(dept.name || dept.id || 'قسم')}</strong>
           <small>${active ? 'القسم مختار' : 'اضغط لاختيار القسم'}</small>
         </button>
@@ -3356,15 +3342,8 @@ function initCreateTaskFromTemplate() {
     const kind = 'content';
     return `
       <article class="department-assignment-row professional-assignment-card" data-department-assignment-row data-assignment-index="${escapeHTML(index)}">
-        <div class="department-assignment-head">
-          <div class="assignment-title-group">
-            <span class="assignment-number-chip">تكليف ${escapeHTML(index)}</span>
-            <strong>${escapeHTML(MZJ_ASSIGNMENT_LABEL)}</strong>
-          </div>
-          <button class="soft-danger-btn" type="button" data-remove-department-assignment>مسح التكليف</button>
-        </div>
-
         ${buildSpecialDepartmentFields(kind)}
+        ${index > 1 ? '<button class="soft-danger-btn assignment-remove-row-btn" type="button" data-remove-department-assignment>مسح الصف</button>' : ''}
       </article>
     `;
   }
@@ -3403,25 +3382,22 @@ function initCreateTaskFromTemplate() {
     row.dataset.departmentId = dept.id || 'content';
     row.dataset.departmentKind = 'content';
     row.innerHTML = `
-      <div class="department-row-head content-hub-head">
-        <input type="checkbox" data-department-enabled hidden checked>
-        <button class="department-toggle-btn content-hub-toggle" type="button" data-department-toggle>
-          <span class="content-hub-badge">${escapeHTML(MZJ_CONTENT_HUB_LABEL)}</span>
-          <span class="content-hub-copy">
-            <strong>${escapeHTML(MZJ_CONTENT_HUB_LABEL)}</strong>
-          </span>
-        </button>
-      </div>
-
+      <input type="checkbox" data-department-enabled hidden checked>
       <div class="department-task-body" data-department-body>
-        <div class="department-assignments-head content-assignments-head">
-          <div>
-            <strong>التكليفات</strong>
+        <div class="assignment-table-wrap">
+          <div class="assignment-table-header" aria-hidden="true">
+            <span>المطلوب</span>
+            <span>السيارة</span>
+            <span>القسم</span>
+            <span>أنواع المحتوى</span>
+            <span>الأقسام واليوزرات</span>
           </div>
-          <button class="soft-btn" type="button" data-add-department-assignment>+ إضافة تكليف جديد</button>
+          <div class="department-assignments-list" data-department-assignments-list>
+            ${createDepartmentAssignmentHTML(dept, 1)}
+          </div>
         </div>
-        <div class="department-assignments-list" data-department-assignments-list>
-          ${createDepartmentAssignmentHTML(dept, 1)}
+        <div class="content-assignments-actions">
+          <button class="soft-btn" type="button" data-add-department-assignment>+ إضافة صف جديد</button>
         </div>
       </div>
     `;

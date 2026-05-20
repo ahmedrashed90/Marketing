@@ -8081,3 +8081,198 @@ body:has(#taskDetailsModal.is-open){
   .required-content-type-inline,
   .create-assignment-horizontal { grid-template-columns: 1fr; }
 }
+
+
+/* MZJ fix: table layout for create-task required content */
+#createTaskModal .create-task-table-section{
+  padding:0!important;
+  background:transparent!important;
+  border:0!important;
+  box-shadow:none!important;
+}
+#createTaskModal .department-task-list,
+#createTaskModal .department-task-row,
+#createTaskModal .department-task-body{
+  width:100%;
+}
+#createTaskModal .assignment-table-wrap{
+  width:100%;
+  overflow:visible;
+  border:1px solid rgba(62,36,32,.12);
+  border-radius:24px;
+  background:rgba(255,255,255,.82);
+  box-shadow:0 14px 34px rgba(62,36,32,.06);
+}
+#createTaskModal .assignment-table-header,
+#createTaskModal .create-assignment-table-row{
+  display:grid!important;
+  grid-template-columns:minmax(220px,1.35fr) minmax(170px,.85fr) minmax(165px,.8fr) minmax(190px,.95fr) minmax(310px,1.45fr);
+  gap:0;
+  align-items:stretch;
+}
+#createTaskModal .assignment-table-header{
+  position:sticky;
+  top:0;
+  z-index:5;
+  background:#f6ede5;
+  border-bottom:1px solid rgba(62,36,32,.12);
+  color:#3e2420;
+  font-weight:900;
+}
+#createTaskModal .assignment-table-header span,
+#createTaskModal .assignment-table-cell{
+  padding:12px;
+  border-inline-start:1px solid rgba(62,36,32,.10);
+}
+#createTaskModal .assignment-table-header span:last-child,
+#createTaskModal .assignment-table-cell:last-child{border-inline-start:0;}
+#createTaskModal .create-assignment-table-row{
+  border:0!important;
+  border-radius:0!important;
+  background:#fffaf6!important;
+  padding:0!important;
+  gap:0!important;
+}
+#createTaskModal .professional-assignment-card + .professional-assignment-card .create-assignment-table-row,
+#createTaskModal .department-assignment-row + .department-assignment-row .create-assignment-table-row{
+  border-top:1px solid rgba(62,36,32,.12)!important;
+}
+#createTaskModal .assignment-table-cell .mzj-field span{
+  font-size:12px;
+  color:#9a7d70;
+}
+#createTaskModal .assignment-table-cell textarea,
+#createTaskModal .assignment-table-cell select,
+#createTaskModal .checkbox-dropdown{
+  width:100%;
+  min-height:46px;
+}
+#createTaskModal .checkbox-dropdown{
+  position:relative;
+}
+#createTaskModal .checkbox-dropdown[open] .dropdown-checkbox-panel{
+  position:absolute;
+  z-index:40;
+  inset-inline-start:0;
+  inset-block-start:calc(100% + 6px);
+  min-width:260px;
+  max-height:300px;
+  background:#fff;
+  border:1px solid rgba(62,36,32,.14);
+  border-radius:18px;
+  box-shadow:0 18px 40px rgba(62,36,32,.16);
+}
+#createTaskModal .assignment-users-cell .assignment-distribution-inline{
+  padding:0;
+  background:transparent;
+  border:0;
+}
+#createTaskModal .assignment-users-cell .department-user-matrix{
+  display:grid;
+  grid-template-columns:1fr;
+  gap:8px;
+  max-height:260px;
+  overflow:auto;
+}
+#createTaskModal .assignment-users-cell .department-user-matrix-card{
+  padding:8px;
+  border-radius:14px;
+  background:#fff;
+}
+#createTaskModal .assignment-users-cell .matrix-department-head,
+#createTaskModal .assignment-users-cell .matrix-user-chip{
+  padding:8px 10px;
+  min-height:auto;
+}
+#createTaskModal .assignment-users-cell .matrix-users-row{
+  display:flex;
+  flex-wrap:wrap;
+  gap:6px;
+}
+#createTaskModal .assignment-remove-row-btn{
+  margin-top:10px;
+  justify-self:start;
+}
+#createTaskModal .content-assignments-actions{
+  margin-top:12px;
+  display:flex;
+  justify-content:flex-start;
+}
+#createTaskModal .content-hub-head,
+#createTaskModal .department-assignments-head,
+#createTaskModal .department-assignment-head,
+#createTaskModal .content-hub-copy,
+#createTaskModal .content-hub-badge{
+  display:none!important;
+}
+@media(max-width:1100px){
+  #createTaskModal .assignment-table-header{display:none!important;}
+  #createTaskModal .create-assignment-table-row{grid-template-columns:1fr!important;border-radius:22px!important;border:1px solid rgba(62,36,32,.12)!important;margin-bottom:12px;}
+  #createTaskModal .assignment-table-cell{border-inline-start:0;border-bottom:1px solid rgba(62,36,32,.08);}
+  #createTaskModal .assignment-table-cell:last-child{border-bottom:0;}
+  #createTaskModal .assignment-table-cell::before{content:attr(data-cell-title);display:block;margin-bottom:7px;font-weight:900;color:#7b5b51;}
+}
+
+/* MZJ fix: clean required-content page layout */
+body[data-page="requiredContent"] .required-content-main{overflow-x:hidden;}
+body[data-page="requiredContent"] .required-content-grid{
+  grid-template-columns:repeat(auto-fit,minmax(360px,1fr));
+  gap:18px;
+  align-items:start;
+}
+body[data-page="requiredContent"] .required-content-section-card{
+  width:100%;
+  min-width:0;
+  position:relative;
+  overflow:hidden;
+  border-radius:28px;
+  background:linear-gradient(180deg,#fffaf6,#fff);
+  box-shadow:0 16px 36px rgba(62,36,32,.07);
+}
+body[data-page="requiredContent"] .required-content-section-head{
+  align-items:flex-start;
+}
+body[data-page="requiredContent"] .required-content-section-head h4{
+  margin:6px 0;
+  font-size:24px;
+  color:#3e2420;
+}
+body[data-page="requiredContent"] .required-content-section-head p{
+  margin:0;
+  color:#7f6b64;
+  font-weight:800;
+  line-height:1.7;
+}
+body[data-page="requiredContent"] .required-content-actions{
+  flex-shrink:0;
+  justify-content:flex-start;
+}
+body[data-page="requiredContent"] .required-content-type-inline{
+  grid-template-columns:minmax(0,1fr) minmax(0,1fr) auto;
+  align-items:end;
+}
+body[data-page="requiredContent"] .required-content-type-pill{
+  width:100%;
+}
+@media(max-width:760px){
+  body[data-page="requiredContent"] .required-content-grid,
+  body[data-page="requiredContent"] .required-content-type-inline{
+    grid-template-columns:1fr;
+  }
+  body[data-page="requiredContent"] .required-content-actions{width:100%;}
+  body[data-page="requiredContent"] .required-content-actions button{flex:1;}
+}
+#createTaskModal .matrix-user-chip,
+#createTaskModal .matrix-department-head{
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+#createTaskModal .matrix-user-chip input,
+#createTaskModal .matrix-department-head input{
+  width:16px;
+  height:16px;
+  accent-color:#5b3a32;
+  pointer-events:none;
+  flex:0 0 auto;
+}

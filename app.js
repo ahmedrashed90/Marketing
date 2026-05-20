@@ -580,17 +580,40 @@ function mergeTaskDetailDeptData(primary, secondary) {
   const a = primary && typeof primary === 'object' ? primary : {};
   const b = secondary && typeof secondary === 'object' ? secondary : {};
   const merged = { ...a, ...b };
-  const pickArrays = (key) => mzjUniqueStrings([
-    ...(Array.isArray(a?.[key]) ? a[key] : []),
-    ...(Array.isArray(b?.[key]) ? b[key] : [])
+  const uniqueObjects = (items) => {
+    const seen = new Set();
+    return (items || []).filter((item) => item && typeof item === 'object').filter((item) => {
+      const key = JSON.stringify(item, Object.keys(item).sort());
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  };
+  const combineStringList = (key) => mzjUniqueStrings([
+    ...taskFieldList(a?.[key]),
+    ...taskFieldList(b?.[key])
   ]);
-  ['selectedCars','selectedCarValues','selectedContentTypes','selectedContentTypeTitles','contentItems','photoItems','selectedDeliverables'].forEach((key) => {
-    const arr = pickArrays(key);
+  ['selectedCars','selectedCarValues','selectedContentTypes','selectedContentTypeTitles'].forEach((key) => {
+    const arr = combineStringList(key);
+    if (arr.length) merged[key] = arr;
+  });
+  ['contentItems','photoItems','selectedDeliverables'].forEach((key) => {
+    const arr = uniqueObjects([
+      ...(Array.isArray(a?.[key]) ? a[key] : []),
+      ...(Array.isArray(b?.[key]) ? b[key] : [])
+    ]);
     if (arr.length) merged[key] = arr;
   });
   merged.requiredDetails = { ...(a.requiredDetails || {}), ...(b.requiredDetails || {}) };
-  ['selectedCars','selectedCarValues','selectedContentTypes','selectedContentTypeTitles','items','deliverables'].forEach((key) => {
+  ['selectedCars','selectedCarValues','selectedContentTypes','selectedContentTypeTitles'].forEach((key) => {
     const arr = mzjUniqueStrings([
+      ...taskFieldList(a.requiredDetails?.[key]),
+      ...taskFieldList(b.requiredDetails?.[key])
+    ]);
+    if (arr.length) merged.requiredDetails[key] = arr;
+  });
+  ['items','deliverables'].forEach((key) => {
+    const arr = uniqueObjects([
       ...(Array.isArray(a.requiredDetails?.[key]) ? a.requiredDetails[key] : []),
       ...(Array.isArray(b.requiredDetails?.[key]) ? b.requiredDetails[key] : [])
     ]);
@@ -599,10 +622,9 @@ function mergeTaskDetailDeptData(primary, secondary) {
   const preferText = (key) => {
     const av = String(a?.[key] || '').trim();
     const bv = String(b?.[key] || '').trim();
-    if (av && bv && av !== bv) return bv;
     return bv || av || '';
   };
-  ['carType','contentType','requiredText','deliveryDetails','notes','taskName','requiredTaskName','departmentName','departmentId','userName','userDisplayName','userEmail','assigneeName','assigneeEmail','assigneeUid','userId','userUid'].forEach((key) => {
+  ['carType','contentType','requiredText','deliveryDetails','notes','taskName','requiredTaskName','departmentName','departmentId','userName','userDisplayName','userEmail','assigneeName','assigneeEmail','assigneeUid','userId','userUid','assignmentIndex','targetDepartmentId','targetDepartmentName'].forEach((key) => {
     const value = preferText(key);
     if (value) merged[key] = value;
   });
@@ -640,7 +662,8 @@ function renderTaskDetailsSummary(deptTask, deptKeyValue) {
     ...normalizeSelectedCarList(safeTask?.chosenCars),
     ...normalizeSelectedCarList(safeTask?.cars),
     ...normalizeSelectedCarList(safeTask?.requiredDetails?.selectedCars),
-    ...normalizeSelectedCarList(safeTask?.requiredDetails?.selectedCarValues)
+    ...normalizeSelectedCarList(safeTask?.requiredDetails?.selectedCarValues),
+    ...collectExplicitTaskValues(safeTask, 'car')
   ].filter(excludeRequiredText));
   const itemCars = mzjUniqueStrings([
     ...items.map((item) => item?.carType || item?.car || item?.vehicle || item?.carValue),
@@ -658,6 +681,7 @@ function renderTaskDetailsSummary(deptTask, deptKeyValue) {
     ...normalizeSelectedContentTypeList(safeTask?.chosenContentTypes),
     ...normalizeSelectedContentTypeList(safeTask?.requiredDetails?.selectedContentTypes),
     ...normalizeSelectedContentTypeList(safeTask?.requiredDetails?.selectedContentTypeTitles),
+    ...collectExplicitTaskValues(safeTask, 'content'),
     safeTask?.__contentTypeFilter
   ].map((value) => String(value || '').trim()).filter(Boolean).filter(excludeRequiredText));
   const itemTypes = mzjUniqueStrings([
@@ -1309,12 +1333,17 @@ function mzjDetailsReadTasks() {
 
 function mzjDecodeJsonDataAttr(value, fallback = []) {
   if (!value) return fallback;
-  try {
-    const parsed = JSON.parse(decodeURIComponent(String(value)));
-    return Array.isArray(parsed) ? parsed : fallback;
-  } catch (error) {
-    return fallback;
+  const raw = String(value || '');
+  const attempts = [raw];
+  try { attempts.push(decodeURIComponent(raw)); } catch (error) {}
+  try { attempts.push(decodeURIComponent(decodeURIComponent(raw))); } catch (error) {}
+  for (const attempt of attempts) {
+    try {
+      const parsed = JSON.parse(attempt);
+      if (Array.isArray(parsed)) return parsed;
+    } catch (error) {}
   }
+  return fallback;
 }
 
 function openTaskDetails(button) {
@@ -1359,6 +1388,14 @@ function openTaskDetails(button) {
   let fullTask = allTasks.find((task) => String(task.id) === String(taskId));
   if (!fullTask && taskId) {
     fullTask = allTasks.find((task) => String(task.firestoreId || task.docId || task.campaignCode || task.code) === String(taskId));
+  }
+  const cardCampaignCode = activeTaskCard?.dataset.campaignCode || button.dataset.campaignCode || '';
+  const titleForLookup = button.dataset.taskTitle || '';
+  if (!fullTask && cardCampaignCode) {
+    fullTask = allTasks.find((task) => String(task.campaignCode || task.code || '').trim() === String(cardCampaignCode).trim());
+  }
+  if (!fullTask && titleForLookup) {
+    fullTask = allTasks.find((task) => String(task.campaignName || task.name || task.title || '').trim() === String(titleForLookup).trim());
   }
   const departmentTasks = Array.isArray(fullTask?.departmentTasks) ? fullTask.departmentTasks : (deptDataFromButton ? [deptDataFromButton] : []);
   const deptIndexFromButton = button.dataset.deptIndex === undefined || button.dataset.deptIndex === '' ? -1 : Number(button.dataset.deptIndex);

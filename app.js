@@ -5435,7 +5435,30 @@ function initCreateTaskFromTemplate() {
       });
       refreshDepartmentAssignmentNumbers(deptRow);
     }
+    if (budgetItemsList) {
+      budgetItemsList.innerHTML = '';
+      const savedBudget = Array.isArray(task.budgetDetails) ? task.budgetDetails : [];
+      savedBudget.forEach((item) => createBudgetItem(item));
+      updateBudgetTotal();
+    }
+    if (publishScheduleRows) {
+      buildPublishCalendar(true);
+      const savedSchedule = Array.isArray(task.publishScheduleEntries) ? task.publishScheduleEntries : [];
+      savedSchedule.forEach((entry) => {
+        const date = entry.date || '';
+        const items = Array.isArray(entry.items) ? entry.items : String(entry.content || '').split(/\s*\+\s*|،|\|/).map((x)=>x.trim()).filter(Boolean);
+        const cell = publishScheduleRows.querySelector(`[data-publish-calendar-cell][data-date="${CSS.escape(date)}"]`);
+        if (!cell) return;
+        const list = cell.querySelector('[data-publish-choice-list]');
+        if (list) list.innerHTML = renderPublishChoicesChecklist(items, date);
+        cell.querySelectorAll('[data-schedule-content]').forEach((input) => { input.checked = items.includes(input.value); });
+        const summary = cell.querySelector('.publish-calendar-summary');
+        if (summary) summary.innerHTML = items.length ? items.map((item) => `<span>${escapeHTML(item)}</span>`).join('') : '<em>اضغط لاختيار النشر</em>';
+      });
+    }
     refreshStockCarCheckboxGrids();
+    updateAssignmentDropdownSummaries(departmentsList);
+    refreshBudgetDropdownOptions();
   };
 
   function closeCreateTaskModal() {
@@ -6517,20 +6540,50 @@ initCreateTaskFromTemplate();
   function renderDepartmentTaskRows(task){
     const rows = safeArray(task.departmentTasks);
     if (!rows.length) return '<p class="task-empty-note">لا توجد تكليفات أقسام محفوظة لهذه الحملة / الأجندة.</p>';
-    return `<div class="campaign-full-table-wrap"><table class="campaign-full-table"><thead><tr><th>القسم</th><th>المسؤول</th><th>المطلوب</th><th>السيارات</th><th>نوع المحتوى</th><th>الحالة</th></tr></thead><tbody>
-      ${rows.map((row) => {
-        const cars = [...new Set([...(row.selectedCars||[]), ...(row.selectedCarValues||[]), row.carType, ...(row.contentItems||[]).map(i=>i?.carType), ...(row.photoItems||[]).map(i=>i?.carType)].filter(Boolean))];
-        const types = [...new Set([...(row.selectedContentTypes||[]), ...(row.selectedContentTypeTitles||[]), row.contentType, ...(row.contentItems||[]).map(i=>i?.contentType || i?.title), ...(row.photoItems||[]).map(i=>i?.contentType || i?.title)].filter(Boolean).filter(v=>!/^rct_/i.test(String(v))))];
-        return `<tr>
-          <td>${esc(row.departmentName || row.targetDepartmentName || row.departmentId || '—')}</td>
-          <td>${esc(row.assigneeName || row.userName || row.userDisplayName || row.assigneeEmail || row.userEmail || '—')}</td>
-          <td>${esc(row.requiredText || row.manualRequired || row.notes || row.deliveryDetails || '—')}</td>
-          <td>${cars.length ? cars.map(esc).join('<br>') : '—'}</td>
-          <td>${types.length ? types.map(esc).join('<br>') : '—'}</td>
-          <td>${row.received || row.receivedConfirmed ? 'تم الاستلام' : 'لم يتم الاستلام'}</td>
-        </tr>`;
+    const groups = new Map();
+    rows.forEach((row, idx) => {
+      const key = String(row.assignmentIndex || row.assignmentNo || idx + 1);
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(row);
+    });
+    const renderQty = (row, type) => {
+      const qty = (row.selectedContentTypeQuantities || row.contentTypeQuantities || row.requiredDetails?.contentTypeQuantities || {})[type];
+      return qty ? ` <em class="campaign-type-qty">× ${esc(String(qty))}</em>` : '';
+    };
+    return `<div class="campaign-full-assignment-board">
+      <div class="campaign-full-assignment-head">
+        <span>المطلوب</span><span>اختيار السيارة</span><span>قسم المحتوى</span><span>أنواع المحتوى</span><span>الأقسام</span><span>اليوزرات</span><span>الحالة</span>
+      </div>
+      ${Array.from(groups.entries()).map(([key, group]) => {
+        const first = group[0] || {};
+        const cars = mzjUniqueStrings(group.flatMap((row) => []
+          .concat(row.selectedCars || [])
+          .concat(row.selectedCarValues || [])
+          .concat(row.carType || [])
+          .concat((row.contentItems || []).map((i)=>i?.carType))
+          .concat((row.photoItems || []).map((i)=>i?.carType))
+        ).filter(Boolean));
+        const types = mzjUniqueStrings(group.flatMap((row) => []
+          .concat(row.selectedContentTypes || [])
+          .concat(row.selectedContentTypeTitles || [])
+          .concat(row.contentType || [])
+          .concat((row.contentItems || []).map((i)=>i?.contentType || i?.title))
+          .concat((row.photoItems || []).map((i)=>i?.contentType || i?.title))
+        ).filter(Boolean).filter((v)=>!/^rct_/i.test(String(v))));
+        const deptNames = mzjUniqueStrings(group.map((row) => row.departmentName || row.targetDepartmentName || row.departmentId).filter(Boolean));
+        const userNames = mzjUniqueStrings(group.map((row) => row.assigneeName || row.userName || row.userDisplayName || row.assigneeEmail || row.userEmail).filter(Boolean));
+        const statusDone = group.every((row) => row.received || row.receivedConfirmed);
+        return `<article class="campaign-full-assignment-row">
+          <div class="campaign-full-assignment-cell"><small>تكليف ${esc(key)}</small><strong>${esc(first.requiredText || first.manualRequired || first.notes || first.deliveryDetails || first.taskName || '—')}</strong></div>
+          <div class="campaign-full-assignment-cell">${cars.length ? cars.map((x)=>`<span class="campaign-detail-chip">${esc(x)}</span>`).join('') : '—'}</div>
+          <div class="campaign-full-assignment-cell">${esc(first.contentSectionName || first.requiredDetails?.contentSectionName || '—')}</div>
+          <div class="campaign-full-assignment-cell">${types.length ? types.map((x)=>`<span class="campaign-detail-chip is-type">${esc(x)}${renderQty(first, x)}</span>`).join('') : '—'}</div>
+          <div class="campaign-full-assignment-cell">${deptNames.length ? deptNames.map((x)=>`<span class="campaign-detail-chip">${esc(x)}</span>`).join('') : '—'}</div>
+          <div class="campaign-full-assignment-cell">${userNames.length ? userNames.map((x)=>`<span class="campaign-detail-chip">${esc(x)}</span>`).join('') : '—'}</div>
+          <div class="campaign-full-assignment-cell"><span class="campaign-status-pill ${statusDone ? 'is-done' : ''}">${statusDone ? 'تم الاستلام' : 'قيد التنفيذ'}</span></div>
+        </article>`;
       }).join('')}
-    </tbody></table></div>`;
+    </div>`;
   }
   function renderPublishScheduleRows(task){
     const entries = safeArray(task.publishScheduleEntries);
@@ -6538,6 +6591,14 @@ initCreateTaskFromTemplate();
     return `<div class="campaign-full-table-wrap"><table class="campaign-full-table"><thead><tr><th>اليوم</th><th>التاريخ</th><th>المحتوى</th></tr></thead><tbody>
       ${entries.map((entry) => `<tr><td>${esc(entry.day || '—')}</td><td>${esc(entry.date || '—')}</td><td>${esc(entry.content || safeArray(entry.items).map((i)=>i?.content || i?.title || i).filter(Boolean).join('، ') || '—')}</td></tr>`).join('')}
     </tbody></table></div>`;
+  }
+  function renderBudgetDetailsRows(task){
+    const items = safeArray(task.budgetDetails);
+    if (!items.length) return '<p class="task-empty-note">لا توجد ميزانيات محفوظة.</p>';
+    const total = items.reduce((sum, item) => sum + Number(item.value || item.amount || item.itemTotal || 0), 0);
+    return `<div class="campaign-full-table-wrap"><table class="campaign-full-table"><thead><tr><th>Funnel</th><th>المنتج</th><th>المنصة</th><th>القيمة</th></tr></thead><tbody>
+      ${items.map((item) => `<tr><td>${esc(item.funnel || item.funnelName || '—')}</td><td>${esc(item.product || item.productName || item.adName || '—')}</td><td>${esc(item.platform || item.platformName || item.platforms?.[0]?.name || '—')}</td><td>${esc(String(item.value || item.amount || item.itemTotal || 0))}</td></tr>`).join('')}
+    </tbody><tfoot><tr><th colspan="3">الإجمالي</th><th>${esc(String(total))}</th></tr></tfoot></table></div>`;
   }
   function renderCampaignLogicRows(task){
     const items = safeArray(task.campaignLogic);
@@ -6565,15 +6626,19 @@ initCreateTaskFromTemplate();
         <button class="modal-close-btn" type="button" data-close-calendar-task-modal>×</button>
       </div>
       <div class="campaign-full-actions">
-        <button class="primary-btn" type="button" data-edit-calendar-task>تعديل البيانات</button>
+        <button class="primary-btn" type="button" data-edit-calendar-task>تعديل كامل بنفس فورم إنشاء التاسك</button>
         <button class="soft-btn" type="button" data-cancel-calendar-task-edit hidden>إلغاء التعديل</button>
         <button class="primary-btn" type="button" data-save-calendar-task="${esc(taskDocId(task))}" hidden>حفظ التعديل</button>
       </div>
-      <section class="workspace-card campaign-full-view-block" data-calendar-task-view>${renderCalendarTaskInfoGrid(task)}</section>
+      <section class="workspace-card campaign-full-view-block" data-calendar-task-view>
+        <div class="campaign-full-section-head"><span class="eyebrow">بيانات أساسية</span><h3>تفاصيل الحملة / الأجندة</h3></div>
+        ${renderCalendarTaskInfoGrid(task)}
+      </section>
       ${renderCalendarTaskEditForm(task)}
-      <section class="workspace-card"><h3>تكليفات الأقسام واليوزرات</h3>${renderDepartmentTaskRows(task)}</section>
-      <section class="workspace-card"><h3>جدول النشر</h3>${renderPublishScheduleRows(task)}</section>
-      <section class="workspace-card"><h3>تفاصيل الحملة</h3>${renderCampaignLogicRows(task)}</section>
+      <section class="workspace-card campaign-full-view-block"><div class="campaign-full-section-head"><span class="eyebrow">التكليفات</span><h3>المطلوب والسيارات وأنواع المحتوى والأقسام واليوزرات</h3></div>${renderDepartmentTaskRows(task)}</section>
+      <section class="workspace-card campaign-full-view-block"><div class="campaign-full-section-head"><span class="eyebrow">النشر</span><h3>جدول النشر</h3></div>${renderPublishScheduleRows(task)}</section>
+      <section class="workspace-card campaign-full-view-block"><div class="campaign-full-section-head"><span class="eyebrow">الميزانية</span><h3>تفاصيل الميزانية</h3></div>${renderBudgetDetailsRows(task)}</section>
+      <section class="workspace-card campaign-full-view-block"><div class="campaign-full-section-head"><span class="eyebrow">campaign logic</span><h3>تفاصيل الحملة</h3></div>${renderCampaignLogicRows(task)}</section>
     </section>`;
   }
   function setCalendarTaskModalEditMode(enabled){

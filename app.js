@@ -2041,7 +2041,8 @@ function initTemplatesPage() {
         sampleRow: pendingTemplateData.sampleRow,
         rows: pendingTemplateData.rows || [],
         rowsCount: pendingTemplateData.rowsCount,
-        createdAt: new Date().toISOString(),
+        createdAt: form.dataset.editingTaskMode === '1' ? (form.dataset.originalCreatedAt || new Date().toISOString()) : new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         source: 'firebase'
       };
@@ -2319,7 +2320,7 @@ function renderUserOptions(users, departmentId = '', allowFallback = true) {
 // They must be global here because some helper functions are defined outside initCreateTaskModal().
 var departmentsCache = Array.isArray(MZJ_DEPARTMENTS_FALLBACK) ? MZJ_DEPARTMENTS_FALLBACK : [];
 var usersCache = [];
-const MZJ_ASSIGNMENT_LABEL = 'المطلوب';
+const MZJ_ASSIGNMENT_LABEL = 'قسم المحتوى';
 
 function normalizeDeptCompareValue(value) {
   return String(value || '')
@@ -2444,6 +2445,16 @@ function renderUserOptionsForDepartmentIds(ids, selectedValues = []) {
   return options.join('');
 }
 
+function mzjValuesAsArray(value) {
+  if (value == null || value === '') return [];
+  if (Array.isArray(value)) return value.flatMap(mzjValuesAsArray);
+  if (typeof value === 'object') {
+    if (value.email || value.uid || value.id || value.name || value.displayName) return [value];
+    return Object.values(value).flatMap(mzjValuesAsArray);
+  }
+  return String(value).split(/[,،;\n]+/).map((item) => item.trim()).filter(Boolean);
+}
+
 function usersForDepartment(dept, allUsers) {
   const normalizedAllUsers = (allUsers || []).map(normalizeSystemUser).filter(Boolean);
   const byKey = new Map();
@@ -2453,19 +2464,19 @@ function usersForDepartment(dept, allUsers) {
     });
   });
 
-  const explicitUsers = Array.isArray(dept?.users) ? dept.users.map(normalizeSystemUser).filter(Boolean) : [];
+  const explicitUsers = mzjValuesAsArray(dept?.users).map(normalizeSystemUser).filter(Boolean);
   const deptKeys = []
-    .concat(Array.isArray(dept?.userIds) ? dept.userIds : [])
-    .concat(Array.isArray(dept?.uids) ? dept.uids : [])
-    .concat(Array.isArray(dept?.memberUids) ? dept.memberUids : [])
-    .concat(Array.isArray(dept?.memberEmails) ? dept.memberEmails : [])
-    .concat(Array.isArray(dept?.emails) ? dept.emails : [])
-    .concat(Array.isArray(dept?.members) ? dept.members : [])
-    .concat(Array.isArray(dept?.assignees) ? dept.assignees : [])
-    .concat(Array.isArray(dept?.responsibles) ? dept.responsibles : [])
-    .concat(Array.isArray(dept?.usersList) ? dept.usersList : [])
-    .concat(Array.isArray(dept?.selectedUsers) ? dept.selectedUsers : [])
-    .concat(Array.isArray(dept?.teamUsers) ? dept.teamUsers : []);
+    .concat(mzjValuesAsArray(dept?.userIds))
+    .concat(mzjValuesAsArray(dept?.uids))
+    .concat(mzjValuesAsArray(dept?.memberUids))
+    .concat(mzjValuesAsArray(dept?.memberEmails))
+    .concat(mzjValuesAsArray(dept?.emails))
+    .concat(mzjValuesAsArray(dept?.members))
+    .concat(mzjValuesAsArray(dept?.assignees))
+    .concat(mzjValuesAsArray(dept?.responsibles))
+    .concat(mzjValuesAsArray(dept?.usersList))
+    .concat(mzjValuesAsArray(dept?.selectedUsers))
+    .concat(mzjValuesAsArray(dept?.teamUsers));
   const linkedUsers = deptKeys.map((key) => {
     if (key && typeof key === 'object') return normalizeSystemUser(key);
     return byKey.get(String(key || '').trim().toLowerCase());
@@ -2479,7 +2490,14 @@ function usersForDepartment(dept, allUsers) {
     const key = String(normalized?.uid || normalized?.id || normalized?.email || normalized?.name || '').trim().toLowerCase();
     if (key) merged.set(key, { ...normalized, department: normalized.department || dept?.id || '', departmentId: normalized.departmentId || dept?.id || '', departmentName: normalized.departmentName || dept?.name || '' });
   });
-  return Array.from(merged.values());
+  const finalUsers = Array.from(merged.values());
+  if (finalUsers.length) return finalUsers;
+  const kind = deptKindFromName(dept?.name || dept?.kind || dept?.id || '');
+  if (kind === 'content') {
+    const looseContentUsers = normalizedAllUsers.filter((user) => /content|محتو|كتابة|copy/i.test([user.department, user.departmentId, user.departmentName, user.role, user.team, user.teamName].filter(Boolean).join(' ')));
+    if (looseContentUsers.length) return looseContentUsers;
+  }
+  return finalUsers;
 }
 
 const DEFAULT_MARKETING_PLATFORMS = [
@@ -2803,7 +2821,7 @@ function renderUniversalRequiredItem(kind, removable = false) {
   return `
     <article class="universal-required-item" data-universal-required-item>
       <label class="mzj-field full-width-field">
-        <span>المحتوى المطلوب</span>
+        <span>المطلوب</span>
         <textarea rows="3" data-universal-required-text placeholder="اكتب تفاصيل المطلوب للتاسك هنا"></textarea>
       </label>
       <div class="universal-content-type-wrap full-width-field">
@@ -2836,12 +2854,6 @@ function buildSpecialDepartmentFields(kind) {
 
   return `
     <div class="dept-special-fields universal-required-fields" data-special-kind="${escapeHTML(kind)}">
-      <div class="dept-special-head">
-        <div>
-          <span class="content-box-eyebrow">${escapeHTML(MZJ_ASSIGNMENT_LABEL)}</span>
-          <strong>تفاصيل المطلوب</strong>
-        </div>
-      </div>
       <div class="universal-required-list" data-universal-required-list>
         ${renderUniversalRequiredItem(kind)}
       </div>
@@ -5108,7 +5120,120 @@ function initCreateTaskFromTemplate() {
     });
   }
 
+  function setMultiSelectValues(select, values) {
+    if (!select) return;
+    const set = new Set((values || []).map((value) => String(value || '').trim()).filter(Boolean));
+    Array.from(select.options || []).forEach((option) => {
+      option.selected = set.has(String(option.value || '').trim()) || set.has(String(option.dataset.userValue || '').trim()) || set.has(String(option.dataset.userEmail || '').trim());
+    });
+  }
+
+  function fillAssignmentFromDepartmentTasks(assignmentRow, groupRows) {
+    const first = groupRows[0] || {};
+    const required = first.requiredText || first.manualRequired || first.notes || first.deliveryDetails || first.taskName || '';
+    const text = assignmentRow.querySelector('[data-universal-required-text]');
+    if (text) text.value = required;
+    const cars = mzjUniqueStrings(groupRows.flatMap((row) => []
+      .concat(row.selectedCars || [])
+      .concat(row.selectedCarValues || [])
+      .concat(row.carType || [])
+      .concat((row.contentItems || []).map((i) => i?.carType))
+      .concat((row.photoItems || []).map((i) => i?.carType))
+    ).filter(Boolean));
+    assignmentRow.querySelectorAll('[data-universal-car-choice]').forEach((input) => {
+      input.checked = cars.some((car) => String(car) === String(input.value));
+      input.closest('.universal-content-type-card, .stock-car-choice-card')?.classList.toggle('is-checked', input.checked);
+    });
+    const types = mzjUniqueStrings(groupRows.flatMap((row) => []
+      .concat(row.selectedContentTypes || [])
+      .concat(row.selectedContentTypeTitles || [])
+      .concat(row.contentType || [])
+      .concat((row.contentItems || []).map((i) => i?.contentType || i?.title))
+      .concat((row.photoItems || []).map((i) => i?.contentType || i?.title))
+    ).filter((v) => v && !/^rct_/i.test(String(v))));
+    const qtyMap = Object.assign({}, ...groupRows.map((row) => row.selectedContentTypeQuantities || row.contentTypeQuantities || {}));
+    assignmentRow.querySelectorAll('[data-universal-content-type]').forEach((input) => {
+      input.checked = types.some((type) => String(type) === String(input.value));
+      const card = input.closest('[data-content-type-card], .universal-content-type-card');
+      card?.classList.toggle('is-checked', input.checked);
+      const qtyWrap = card?.querySelector('[data-content-type-quantity-wrap]');
+      const qtyInput = card?.querySelector('[data-content-type-quantity]');
+      if (qtyWrap) qtyWrap.hidden = !input.checked;
+      if (qtyInput && input.checked) qtyInput.value = qtyMap[input.value] || qtyInput.value || '';
+    });
+    const deptIds = mzjUniqueStrings(groupRows.map((row) => row.departmentId || row.targetDepartmentId || row.departmentName).filter(Boolean));
+    const deptSelect = assignmentRow.querySelector('[data-target-department-select]');
+    setMultiSelectValues(deptSelect, deptIds);
+    renderDepartmentUserMatrix(assignmentRow);
+    const userSelect = assignmentRow.querySelector('[data-user-select]');
+    const userValues = mzjUniqueStrings(groupRows.flatMap((row) => [row.userEmail, row.assigneeEmail, row.userName, row.assigneeName, row.userId, row.userUid]).filter(Boolean));
+    setMultiSelectValues(userSelect, userValues);
+    renderDepartmentUserMatrix(assignmentRow);
+  }
+
+  window.MZJOpenTaskInCreateModalForEdit = async function(task) {
+    if (!task) return;
+    await ensureDepartments();
+    await loadStockCarsForDropdown();
+    openCreateTaskModal();
+    form.dataset.editingTaskId = task.firestoreId || task.id || task.campaignCode || '';
+    form.dataset.editingTaskMode = '1';
+    form.dataset.originalCreatedAt = task.createdAt || '';
+    const title = document.getElementById('createTaskTitle');
+    if (title) title.textContent = 'تعديل حملة أو أجندة';
+    const topSave = document.querySelector('.create-task-save-top');
+    const mainSave = document.getElementById('saveTaskFromTemplate');
+    if (topSave) topSave.textContent = 'حفظ تعديل الحملة / الأجندة';
+    if (mainSave) mainSave.textContent = 'حفظ تعديل الحملة / الأجندة';
+    if (typeSelect) typeSelect.value = task.taskType === 'agenda' ? 'agenda' : 'campaign';
+    applyDateLabels();
+    const setVal = (id, value) => { const el = document.getElementById(id); if (el) el.value = value || ''; };
+    setVal('taskDate', task.taskDate || task.launchDate || task.campaignStartDate || '');
+    setVal('campaignName', task.campaignName || task.agendaName || '');
+    setVal('campaignCode', task.campaignCode || '');
+    if (campaignTypeSelect && task.campaignTypeName) {
+      if (!Array.from(campaignTypeSelect.options).some((opt) => opt.value === task.campaignTypeName)) campaignTypeSelect.insertAdjacentHTML('beforeend', `<option value="${escapeHTML(task.campaignTypeName)}">${escapeHTML(task.campaignTypeName)}</option>`);
+      campaignTypeSelect.value = task.campaignTypeName;
+    }
+    setVal('agendaMonth', task.agendaMonth || '');
+    setVal('agendaYear', task.agendaYear || '');
+    setVal('campaignGoal', task.campaignGoal || '');
+    setVal('campaignStartDate', task.campaignStartDate || task.launchDate || '');
+    setVal('campaignEndDate', task.campaignEndDate || task.endDate || '');
+    setVal('campaignEndDescription', task.campaignEndDescription || task.campaignDescription || '');
+    renderAllDepartments();
+    const deptRow = departmentsList.querySelector('.department-task-row');
+    const list = deptRow?.querySelector('[data-department-assignments-list]');
+    if (list) {
+      list.innerHTML = '';
+      const groups = new Map();
+      (task.departmentTasks || []).forEach((row, idx) => {
+        const key = String(row.assignmentIndex || row.assignmentNo || (idx + 1));
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key).push(row);
+      });
+      const groupValues = Array.from(groups.values());
+      (groupValues.length ? groupValues : [[]]).forEach((rows, index) => {
+        list.insertAdjacentHTML('beforeend', createDepartmentAssignmentHTML({ id: 'content', name: 'قسم المحتوى' }, index + 1));
+        const assignment = list.querySelector('[data-department-assignment-row]:last-child');
+        hydrateAssignmentPickers(assignment);
+        if (rows.length) fillAssignmentFromDepartmentTasks(assignment, rows);
+      });
+      refreshDepartmentAssignmentNumbers(deptRow);
+    }
+    refreshStockCarCheckboxGrids();
+  };
+
   function closeCreateTaskModal() {
+    delete form.dataset.editingTaskId;
+    delete form.dataset.editingTaskMode;
+    delete form.dataset.originalCreatedAt;
+    const title = document.getElementById('createTaskTitle');
+    if (title) title.textContent = 'نموذج إنشاء حملة أو أجندة';
+    const topSave = document.querySelector('.create-task-save-top');
+    const mainSave = document.getElementById('saveTaskFromTemplate');
+    if (topSave) topSave.textContent = 'حفظ الحملة / الأجندة';
+    if (mainSave) mainSave.textContent = 'حفظ الحملة / الأجندة';
     modal.classList.remove('is-open');
     modal.setAttribute('aria-hidden', 'true');
   }
@@ -5628,7 +5753,7 @@ function initCreateTaskFromTemplate() {
 
     const formData = new FormData(form);
     const payload = {
-      id: 'task_' + Date.now(),
+      id: form.dataset.editingTaskId || ('task_' + Date.now()),
       taskType,
       taskTypeLabel: taskType === 'campaign' ? 'حملة' : 'أجندة',
       templateId: selectedTemplate?.id || '',
@@ -5658,7 +5783,8 @@ function initCreateTaskFromTemplate() {
       publishScheduleResult: collectPublishScheduleDetails().map((item) => [item.day, item.date, item.content].filter(Boolean).join(' - ')).join(' | '),
       budgetDetails: collectBudgetDetails(),
       sourceCollection: 'workspace_tasks',
-      createdAt: new Date().toISOString(),
+      createdAt: form.dataset.editingTaskMode === '1' ? (form.dataset.originalCreatedAt || new Date().toISOString()) : new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
       stage: 'required',
       readiness: {},
       publishSteps: []
@@ -5679,20 +5805,23 @@ function initCreateTaskFromTemplate() {
       if (!firebase.apps.length) firebase.initializeApp(window.MZJ_FIREBASE_CONFIG);
       payload.firestoreId = payload.id;
       payload.sourceFirestoreCollection = 'workspace_tasks';
-      await firebase.firestore().collection('workspace_tasks').doc(payload.id).set(payload);
+      await firebase.firestore().collection('workspace_tasks').doc(payload.id).set(payload, { merge: form.dataset.editingTaskMode === '1' });
     } catch (error) {
       console.error('workspace_tasks save failed:', error);
       if (note) note.textContent = '⚠️ فشل الحفظ في Firebase: ' + (error?.message || error?.code || error) + ' — لم يتم الحفظ محلياً.';
       return;
     }
 
-    if (note) note.textContent = '✅ تم حفظ التاسك في Firebase داخل مسار workspace_tasks.';
+    if (note) note.textContent = form.dataset.editingTaskMode === '1' ? '✅ تم حفظ تعديل الحملة في Firebase.' : '✅ تم حفظ التاسك في Firebase داخل مسار workspace_tasks.';
     if (preview) {
       preview.hidden = true;
       preview.innerHTML = '';
     }
     if (typeof window.refreshWorkspaceTasksFromFirestore === 'function') await window.refreshWorkspaceTasksFromFirestore();
     else if (typeof window.renderDashboardTasks === 'function') window.renderDashboardTasks();
+    delete form.dataset.editingTaskId;
+    delete form.dataset.editingTaskMode;
+    delete form.dataset.originalCreatedAt;
     closeCreateTaskModal();
   });
 }
@@ -5835,7 +5964,8 @@ initCreateTaskFromTemplate();
       submittedByUid: user.uid || user.id || '',
       createdByEmail: user.email || '',
       createdByUid: user.uid || user.id || '',
-      createdAt: new Date().toISOString(),
+      createdAt: form.dataset.editingTaskMode === '1' ? (form.dataset.originalCreatedAt || new Date().toISOString()) : new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
     await db.collection(REVIEW_COLLECTION).doc(id).set(payload);
@@ -5985,7 +6115,12 @@ initCreateTaskFromTemplate();
       }
       const editTaskBtn = event.target.closest('[data-edit-calendar-task]');
       if (editTaskBtn) {
-        setCalendarTaskModalEditMode(true);
+        if (activeCalendarTask && window.MZJOpenTaskInCreateModalForEdit) {
+          closeCalendarTaskModal();
+          window.MZJOpenTaskInCreateModalForEdit(activeCalendarTask);
+        } else {
+          setCalendarTaskModalEditMode(true);
+        }
         return;
       }
       const cancelTaskEditBtn = event.target.closest('[data-cancel-calendar-task-edit]');

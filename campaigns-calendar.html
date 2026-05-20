@@ -57,6 +57,204 @@
     <div id="campaignsCalendarApp"></div>
   </main>
 
+  <div class="task-details-modal create-task-modal" id="createTaskModal" aria-hidden="true">
+    <section class="task-details-dialog create-task-dialog create-task-wide" role="dialog" aria-modal="true" aria-labelledby="createTaskTitle">
+      <div class="task-details-head">
+        <div>
+          <p>إنشاء تاسك</p>
+          <h3 id="createTaskTitle">نموذج إنشاء حملة أو أجندة</h3>
+        </div>
+        <div class="create-task-head-actions">
+          <button class="primary-btn create-task-save-top" type="submit" form="createTaskForm">حفظ الحملة / الأجندة</button>
+          <button class="modal-close-btn" type="button" data-close-create-task aria-label="إغلاق">×</button>
+        </div>
+      </div>
+
+      <form id="createTaskForm" class="create-task-form">
+        <section class="create-task-section">
+          <div class="section-title-row">
+            <div>
+              <span class="eyebrow">بيانات التاسك</span>
+              <h4>اختيار النوع وبيانات الحملة</h4>
+            </div>
+            <div class="create-task-template-actions">
+              <button class="soft-btn" type="button" id="uploadFilledTemplateBtn">اختيار الحملة</button>
+              <input id="filledTemplateFile" type="file" accept=".xlsx,.xls,.csv" hidden>
+              <button class="soft-btn" type="button" id="uploadAgendaTemplateBtn">اختيار الأجندة</button>
+              <input id="agendaTemplateFile" type="file" accept=".xlsx,.xls,.csv" hidden>
+              <a class="soft-btn" href="templates.html">إدارة القوالب</a>
+            </div>
+          </div>
+
+          <div class="create-task-grid">
+            <label class="mzj-field">
+              <span>نوع التاسك</span>
+              <select id="createTaskType" name="taskType" required>
+                <option value="">اختار حملة - أجندة</option>
+                <option value="campaign">حملة</option>
+                <option value="agenda">أجندة</option>
+              </select>
+            </label>
+
+            <label class="mzj-field" id="templateSelectWrap" hidden>
+              <span>اختار من قوالب الحملات الموجودة في السيستم</span>
+              <select id="createTaskTemplate" name="templateId">
+                <option value="">اختار Template محفوظ</option>
+              </select>
+            </label>
+
+            <div class="agenda-month-year-row" id="agendaMonthYearWrap" hidden>
+              <label class="mzj-field">
+                <span>شهر الأجندة</span>
+                <select id="agendaMonth" name="agendaMonth">
+                  <option value="01">يناير</option>
+                  <option value="02">فبراير</option>
+                  <option value="03">مارس</option>
+                  <option value="04">أبريل</option>
+                  <option value="05">مايو</option>
+                  <option value="06">يونيو</option>
+                  <option value="07">يوليو</option>
+                  <option value="08">أغسطس</option>
+                  <option value="09">سبتمبر</option>
+                  <option value="10">أكتوبر</option>
+                  <option value="11">نوفمبر</option>
+                  <option value="12">ديسمبر</option>
+                </select>
+              </label>
+              <label class="mzj-field">
+                <span>سنة الأجندة</span>
+                <select id="agendaYear" name="agendaYear"></select>
+              </label>
+            </div>
+
+            <label class="mzj-field">
+              <span>التاريخ</span>
+              <input type="date" id="taskDate" name="taskDate">
+            </label>
+
+            <label class="mzj-field">
+              <span>اسم الحملة / الأجندة</span>
+              <input type="text" id="campaignName" name="campaignName" placeholder="اكتب الاسم">
+            </label>
+
+            <label class="mzj-field code-field-wrap">
+              <span>كود الحملة / الأجندة</span>
+              <div class="code-inline-row">
+                <input type="text" id="campaignCode" name="campaignCode" readonly placeholder="يتم توليده تلقائيًا">
+                <button class="soft-btn" type="button" id="generateCampaignCodeBtn">توليد</button>
+              </div>
+            </label>
+
+            <label class="mzj-field">
+              <span>نوع الحملة / الأجندة</span>
+              <select id="campaignTypeName" name="campaignTypeName">
+                <option value="">اختار نوع الحملة</option>
+              </select>
+            </label>
+
+            <div class="campaign-type-add-row">
+              <label class="mzj-field">
+                <span>إضافة نوع جديد</span>
+                <input type="text" id="newCampaignTypeName" placeholder="اكتب نوع جديد لو مش موجود">
+              </label>
+              <button class="soft-btn" type="button" id="addCampaignTypeBtn">حفظ النوع</button>
+            </div>
+
+            <label class="mzj-field">
+              <span>الهدف من الحملة</span>
+              <input type="text" id="campaignGoal" name="campaignGoal" placeholder="اكتب الهدف">
+            </label>
+
+            <label class="mzj-field">
+              <span id="campaignStartDateLabel">تاريخ بداية الحملة</span>
+              <input type="date" id="campaignStartDate" name="campaignStartDate">
+            </label>
+
+            <label class="mzj-field">
+              <span id="campaignEndDateLabel">تاريخ نهاية الحملة</span>
+              <input type="date" id="campaignEndDate" name="campaignEndDate">
+            </label>
+
+            <label class="mzj-field full-width-field">
+              <span>شرح تحت نهاية الحملة</span>
+              <textarea id="campaignEndDescription" name="campaignEndDescription" rows="3" placeholder="اكتب شرح أو ملاحظات تظهر مع نهاية الحملة"></textarea>
+            </label>
+          </div>
+
+          <div class="template-preview-box is-hidden" id="createTaskTemplatePreview" hidden></div>
+          <div class="template-fields-form is-hidden" id="templateFieldsForm" hidden>
+            <div class="template-fields-input-grid" id="templateFieldsInputGrid"></div>
+          </div>
+        </section>
+
+        <section class="create-task-section imported-campaign-context" id="importedCampaignLogicSection" hidden>
+          <div class="section-title-row">
+            <div>
+              <span class="eyebrow">campaign logic</span>
+              <h4>Campaign Logic وقواعد كتابة المحتوى من الشيت</h4>
+              <p>القسم ده بيتغير حسب الشيت المرفوع، وقواعد الكتابة بتتقرأ من نفس شيت محتوى الحملة.</p>
+            </div>
+          </div>
+          <div id="importedCampaignLogicBox" class="imported-campaign-logic-box"></div>
+        </section>
+
+        <section class="create-task-section">
+          <div class="section-title-row">
+            <div>
+              <span class="eyebrow">التكليفات</span>
+              <h4>قسم المحتوى</h4>
+            </div>
+            
+          </div>
+
+          <div class="department-task-list" id="departmentTaskList"></div>
+          <datalist id="stockCarsDatalist"></datalist>
+        </section>
+
+        <section class="create-task-section publish-budget-section">
+          <div class="schedule-builder-card">
+            <div class="section-title-row compact-title-row">
+              <div>
+                <span class="eyebrow">إنشاء جدول النشر</span>
+                <h4>جدول النشر</h4>
+                <p>اضغط إضافة يوم، اختار اليوم والتاريخ، واكتب ما سيتم نشره في التاريخ ده.</p>
+              </div>
+              <button class="soft-btn" type="button" id="addPublishScheduleRow">إنشاء / تحديث التقويم</button>
+            </div>
+            <div id="publishScheduleRows" class="publish-schedule-rows"></div>
+          </div>
+
+          <div class="budget-builder-card budget-items-card">
+            <div class="section-title-row compact-title-row">
+              <div>
+                <span class="eyebrow">الميزانية</span>
+                <h4>الميزانية</h4>
+                <p>كل بند ميزانية: Funnel، المنتج، المنصة، والقيمة. تقدر تضيف Funnel جديد ويتحفظ في السيستم.</p>
+              </div>
+              <button class="soft-btn" type="button" id="addBudgetItem">+ إضافة بند ميزانية</button>
+            </div>
+
+            <div id="budgetItemsList" class="budget-items-list"></div>
+
+            <div class="budget-total-box budget-grand-total-box">
+              <span>إجمالي الميزانية</span>
+              <strong id="budgetGrandTotalValue">0</strong>
+            </div>
+          </div>
+        </section>
+
+        <div class="task-card-actions create-task-actions">
+          <button class="ghost-btn" type="button" data-close-create-task>إلغاء</button>
+          <button class="primary-btn create-task-main-save" type="submit" id="saveTaskFromTemplate">حفظ الحملة / الأجندة</button>
+        </div>
+
+        <p class="admin-only-note" id="createTaskFormNote">الحفظ يتم على Firebase فقط داخل مسار workspace_tasks. لو فشل الحفظ لن يتم حفظ أي نسخة محلية.</p>
+      </form>
+    </section>
+  </div>
+
+
+
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>

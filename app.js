@@ -6237,6 +6237,7 @@ initCreateTaskFromTemplate();
       campaignGoal: task.campaignGoal || task.goal || task.objective || '',
       launchDate: task.launchDate || task.campaignLaunchDate || task.publishDate || task.date || task.dueDate || '',
       departmentTasks: deptTasks.map((d, i) => ({
+        ...d,
         enabled: d.enabled !== false,
         departmentId: d.departmentId || d.id || d.department || d.section || ('dept_' + i),
         departmentName: d.departmentName || d.name || d.department || d.sectionName || d.section || 'قسم',

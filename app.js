@@ -575,6 +575,40 @@ function parseContentTypesFromTaskText(value) {
   return mzjUniqueStrings(found.filter(Boolean));
 }
 
+
+function mergeTaskDetailDeptData(primary, secondary) {
+  const a = primary && typeof primary === 'object' ? primary : {};
+  const b = secondary && typeof secondary === 'object' ? secondary : {};
+  const merged = { ...a, ...b };
+  const pickArrays = (key) => mzjUniqueStrings([
+    ...(Array.isArray(a?.[key]) ? a[key] : []),
+    ...(Array.isArray(b?.[key]) ? b[key] : [])
+  ]);
+  ['selectedCars','selectedCarValues','selectedContentTypes','selectedContentTypeTitles','contentItems','photoItems','selectedDeliverables'].forEach((key) => {
+    const arr = pickArrays(key);
+    if (arr.length) merged[key] = arr;
+  });
+  merged.requiredDetails = { ...(a.requiredDetails || {}), ...(b.requiredDetails || {}) };
+  ['selectedCars','selectedCarValues','selectedContentTypes','selectedContentTypeTitles','items','deliverables'].forEach((key) => {
+    const arr = mzjUniqueStrings([
+      ...(Array.isArray(a.requiredDetails?.[key]) ? a.requiredDetails[key] : []),
+      ...(Array.isArray(b.requiredDetails?.[key]) ? b.requiredDetails[key] : [])
+    ]);
+    if (arr.length) merged.requiredDetails[key] = arr;
+  });
+  const preferText = (key) => {
+    const av = String(a?.[key] || '').trim();
+    const bv = String(b?.[key] || '').trim();
+    if (av && bv && av !== bv) return bv;
+    return bv || av || '';
+  };
+  ['carType','contentType','requiredText','deliveryDetails','notes','taskName','requiredTaskName','departmentName','departmentId','userName','userDisplayName','userEmail','assigneeName','assigneeEmail','assigneeUid','userId','userUid'].forEach((key) => {
+    const value = preferText(key);
+    if (value) merged[key] = value;
+  });
+  return merged;
+}
+
 function renderTaskDetailsSummary(deptTask, deptKeyValue) {
   const safeTask = deptTask || {};
   const items = normalizeDepartmentContentItems(safeTask);
@@ -1363,13 +1397,16 @@ function openTaskDetails(button) {
     campaignCode: activeTaskCard?.dataset.campaignCode || '',
     taskType: activeTaskCard?.dataset.taskType || '',
     deptData: deptDataFromButton,
-    relatedAssignments: assignments.map(({ dept, index }) => ({
-      deptIdentity: mzjDetailsDeptIdentity(dept),
-      readinessKey: mzjDetailsReadinessKey(dept, index),
-      legacyReadinessKey: mzjDetailsLegacyReadinessKey(dept),
-      deptIndex: index,
-      deptData: dept
-    }))
+    relatedAssignments: assignments.map(({ dept, index }, assignmentIndex) => {
+      const mergedDept = assignmentIndex === 0 ? mergeTaskDetailDeptData(dept, deptDataFromButton || clickedDept) : dept;
+      return {
+        deptIdentity: mzjDetailsDeptIdentity(mergedDept),
+        readinessKey: mzjDetailsReadinessKey(mergedDept, index),
+        legacyReadinessKey: mzjDetailsLegacyReadinessKey(mergedDept),
+        deptIndex: index,
+        deptData: mergedDept
+      };
+    })
   };
 
   if (taskDetailsDept) taskDetailsDept.textContent = button.dataset.dept || 'تفاصيل القسم';
@@ -1383,7 +1420,9 @@ function openTaskDetails(button) {
 
   const renderSelectedRequirement = (assignmentIndex = 0) => {
     const selectedAssignment = assignments[assignmentIndex] || assignments[0] || { dept: clickedDept };
-    const selectedDeptForRender = (deptDataFromButton && deptDataFromButton.__contentTypeFilter && assignmentIndex === 0) ? deptDataFromButton : selectedAssignment.dept;
+    const selectedDeptForRender = assignmentIndex === 0
+      ? mergeTaskDetailDeptData(selectedAssignment.dept, deptDataFromButton || clickedDept)
+      : selectedAssignment.dept;
     if (taskDetailsRequired) {
       taskDetailsRequired.innerHTML = renderTaskDetailsSummary(selectedDeptForRender, deptKeyValue) || renderStructuredDepartmentRequirement(selectedDeptForRender, deptKeyValue) || renderTaskRequirementDetails(formatDepartmentRequirement(selectedDeptForRender), deptKeyValue);
     }
@@ -6440,8 +6479,27 @@ initCreateTaskFromTemplate();
             const departmentShare = Math.round((100 / deptCount) * 100) / 100;
             const percent = taskDeptProgress(task, d, realIndex);
             const requirement = formatDepartmentRequirement(d);
+            const readinessItems = normalizeDepartmentContentItems(d);
+            const readinessCars = mzjUniqueStrings([
+              ...(Array.isArray(d.selectedCars) ? d.selectedCars : []),
+              ...(Array.isArray(d.selectedCarValues) ? d.selectedCarValues : []),
+              ...(Array.isArray(d.requiredDetails?.selectedCars) ? d.requiredDetails.selectedCars : []),
+              ...(Array.isArray(d.requiredDetails?.selectedCarValues) ? d.requiredDetails.selectedCarValues : []),
+              ...readinessItems.map((item) => item.carType),
+              ...mzjSplitMultiValue(d.carType)
+            ].map((value) => String(value || '').trim()).filter(Boolean));
+            const readinessTypes = mzjUniqueStrings([
+              ...(Array.isArray(d.selectedContentTypes) ? d.selectedContentTypes : []),
+              ...(Array.isArray(d.selectedContentTypeTitles) ? d.selectedContentTypeTitles : []),
+              ...(Array.isArray(d.requiredDetails?.selectedContentTypes) ? d.requiredDetails.selectedContentTypes : []),
+              ...(Array.isArray(d.requiredDetails?.selectedContentTypeTitles) ? d.requiredDetails.selectedContentTypeTitles : []),
+              ...readinessItems.map((item) => item.contentType),
+              ...mzjSplitMultiValue(d.contentType)
+            ].map((value) => String(value || '').trim()).filter(Boolean));
+            const readinessCarsJson = encodeURIComponent(JSON.stringify(readinessCars));
+            const readinessTypesJson = encodeURIComponent(JSON.stringify(readinessTypes));
             return `<div class="readiness-dept-item" data-dept-task-card data-task-id="${esc(task.id)}" data-task-type="${esc(task.taskTypeLabel || task.taskType || '')}" data-campaign-code="${esc(task.campaignCode || '')}" data-readiness-key="${esc(key)}" data-legacy-readiness-key="${esc(legacyDeptReadinessKey(d))}" data-dept-identity="${esc(deptIdentity(d))}" data-dept-key="${esc(dkey)}" data-department-share="${esc(departmentShare)}" data-group-count="1" data-completed-steps="${esc(selected)}">
-              <button type="button" class="readiness-open-details" data-open-task-details data-task-id="${esc(task.id)}" data-dept-index="${esc(realIndex)}" data-readiness-key="${esc(key)}" data-dept-key="${esc(dkey)}" data-dept="${esc(d.departmentName || 'قسم')}" data-task-title="${esc(taskTitle(task))}" data-required="${esc(requirement)}" data-dept-task-json="${esc(encodeURIComponent(JSON.stringify(d || {})))}" data-steps="${esc(steps)}">
+              <button type="button" class="readiness-open-details" data-open-task-details data-task-id="${esc(task.id)}" data-dept-index="${esc(realIndex)}" data-readiness-key="${esc(key)}" data-dept-key="${esc(dkey)}" data-dept="${esc(d.departmentName || 'قسم')}" data-task-title="${esc(taskTitle(task))}" data-required="${esc(requirement)}" data-dept-task-json="${esc(encodeURIComponent(JSON.stringify(d || {})))}" data-selected-cars-json="${esc(readinessCarsJson)}" data-selected-content-types-json="${esc(readinessTypesJson)}" data-steps="${esc(steps)}">
                 <strong>${esc(d.departmentName || 'قسم')}</strong>
                 <b class="dept-task-short-name">${esc(departmentTaskShortName(d))}</b>
                 <small>${percent}%</small>

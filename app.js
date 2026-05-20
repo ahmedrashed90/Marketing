@@ -1250,6 +1250,17 @@ function mzjDetailsReadTasks() {
   return [];
 }
 
+
+function mzjDecodeJsonDataAttr(value, fallback = []) {
+  if (!value) return fallback;
+  try {
+    const parsed = JSON.parse(decodeURIComponent(String(value)));
+    return Array.isArray(parsed) ? parsed : fallback;
+  } catch (error) {
+    return fallback;
+  }
+}
+
 function openTaskDetails(button) {
   if (!taskDetailsModal || !taskStepButtons) return;
 
@@ -1259,6 +1270,30 @@ function openTaskDetails(button) {
     deptDataFromButton = button.dataset.deptTaskJson ? JSON.parse(decodeURIComponent(button.dataset.deptTaskJson)) : null;
   } catch (error) {
     deptDataFromButton = null;
+  }
+
+  const datasetCars = mzjDecodeJsonDataAttr(button.dataset.selectedCarsJson || '', []);
+  const datasetContentTypes = mzjDecodeJsonDataAttr(button.dataset.selectedContentTypesJson || '', []);
+  if (deptDataFromButton && (datasetCars.length || datasetContentTypes.length)) {
+    const existingItems = normalizeDepartmentContentItems(deptDataFromButton);
+    const carsForItems = datasetCars.length ? datasetCars : mzjUniqueStrings(existingItems.map((item) => item.carType));
+    const typesForItems = datasetContentTypes.length ? datasetContentTypes : mzjUniqueStrings(existingItems.map((item) => item.contentType));
+    const manualRequired = cleanTaskRequiredDisplayText(deptDataFromButton?.requiredText || deptDataFromButton?.requiredDetails?.manualRequired || deptDataFromButton?.deliveryDetails || '');
+    const rebuiltItems = [];
+    (carsForItems.length ? carsForItems : ['']).forEach((car) => {
+      (typesForItems.length ? typesForItems : ['']).forEach((type) => {
+        if (car || type || manualRequired) rebuiltItems.push({ carType: car, contentType: type, requiredText: manualRequired, printSize: deptDataFromButton?.printSize || '' });
+      });
+    });
+    deptDataFromButton = {
+      ...deptDataFromButton,
+      selectedCars: datasetCars.length ? datasetCars : (deptDataFromButton.selectedCars || []),
+      selectedContentTypes: datasetContentTypes.length ? datasetContentTypes : (deptDataFromButton.selectedContentTypes || []),
+      contentItems: rebuiltItems.length ? rebuiltItems : (deptDataFromButton.contentItems || existingItems),
+      photoItems: deptKeyValue === 'shooting' && rebuiltItems.length ? rebuiltItems : deptDataFromButton.photoItems,
+      carType: datasetCars.length ? datasetCars.join('، ') : (deptDataFromButton.carType || ''),
+      contentType: datasetContentTypes.length ? datasetContentTypes.join('، ') : (deptDataFromButton.contentType || '')
+    };
   }
 
   const taskId = button.dataset.taskId || activeTaskCard?.dataset.taskId || activeTaskCard?.dataset.dashTaskId || '';
@@ -6478,6 +6513,21 @@ initCreateTaskFromTemplate();
     const key = dashboardDeptReadinessKey(deptTask, deptIndex);
     const selected = readinessStepsForDept(task, deptTask, deptIndex).join(',');
     const departmentShare = Math.round((100 / Math.max((task.departmentTasks||[]).length,1)) * 100) / 100;
+    const detailItems = normalizeDepartmentContentItems(deptTask);
+    const detailCars = mzjUniqueStrings([
+      ...(Array.isArray(deptTask.selectedCars) ? deptTask.selectedCars : []),
+      ...(Array.isArray(deptTask.requiredDetails?.selectedCars) ? deptTask.requiredDetails.selectedCars : []),
+      ...detailItems.map((item) => item.carType),
+      ...mzjSplitMultiValue(deptTask.carType)
+    ]);
+    const detailTypes = mzjUniqueStrings([
+      ...(Array.isArray(deptTask.selectedContentTypes) ? deptTask.selectedContentTypes : []),
+      ...(Array.isArray(deptTask.requiredDetails?.selectedContentTypes) ? deptTask.requiredDetails.selectedContentTypes : []),
+      ...detailItems.map((item) => item.contentType),
+      ...mzjSplitMultiValue(deptTask.contentType)
+    ]);
+    const detailCarsJson = encodeURIComponent(JSON.stringify(detailCars));
+    const detailTypesJson = encodeURIComponent(JSON.stringify(detailTypes));
     return `<article class="department-task-card dynamic-dashboard-card user-task-card-clean" data-dept-task-card data-task-id="${esc(task.id)}" data-task-type="${esc(task.taskTypeLabel || task.taskType || '')}" data-campaign-code="${esc(task.campaignCode || '')}" data-readiness-key="${esc(key)}" data-legacy-readiness-key="${esc(legacyDeptReadinessKey(deptTask))}" data-dept-identity="${esc(deptIdentity(deptTask))}" data-dept-key="${esc(dkey)}" data-department-share="${esc(departmentShare)}" data-completed-steps="${esc(selected)}">
       <div class="task-template-top user-task-title-only"><strong>${esc(taskTitle(task))}</strong><span class="user-task-short-name">${esc(groupDepts.length > 1 ? `${groupDepts.length} تكليفات` : departmentTaskShortName(deptTask))}</span></div>
       <div class="department-task-meta labeled-task-meta user-task-meta-clean">
@@ -6489,7 +6539,7 @@ initCreateTaskFromTemplate();
       </div>
       <div class="department-progress-row"><div class="department-progress-box"><small>اكتمال التاسك</small><strong data-task-percent>${p}%</strong></div><div class="department-progress-box"><small>نسبة الحملة</small><strong data-campaign-percent>${groupCampaignPercent}%</strong></div></div>
       <div class="mini-progress"><span data-task-bar style="width:${p}%"></span></div>
-      <div class="task-card-actions"><button class="details-btn" type="button" data-open-task-details data-dept-index="${esc(deptIndex)}" data-readiness-key="${esc(key)}" data-dept-key="${esc(dkey)}" data-dept="${esc(deptTask.departmentName || 'قسم')}" data-task-title="${esc(taskTitle(task))}" data-required="${esc(formatDepartmentRequirement(deptTask))}" data-dept-task-json="${esc(encodeURIComponent(JSON.stringify(deptTask || {})))}" data-steps="${esc(steps)}">تفاصيل</button><button class="soft-btn receive-task-btn ${(deptTask.receivedConfirmed || deptTask.received || deptTask.receivedAt) ? 'is-done' : ''}" type="button" data-receive-task data-task-id="${esc(task.id)}" data-dept-index="${esc(deptIndex)}" data-readiness-key="${esc(key)}" data-dept-identity="${esc(deptIdentity(deptTask))}" ${(deptTask.receivedConfirmed || deptTask.received || deptTask.receivedAt) ? 'disabled' : ''}>${(deptTask.receivedConfirmed || deptTask.received || deptTask.receivedAt) ? 'تم تأكيد الاستلام' : 'تأكيد استلام التاسك'}</button></div>
+      <div class="task-card-actions"><button class="details-btn" type="button" data-open-task-details data-dept-index="${esc(deptIndex)}" data-readiness-key="${esc(key)}" data-dept-key="${esc(dkey)}" data-dept="${esc(deptTask.departmentName || 'قسم')}" data-task-title="${esc(taskTitle(task))}" data-required="${esc(formatDepartmentRequirement(deptTask))}" data-dept-task-json="${esc(encodeURIComponent(JSON.stringify(deptTask || {})))}" data-selected-cars-json="${esc(detailCarsJson)}" data-selected-content-types-json="${esc(detailTypesJson)}" data-steps="${esc(steps)}">تفاصيل</button><button class="soft-btn receive-task-btn ${(deptTask.receivedConfirmed || deptTask.received || deptTask.receivedAt) ? 'is-done' : ''}" type="button" data-receive-task data-task-id="${esc(task.id)}" data-dept-index="${esc(deptIndex)}" data-readiness-key="${esc(key)}" data-dept-identity="${esc(deptIdentity(deptTask))}" ${(deptTask.receivedConfirmed || deptTask.received || deptTask.receivedAt) ? 'disabled' : ''}>${(deptTask.receivedConfirmed || deptTask.received || deptTask.receivedAt) ? 'تم تأكيد الاستلام' : 'تأكيد استلام التاسك'}</button></div>
     </article>`;
   }
 
@@ -6538,6 +6588,9 @@ initCreateTaskFromTemplate();
     const taskRows = entries.map((entry, rowIndex) => {
       const filteredDept = dashboardFilteredDeptByContentType(entry.dept, group.contentType);
       const cars = mzjUniqueStrings(normalizeDepartmentContentItems(filteredDept).map((item) => item.carType));
+      const rowContentTypes = group.contentType ? [group.contentType] : mzjUniqueStrings(normalizeDepartmentContentItems(filteredDept).map((item) => item.contentType));
+      const rowCarsJson = encodeURIComponent(JSON.stringify(cars));
+      const rowContentTypesJson = encodeURIComponent(JSON.stringify(rowContentTypes));
       const key = dashboardDeptReadinessKey(entry.dept, entry.index);
       const selected = readinessStepsForDept(entry.task, entry.dept, entry.index).join(',');
       const dkey = deptKey(entry.dept.departmentName);
@@ -6546,7 +6599,7 @@ initCreateTaskFromTemplate();
           <b>${esc(entry.task.campaignName || taskTitle(entry.task) || `تاسك ${rowIndex + 1}`)}</b>
           <small>${esc(cars.length ? cars.join('، ') : departmentTaskShortName(entry.dept))}</small>
         </div>
-        <button class="details-btn" type="button" data-open-task-details data-task-id="${esc(entry.task.id)}" data-dept-index="${esc(entry.index)}" data-readiness-key="${esc(key)}" data-dept-identity="${esc(deptIdentity(entry.dept))}" data-dept-key="${esc(dkey)}" data-dept="${esc(entry.dept.departmentName || 'قسم')}" data-task-title="${esc(taskTitle(entry.task))}" data-required="${esc(formatDepartmentRequirement(filteredDept))}" data-dept-task-json="${esc(encodeURIComponent(JSON.stringify(filteredDept || {})))}" data-steps="${esc(steps)}" data-completed-steps="${esc(selected)}">تفاصيل</button>
+        <button class="details-btn" type="button" data-open-task-details data-task-id="${esc(entry.task.id)}" data-dept-index="${esc(entry.index)}" data-readiness-key="${esc(key)}" data-dept-identity="${esc(deptIdentity(entry.dept))}" data-dept-key="${esc(dkey)}" data-dept="${esc(entry.dept.departmentName || 'قسم')}" data-task-title="${esc(taskTitle(entry.task))}" data-required="${esc(formatDepartmentRequirement(filteredDept))}" data-dept-task-json="${esc(encodeURIComponent(JSON.stringify(filteredDept || {})))}" data-selected-cars-json="${esc(rowCarsJson)}" data-selected-content-types-json="${esc(rowContentTypesJson)}" data-steps="${esc(steps)}" data-completed-steps="${esc(selected)}">تفاصيل</button>
       </article>`;
     }).join('');
     return `<article class="department-task-card dynamic-dashboard-card user-content-type-group-card" data-dept-task-card data-task-id="${esc(firstTask.id || '')}" data-task-type="${esc(firstTask.taskTypeLabel || firstTask.taskType || '')}" data-campaign-code="${esc(firstTask.campaignCode || '')}" data-readiness-key="${esc(first.dept ? dashboardDeptReadinessKey(first.dept, first.index || 0) : '')}" data-legacy-readiness-key="${esc(first.dept ? legacyDeptReadinessKey(first.dept) : '')}" data-dept-identity="${esc(first.dept ? deptIdentity(first.dept) : '')}" data-dept-key="${esc(listKey)}" data-department-share="${esc(100 / Math.max(entries.length, 1))}" data-completed-steps="">

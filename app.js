@@ -352,6 +352,94 @@ function departmentTaskShortName(deptTask) {
   return 'تكليف بدون اسم';
 }
 
+
+
+function mzjSplitMultiValue(value) {
+  const text = String(value || '').trim();
+  if (!text) return [];
+  return text.split(/\s*،\s*/g).map((item) => item.trim()).filter(Boolean);
+}
+
+function mzjUniqueStrings(items) {
+  const seen = new Set();
+  return (items || []).map((item) => String(item || '').replace(/\s+/g, ' ').trim()).filter(Boolean).filter((item) => {
+    const key = item.toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function normalizeDepartmentContentItems(deptTask) {
+  const directSources = [];
+  if (Array.isArray(deptTask?.contentItems)) directSources.push(...deptTask.contentItems);
+  if (Array.isArray(deptTask?.photoItems)) directSources.push(...deptTask.photoItems);
+  if (Array.isArray(deptTask?.requiredDetails?.items)) directSources.push(...deptTask.requiredDetails.items);
+  if (Array.isArray(deptTask?.selectedDeliverables)) {
+    deptTask.selectedDeliverables.forEach((item) => directSources.push({
+      contentType: item?.contentType || item?.title || item?.name || item?.deliverable || '',
+      carType: item?.carType || '',
+      requiredText: item?.requiredText || item?.details || item?.desc || '',
+      printSize: item?.printSize || ''
+    }));
+  }
+
+  let items = directSources.map((item) => ({
+    contentType: String(item?.contentType || item?.title || item?.name || item?.deliverable || '').trim(),
+    carType: String(item?.carType || item?.car || item?.vehicle || '').trim(),
+    requiredText: String(item?.requiredText || item?.notes || item?.details || '').trim(),
+    printSize: String(item?.printSize || item?.size || '').trim(),
+    details: String(item?.details || item?.desc || '').trim()
+  })).filter((item) => item.contentType || item.carType || item.requiredText || item.printSize || item.details);
+
+  if (!items.length) {
+    const cars = mzjSplitMultiValue(deptTask?.carType);
+    const types = mzjSplitMultiValue(deptTask?.contentType);
+    const requiredText = String(deptTask?.requiredText || deptTask?.deliveryDetails || deptTask?.required || '').trim();
+    const carList = cars.length ? cars : [''];
+    const typeList = types.length ? types : [''];
+    carList.forEach((car) => {
+      typeList.forEach((type) => {
+        if (car || type || requiredText) items.push({ carType: car, contentType: type, requiredText, printSize: String(deptTask?.printSize || '').trim(), details: '' });
+      });
+    });
+  }
+
+  const seen = new Set();
+  return items.filter((item) => {
+    const key = [item.contentType, item.carType, item.requiredText, item.printSize].map((v) => String(v || '').trim().toLowerCase()).join('::');
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function renderStructuredDepartmentRequirement(deptTask, deptKeyValue) {
+  const items = normalizeDepartmentContentItems(deptTask);
+  if (!items.length) return '';
+  const groups = new Map();
+  items.forEach((item) => {
+    const type = item.contentType || deptTask?.contentType || 'مطلوب';
+    if (!groups.has(type)) groups.set(type, []);
+    groups.get(type).push(item);
+  });
+  const html = Array.from(groups.entries()).map(([type, groupItems]) => {
+    const cars = mzjUniqueStrings(groupItems.map((item) => item.carType));
+    const notes = mzjUniqueStrings(groupItems.map((item) => item.requiredText).filter((text) => !/^اسم التاسك\s*:/i.test(text)));
+    const sizes = mzjUniqueStrings(groupItems.map((item) => item.printSize));
+    return `<article class="content-type-detail-card">
+      <div class="content-type-detail-head">
+        <strong>${escapeHTML(type || 'مطلوب')}</strong>
+        <span>${cars.length || groupItems.length} عنصر</span>
+      </div>
+      ${cars.length ? `<div class="content-type-car-list">${cars.map((car) => `<span class="content-type-car-chip">${escapeHTML(car)}</span>`).join('')}</div>` : ''}
+      ${sizes.length ? `<div class="content-type-size-list"><small>المقاس</small><b>${escapeHTML(sizes.join('، '))}</b></div>` : ''}
+      ${notes.length ? `<div class="content-type-notes">${notes.map((note) => `<p>${escapeHTML(note)}</p>`).join('')}</div>` : ''}
+    </article>`;
+  }).join('');
+  return `<div class="content-type-detail-grid">${html}</div>`;
+}
+
 function renderTaskRequirementDetails(requiredText, deptKeyValue) {
   const clean = String(requiredText || '').trim();
   if (!clean) return '<span class="task-required-line">لا يوجد مطلوب مكتوب</span>';
@@ -960,7 +1048,7 @@ function openTaskDetails(button) {
 
   const taskId = button.dataset.taskId || activeTaskCard?.dataset.taskId || activeTaskCard?.dataset.dashTaskId || '';
   const deptKeyValue = button.dataset.deptKey || '';
-  const clickedIdentity = activeTaskCard?.dataset.deptIdentity || mzjDetailsDeptIdentity(deptDataFromButton || {});
+  const clickedIdentity = button.dataset.deptIdentity || activeTaskCard?.dataset.deptIdentity || mzjDetailsDeptIdentity(deptDataFromButton || {});
   const allTasks = mzjDetailsReadTasks();
   let fullTask = allTasks.find((task) => String(task.id) === String(taskId));
   if (!fullTask && taskId) {
@@ -1023,8 +1111,9 @@ function openTaskDetails(button) {
 
   const renderSelectedRequirement = (assignmentIndex = 0) => {
     const selectedAssignment = assignments[assignmentIndex] || assignments[0] || { dept: clickedDept };
+    const selectedDeptForRender = (deptDataFromButton && deptDataFromButton.__contentTypeFilter && assignmentIndex === 0) ? deptDataFromButton : selectedAssignment.dept;
     if (taskDetailsRequired) {
-      taskDetailsRequired.innerHTML = renderTaskRequirementDetails(formatDepartmentRequirement(selectedAssignment.dept), deptKeyValue);
+      taskDetailsRequired.innerHTML = renderStructuredDepartmentRequirement(selectedDeptForRender, deptKeyValue) || renderTaskRequirementDetails(formatDepartmentRequirement(selectedDeptForRender), deptKeyValue);
     }
   };
   renderSelectedRequirement(0);
@@ -4334,7 +4423,8 @@ function initCreateTaskFromTemplate() {
   }
 
   function collectSpecialDepartmentDetails(row, kind) {
-    const items = Array.from(row.querySelectorAll('[data-universal-required-item]')).map((item) => {
+    const items = [];
+    Array.from(row.querySelectorAll('[data-universal-required-item]')).forEach((item) => {
       const selectedTypes = Array.from(item.querySelectorAll('[data-universal-content-type]:checked')).map((input) => ({
         title: input.value.trim(),
         id: input.dataset.id || '',
@@ -4342,29 +4432,46 @@ function initCreateTaskFromTemplate() {
       })).filter((entry) => entry.title);
       const manualRequired = item.querySelector('[data-universal-required-text]')?.value.trim() || item.querySelector('[data-universal-car-type]')?.value.trim() || '';
       const selectedCars = Array.from(item.querySelectorAll('[data-universal-car-choice]:checked')).map((input) => input.value.trim()).filter(Boolean);
-      const carOrRequired = selectedCars.join('، ');
-      return {
-        requiredText: manualRequired,
-        carType: carOrRequired,
-        contentTypes: selectedTypes,
-        contentType: selectedTypes.map((entry) => entry.title).join('، '),
-        contentTypeId: selectedTypes.map((entry) => entry.id).filter(Boolean).join(','),
-        details: selectedTypes.map((entry) => entry.details).filter(Boolean).join(' | '),
-        printSize: item.querySelector('[data-universal-print-size]')?.value.trim() || ''
-      };
-    }).filter((item) => item.requiredText || item.carType || item.contentType || item.printSize);
+      const printSize = item.querySelector('[data-universal-print-size]')?.value.trim() || '';
 
-    const requiredText = items.map((item, index) => [
+      const carList = selectedCars.length ? selectedCars : [''];
+      const typeList = selectedTypes.length ? selectedTypes : [{ title: '', id: '', details: '' }];
+      carList.forEach((car) => {
+        typeList.forEach((typeEntry) => {
+          const rowItem = {
+            requiredText: manualRequired,
+            carType: car,
+            contentTypes: typeEntry.title ? [typeEntry] : [],
+            contentType: typeEntry.title || '',
+            contentTypeId: typeEntry.id || '',
+            details: typeEntry.details || '',
+            printSize
+          };
+          if (rowItem.requiredText || rowItem.carType || rowItem.contentType || rowItem.printSize) items.push(rowItem);
+        });
+      });
+    });
+
+    const seen = new Set();
+    const uniqueItems = items.filter((item) => {
+      const key = [item.requiredText, item.carType, item.contentType, item.printSize].map((value) => String(value || '').trim().toLowerCase()).join('::');
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+
+    const requiredText = uniqueItems.map((item, index) => [
       `مطلوب ${index + 1}`,
       item.requiredText ? `المطلوب: ${item.requiredText}` : '',
-      item.carType ? `السيارة / المطلوب: ${item.carType}` : '',
+      item.carType ? `السيارة: ${item.carType}` : '',
       item.contentType ? `نوع المحتوى: ${item.contentType}` : '',
       item.printSize ? `المقاس: ${item.printSize}` : ''
     ].filter(Boolean).join(' — ')).join(' | ');
 
-    const deliverables = items.map((item) => ({
+    const deliverables = uniqueItems.map((item) => ({
       title: item.contentType || item.requiredText || 'مطلوب',
-      details: [item.details, item.carType ? `السيارة / المطلوب: ${item.carType}` : '', item.printSize ? `المقاس: ${item.printSize}` : '', item.requiredText].filter(Boolean).join(' — '),
+      contentType: item.contentType,
+      details: [item.details, item.carType ? `السيارة: ${item.carType}` : '', item.printSize ? `المقاس: ${item.printSize}` : '', item.requiredText].filter(Boolean).join(' — '),
       carType: item.carType,
       printSize: item.printSize,
       requiredText: item.requiredText,
@@ -4373,12 +4480,12 @@ function initCreateTaskFromTemplate() {
 
     return {
       kind,
-      items,
+      items: uniqueItems,
       deliverables,
-      contentType: items.map((item) => item.contentType).filter(Boolean).join('، '),
-      carType: items.map((item) => item.carType).filter(Boolean).join('، '),
-      printSize: items.map((item) => item.printSize).filter(Boolean).join('، '),
-      notes: items.map((item) => item.requiredText).filter(Boolean).join(' | '),
+      contentType: mzjUniqueStrings(uniqueItems.map((item) => item.contentType)).join('، '),
+      carType: mzjUniqueStrings(uniqueItems.map((item) => item.carType)).join('، '),
+      printSize: mzjUniqueStrings(uniqueItems.map((item) => item.printSize)).join('، '),
+      notes: mzjUniqueStrings(uniqueItems.map((item) => item.requiredText)).join(' | '),
       requiredText
     };
   }
@@ -6196,6 +6303,71 @@ initCreateTaskFromTemplate();
     </article>`;
   }
 
+
+
+  function dashboardContentTypesForDept(deptTask) {
+    const items = normalizeDepartmentContentItems(deptTask);
+    const types = mzjUniqueStrings(items.map((item) => item.contentType));
+    return types.length ? types : [departmentTaskShortName(deptTask) || 'مطلوب'];
+  }
+
+  function dashboardFilteredDeptByContentType(deptTask, contentType) {
+    const items = normalizeDepartmentContentItems(deptTask).filter((item) => String(item.contentType || '').trim() === String(contentType || '').trim());
+    const filteredItems = items.length ? items : normalizeDepartmentContentItems(deptTask);
+    const cars = mzjUniqueStrings(filteredItems.map((item) => item.carType));
+    return {
+      ...deptTask,
+      __contentTypeFilter: contentType,
+      contentType,
+      carType: cars.join('، '),
+      contentItems: filteredItems,
+      photoItems: deptKey(deptTask.departmentName) === 'shooting' ? filteredItems : (Array.isArray(deptTask.photoItems) ? deptTask.photoItems : []),
+      selectedDeliverables: filteredItems.map((item) => ({
+        title: item.contentType || contentType || 'مطلوب',
+        contentType: item.contentType || contentType || '',
+        carType: item.carType || '',
+        requiredText: item.requiredText || '',
+        details: [item.carType ? `السيارة: ${item.carType}` : '', item.requiredText || ''].filter(Boolean).join(' — '),
+        printSize: item.printSize || ''
+      }))
+    };
+  }
+
+  function userContentTypeGroupCard(group) {
+    const entries = group.entries || [];
+    const first = entries[0] || {};
+    const firstTask = first.task || {};
+    const firstDept = first.dept || {};
+    const listKey = group.listKey || deptKey(firstDept.departmentName);
+    const steps = encodeTaskSteps(getTaskDetailsSteps(listKey));
+    const progressSum = entries.reduce((sum, entry) => sum + taskDeptProgress(entry.task, entry.dept, entry.index), 0);
+    const p = Math.round(progressSum / Math.max(entries.length, 1));
+    const campaignPercent = Math.round(progressSum / Math.max(entries.reduce((sum, entry) => sum + Math.max((entry.task.departmentTasks || []).length, 1), 0), 1));
+    const taskRows = entries.map((entry, rowIndex) => {
+      const filteredDept = dashboardFilteredDeptByContentType(entry.dept, group.contentType);
+      const cars = mzjUniqueStrings(normalizeDepartmentContentItems(filteredDept).map((item) => item.carType));
+      const key = dashboardDeptReadinessKey(entry.dept, entry.index);
+      const selected = readinessStepsForDept(entry.task, entry.dept, entry.index).join(',');
+      const dkey = deptKey(entry.dept.departmentName);
+      return `<article class="content-type-user-task-row">
+        <div class="content-type-user-task-main">
+          <b>${esc(entry.task.campaignName || taskTitle(entry.task) || `تاسك ${rowIndex + 1}`)}</b>
+          <small>${esc(cars.length ? cars.join('، ') : departmentTaskShortName(entry.dept))}</small>
+        </div>
+        <button class="details-btn" type="button" data-open-task-details data-task-id="${esc(entry.task.id)}" data-dept-index="${esc(entry.index)}" data-readiness-key="${esc(key)}" data-dept-identity="${esc(deptIdentity(entry.dept))}" data-dept-key="${esc(dkey)}" data-dept="${esc(entry.dept.departmentName || 'قسم')}" data-task-title="${esc(taskTitle(entry.task))}" data-required="${esc(formatDepartmentRequirement(filteredDept))}" data-dept-task-json="${esc(encodeURIComponent(JSON.stringify(filteredDept || {})))}" data-steps="${esc(steps)}" data-completed-steps="${esc(selected)}">تفاصيل</button>
+      </article>`;
+    }).join('');
+    return `<article class="department-task-card dynamic-dashboard-card user-content-type-group-card" data-dept-task-card data-task-id="${esc(firstTask.id || '')}" data-task-type="${esc(firstTask.taskTypeLabel || firstTask.taskType || '')}" data-campaign-code="${esc(firstTask.campaignCode || '')}" data-readiness-key="${esc(first.dept ? dashboardDeptReadinessKey(first.dept, first.index || 0) : '')}" data-legacy-readiness-key="${esc(first.dept ? legacyDeptReadinessKey(first.dept) : '')}" data-dept-identity="${esc(first.dept ? deptIdentity(first.dept) : '')}" data-dept-key="${esc(listKey)}" data-department-share="${esc(100 / Math.max(entries.length, 1))}" data-completed-steps="">
+      <div class="task-template-top user-task-title-only content-type-group-head">
+        <strong>${esc(group.contentType || 'نوع محتوى')}</strong>
+        <span class="user-task-short-name">${esc(entries.length)} تاسك</span>
+      </div>
+      <div class="content-type-user-task-list">${taskRows}</div>
+      <div class="department-progress-row"><div class="department-progress-box"><small>متوسط اكتمال التاسكات</small><strong data-task-percent>${p}%</strong></div><div class="department-progress-box"><small>متوسط مساهمة الحملات</small><strong data-campaign-percent>${campaignPercent}%</strong></div></div>
+      <div class="mini-progress"><span data-task-bar style="width:${p}%"></span></div>
+    </article>`;
+  }
+
   window.renderDashboardTasks = function renderDashboardTasks(){
     if (!document.getElementById('adminRequiredTasks') && !document.getElementById('userShootingTasks')) return;
     const query = document.getElementById('dashboardTaskSearch')?.value || '';
@@ -6252,16 +6424,16 @@ initCreateTaskFromTemplate();
           const visible = assignedToCurrentUser(dept, current);
           if (!visible) return;
           const listKey = deptKey(dept.departmentName);
-          const userKey = String(dept.userId || dept.userUid || dept.assigneeUid || dept.userEmail || dept.assigneeEmail || dept.userName || dept.userDisplayName || '').trim() || deptIdentity(dept);
-          const groupKey = `${listKey}::${userKey}`;
-          if (!visibleGroups.has(groupKey)) visibleGroups.set(groupKey, { listKey, dept, indexes: [], depts: [] });
-          visibleGroups.get(groupKey).indexes.push(deptIndex);
-          visibleGroups.get(groupKey).depts.push(dept);
+          dashboardContentTypesForDept(dept).forEach((contentType) => {
+            const groupKey = `${listKey}::${contentType}`;
+            if (!visibleGroups.has(groupKey)) visibleGroups.set(groupKey, { listKey, contentType, entries: [] });
+            visibleGroups.get(groupKey).entries.push({ task, dept, index: deptIndex });
+          });
         });
         visibleGroups.forEach((group) => {
           const targetList = userLists[group.listKey];
           if (!targetList) return;
-          appendCard(targetList, userDeptCard(task, group.dept, group.indexes[0], group.depts, group.indexes));
+          appendCard(targetList, userContentTypeGroupCard(group));
         });
       } catch (error) {
         console.warn('dashboard task card render failed:', task?.id, error);

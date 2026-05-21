@@ -7501,9 +7501,9 @@ initCreateTaskFromTemplate();
     publish: ['نشر','النشر','publish','publishing']
   };
   const PUBLISH_STEPS = [
-    { label: 'التجهيز 1', value: 35 },
+    { label: 'التجهيز', value: 35, auto: true },
     { label: 'الاعتماد', value: 30, adminOnly: true },
-    { label: 'النشر', value: 35 }
+    { label: 'النشر', value: 35, adminOnly: true }
   ];
 
   function normalizeWorkspaceTask(task, fallbackId){
@@ -7597,6 +7597,7 @@ initCreateTaskFromTemplate();
     const docId = task.firestoreId || task.docId || task.id;
     if (!docId) throw new Error('لا يوجد ID للتاسك');
     mzjCanonicalizeTaskStepStoresBeforeSave(task);
+    try { autoStage(task); } catch (error) { console.warn('autoStage before save failed:', error); }
     const cleanTask = JSON.parse(JSON.stringify({ ...task, firestoreId: docId, sourceFirestoreCollection: collectionName }));
     await firebase.firestore().collection(collectionName).doc(String(docId)).set(cleanTask, { merge: true });
     const index = firestoreTaskCache.findIndex((item) => String(item.id || item.firestoreId || item.docId) === String(task.id));
@@ -7828,21 +7829,64 @@ initCreateTaskFromTemplate();
   function publishDepartments(task){
     return (task.departmentTasks || []).filter((dept) => deptKey(dept.departmentName) === 'publish');
   }
+  function taskExecutionReadinessWithoutPublish(task){
+    const all = Array.isArray(task?.departmentTasks) ? task.departmentTasks : [];
+    const executionDepts = all
+      .map((dept, index) => ({ dept, index }))
+      .filter(({ dept }) => dept && dept.enabled !== false && deptKey(dept.departmentName) !== 'publish');
+    if (!executionDepts.length) return 0;
+    return Math.round(executionDepts.reduce((sum, item) => sum + taskDeptProgress(task, item.dept, item.index), 0) / executionDepts.length);
+  }
+  function ensurePublishDepartment(task){
+    task.departmentTasks = Array.isArray(task.departmentTasks) ? task.departmentTasks : [];
+    let dept = task.departmentTasks.find((item) => deptKey(item?.departmentName) === 'publish');
+    if (!dept) {
+      dept = {
+        departmentId: 'publishing',
+        departmentKind: 'publish',
+        departmentName: 'قسم النشر',
+        assignmentIndex: 1,
+        assignmentLabel: 'قسم النشر / جاهز للنشر',
+        enabled: true,
+        received: true,
+        receivedConfirmed: true,
+        requiredText: 'الحملة جاهزة للنشر تلقائيًا بعد اكتمال الجاهزية 100%',
+        userName: '',
+        userDisplayName: '',
+        assigneeName: ''
+      };
+      task.departmentTasks.push(dept);
+    }
+    return dept;
+  }
+  function ensurePublishPreparationStep(task){
+    task.publishSteps = Array.isArray(task.publishSteps) ? task.publishSteps.map(Number).filter((n) => !Number.isNaN(n)) : [];
+    if (!task.publishSteps.includes(0)) task.publishSteps.unshift(0);
+    task.publishSteps = Array.from(new Set(task.publishSteps)).sort((a, b) => a - b);
+    return task.publishSteps;
+  }
   function ensurePublishReadyDate(task){
-    const readyWithoutPublish = (task.departmentTasks || []).filter((d) => d && d.enabled !== false && deptKey(d.departmentName) !== 'publish');
-    const readyPercent = readyWithoutPublish.length
-      ? Math.round(readyWithoutPublish.reduce((sum, d, index) => sum + taskDeptProgress(task, d, (task.departmentTasks || []).indexOf(d)), 0) / readyWithoutPublish.length)
-      : taskReadiness(task);
+    const readyPercent = taskExecutionReadinessWithoutPublish(task);
     if (readyPercent < 100) return false;
     const date = task.publishReadyDate || dashboardTodayISO();
     let changed = false;
+    if (!task.publishReadyDate) changed = true;
     task.publishReadyDate = date;
+    const publishDept = ensurePublishDepartment(task);
     publishDepartments(task).forEach((dept) => {
       if (!dept.receiveDate) { dept.receiveDate = date; changed = true; }
       if (!dept.receivedAt) { dept.receivedAt = date; changed = true; }
       dept.received = true;
       dept.receivedConfirmed = true;
+      dept.publishReady = true;
+      dept.readyForPublish = true;
     });
+    task.readyForPublish = true;
+    task.readyForPublishAt = task.readyForPublishAt || new Date().toISOString();
+    const beforeSteps = (task.publishSteps || []).join(',');
+    ensurePublishPreparationStep(task);
+    if ((task.publishSteps || []).join(',') !== beforeSteps) changed = true;
+    if (publishDept && !publishDept.receiveDate) publishDept.receiveDate = date;
     return changed;
   }
   function deptIdentity(dept){
@@ -7854,12 +7898,13 @@ initCreateTaskFromTemplate();
       return task;
     }
     if (!task.stage) task.stage = 'required';
-    const ready = taskReadiness(task);
-    if (task.stage !== 'archive' && ready >= 100) {
+    const executionReady = taskExecutionReadinessWithoutPublish(task);
+    if (task.stage !== 'archive' && executionReady >= 100) {
       task.stage = 'publish';
       ensurePublishReadyDate(task);
     }
-    if ((task.publishSteps || []).length >= PUBLISH_STEPS.length) task.stage = 'archive';
+    const publishDone = Array.isArray(task.publishSteps) ? Array.from(new Set(task.publishSteps.map(Number).filter((n) => !Number.isNaN(n)))) : [];
+    if (publishDone.length >= PUBLISH_STEPS.length) task.stage = 'archive';
     return task;
   }
   function clearList(id, emptyText){
@@ -8022,7 +8067,7 @@ initCreateTaskFromTemplate();
         </div>
         <div class="publish-compact-actions">
           <button class="primary-btn ${deliveryDate !== '--' ? 'is-done' : ''}" type="button" data-start-publish data-task-id="${esc(task.id)}" ${!userIsAdmin()?'disabled':''}>${deliveryDate !== '--' ? 'تم بدء النشر' : 'بدء النشر'}</button>
-          ${PUBLISH_STEPS.map((step,i)=>`<button type="button" class="task-step-btn publish-mini-step ${done.includes(i) ? 'is-done' : ''}" data-publish-step data-task-id="${esc(task.id)}" data-step-index="${i}" ${!userIsAdmin()?'disabled':''}>${esc(step.label)} <small>${esc(step.value)}%</small></button>`).join('')}
+          ${PUBLISH_STEPS.map((step,i)=>`<button type="button" class="task-step-btn publish-mini-step ${done.includes(i) ? 'is-done' : ''} ${step.auto ? 'is-auto-step' : ''}" data-publish-step data-task-id="${esc(task.id)}" data-step-index="${i}" ${(step.auto || step.adminOnly || !userIsAdmin())?'disabled':''}>${esc(step.label)} <small>${esc(step.value)}%${step.auto ? ' - تلقائي' : ''}</small></button>`).join('')}
           <button class="danger-btn publish-mini-delete" type="button" data-delete-task="${esc(task.id)}" data-admin-only>مسح</button>
         </div>
       </div>
@@ -8373,6 +8418,7 @@ initCreateTaskFromTemplate();
         dept.publishDate = dept.publishDate || date;
       });
       task.stage = 'publish';
+      ensurePublishPreparationStep(task);
       autoStage(task);
       saveTaskToFirestore(task).then(() => window.renderDashboardTasks()).catch((error) => alert('فشل بدء النشر في Firebase: ' + (error?.message || error?.code || error)));
       return;
@@ -8408,7 +8454,9 @@ initCreateTaskFromTemplate();
       if (!task) return;
       const idx = Number(pub.dataset.stepIndex);
       task.publishSteps = Array.isArray(task.publishSteps) ? task.publishSteps : [];
-      if (!task.publishSteps.includes(idx)) task.publishSteps.push(idx);
+      ensurePublishPreparationStep(task);
+      if (idx > 0 && !task.publishSteps.map(Number).includes(idx)) task.publishSteps.push(idx);
+      task.publishSteps = Array.from(new Set(task.publishSteps.map(Number).filter((n) => !Number.isNaN(n)))).sort((a,b)=>a-b);
       if (task.publishSteps.length >= PUBLISH_STEPS.length) task.stage = 'archive';
       autoStage(task);
       saveTaskToFirestore(task).then(() => window.renderDashboardTasks()).catch((error) => alert('فشل تحديث النشر في Firebase: ' + (error?.message || error?.code || error)));

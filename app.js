@@ -3967,6 +3967,26 @@ function initCreateTaskFromTemplate() {
             <select data-budget-platform>${renderBudgetPlatformOptions(platformName)}</select>
           </label>
           <label class="mzj-field">
+            <span>تاريخ النشر</span>
+            <input type="date" data-budget-publish-date value="${escapeHTML(data.publishDate || '')}">
+          </label>
+          <label class="mzj-field">
+            <span>مدة الإعلان</span>
+            <input type="text" data-budget-duration placeholder="مثال: 7 أيام" value="${escapeHTML(data.duration || '')}">
+          </label>
+          <label class="mzj-field">
+            <span>عدد الإعلانات</span>
+            <input type="number" min="0" step="1" data-budget-ads-count placeholder="عدد الإعلانات" value="${escapeHTML(data.adsCount || '')}">
+          </label>
+          <label class="mzj-field">
+            <span>هدف المحتوى</span>
+            <input type="text" data-budget-content-goal placeholder="هدف المحتوى" value="${escapeHTML(data.contentGoal || '')}">
+          </label>
+          <label class="mzj-field">
+            <span>الهدف المتوقع</span>
+            <input type="text" data-budget-expected-goal placeholder="الهدف المتوقع" value="${escapeHTML(data.expectedGoal || '')}">
+          </label>
+          <label class="mzj-field">
             <span>القيمة</span>
             <input type="number" min="0" step="1" data-budget-value placeholder="القيمة" value="${escapeHTML(amount || '')}">
           </label>
@@ -3989,6 +4009,11 @@ function initCreateTaskFromTemplate() {
     const platformId = platformOption?.dataset.platformId || platformName;
     const product = item.querySelector('[data-budget-product]')?.value || '';
     const funnel = item.querySelector('[data-budget-funnel]')?.value || '';
+    const publishDate = item.querySelector('[data-budget-publish-date]')?.value || '';
+    const duration = item.querySelector('[data-budget-duration]')?.value || '';
+    const adsCount = item.querySelector('[data-budget-ads-count]')?.value || '';
+    const contentGoal = item.querySelector('[data-budget-content-goal]')?.value || '';
+    const expectedGoal = item.querySelector('[data-budget-expected-goal]')?.value || '';
     const platforms = platformName || amount > 0 ? [{
       id: platformId,
       name: platformName,
@@ -4006,11 +4031,11 @@ function initCreateTaskFromTemplate() {
       amount,
       adType: funnel,
       adName: product,
-      publishDate: '',
-      duration: '',
-      adsCount: '',
-      contentGoal: '',
-      expectedGoal: '',
+      publishDate,
+      duration,
+      adsCount,
+      contentGoal,
+      expectedGoal,
       platforms,
       itemTotal: amount
     };
@@ -4051,28 +4076,15 @@ function initCreateTaskFromTemplate() {
       if (clean && !labels.includes(clean)) labels.push(clean);
     };
     departmentsList?.querySelectorAll('[data-department-assignment-row]').forEach((row) => {
-      const selectedDeptKinds = selectedValuesFromSelect(row.querySelector('select[data-target-department-select]')).map((deptId) => {
-        const option = row.querySelector(`select[data-target-department-select] option[value="${CSS.escape(deptId)}"]`);
-        const dept = (departmentsCache || []).find((item) => String(item.id || item.name || '') === String(deptId));
-        return deptKindFromName(dept?.name || option?.dataset.departmentKind || option?.dataset.departmentName || option?.textContent || deptId);
-      });
-      const shouldPublish = selectedDeptKinds.includes('design') || selectedDeptKinds.includes('montage');
-      if (!shouldPublish) return;
       row.querySelectorAll('[data-universal-required-item]').forEach((item) => {
         const selectedTypes = Array.from(item.querySelectorAll('[data-universal-content-type]:checked'));
         const cars = Array.from(item.querySelectorAll('[data-universal-car-choice]:checked')).map((input) => templateCellText(input.value)).filter(Boolean).join('، ') || templateCellText(item.querySelector('[data-universal-car-type]')?.value || '');
-        const size = templateCellText(item.querySelector('[data-universal-print-size]')?.value || '');
         const note = templateCellText(item.querySelector('[data-universal-required-text]')?.value || '');
         selectedTypes.forEach((selectedType) => {
           const title = templateCellText(selectedType?.value || '');
-          const desc = templateCellText(selectedType?.dataset.desc || '');
           const label = [
-            selectedDeptKinds.includes('design') ? 'تصميم' : '',
-            selectedDeptKinds.includes('montage') ? 'مونتاج' : '',
-            title,
-            cars ? `السيارة: ${cars}` : '',
-            size ? `المقاس: ${size}` : '',
-            desc || note
+            note || title || 'مطلوب',
+            cars ? `السيارة: ${cars}` : ''
           ].filter(Boolean).join(' — ');
           pushLabel(label);
         });
@@ -5509,7 +5521,7 @@ function initCreateTaskFromTemplate() {
 
   function collectBudgetDetails() {
     const items = budgetItemsList ? Array.from(budgetItemsList.querySelectorAll('[data-budget-item]')).map(collectBudgetItem).filter((item) => {
-      return item.funnel || item.product || item.platform || item.value || item.platforms.length;
+      return item.funnel || item.product || item.platform || item.value || item.platforms.length || item.publishDate || item.duration || item.adsCount || item.contentGoal || item.expectedGoal;
     }) : [];
     const totalBudget = items.reduce((sum, item) => sum + Number(item.itemTotal || 0), 0);
     return {
@@ -7025,9 +7037,9 @@ initCreateTaskFromTemplate();
     const items = safeArray(task.budgetDetails);
     if (!items.length) return '<p class="task-empty-note">لا توجد ميزانيات محفوظة.</p>';
     const total = items.reduce((sum, item) => sum + Number(item.value || item.amount || item.itemTotal || 0), 0);
-    return `<div class="campaign-full-table-wrap"><table class="campaign-full-table"><thead><tr><th>Funnel</th><th>المنتج</th><th>المنصة</th><th>القيمة</th></tr></thead><tbody>
-      ${items.map((item) => `<tr><td>${esc(item.funnel || item.funnelName || '—')}</td><td>${esc(item.product || item.productName || item.adName || '—')}</td><td>${esc(item.platform || item.platformName || item.platforms?.[0]?.name || '—')}</td><td>${esc(String(item.value || item.amount || item.itemTotal || 0))}</td></tr>`).join('')}
-    </tbody><tfoot><tr><th colspan="3">الإجمالي</th><th>${esc(String(total))}</th></tr></tfoot></table></div>`;
+    return `<div class="campaign-full-table-wrap"><table class="campaign-full-table"><thead><tr><th>Funnel</th><th>المطلوب / المنتج</th><th>المنصة</th><th>تاريخ النشر</th><th>مدة الإعلان</th><th>عدد الإعلانات</th><th>هدف المحتوى</th><th>الهدف المتوقع</th><th>القيمة</th></tr></thead><tbody>
+      ${items.map((item) => `<tr><td>${esc(item.funnel || item.funnelName || '—')}</td><td>${esc(item.product || item.productName || item.adName || '—')}</td><td>${esc(item.platform || item.platformName || item.platforms?.[0]?.name || '—')}</td><td>${esc(item.publishDate || '—')}</td><td>${esc(item.duration || '—')}</td><td>${esc(String(item.adsCount || '—'))}</td><td>${esc(item.contentGoal || '—')}</td><td>${esc(item.expectedGoal || '—')}</td><td>${esc(String(item.value || item.amount || item.itemTotal || 0))}</td></tr>`).join('')}
+    </tbody><tfoot><tr><th colspan="8">الإجمالي</th><th>${esc(String(total))}</th></tr></tfoot></table></div>`;
   }
   function renderCampaignLogicRows(task){
     const items = safeArray(task.campaignLogic);
@@ -8407,6 +8419,7 @@ initCreateTaskFromTemplate();
         }
 
         const visibleGroups = new Map();
+        if (isPublishingStage || task.stage === 'archive') return;
         (task.departmentTasks || []).forEach((dept, deptIndex) => {
           const visible = assignedToCurrentUser(dept, current);
           if (!visible) return;
@@ -8554,7 +8567,11 @@ initCreateTaskFromTemplate();
             if (doneDelivery) {
               const today = mzjTodayISODateSafe();
               if (deptKindFromName(dept.departmentName) === 'publish') dept.inspectionDate = dept.inspectionDate || today;
-              else dept.deliveryDate = dept.deliveryDate || today;
+              else {
+                dept.deliveryDate = dept.deliveryDate || today;
+                task.deliveryDate = task.deliveryDate || today;
+                task.deliveredAt = task.deliveredAt || new Date().toISOString();
+              }
             }
           }
         });

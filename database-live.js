@@ -445,10 +445,8 @@
 
   function scheduleHtml(record){
     const rows = record.publishScheduleEntries || [];
-    if(!rows.length && !record.publishScheduleResult) return '<p class="db-empty-line">لا يوجد جدول نشر محفوظ.</p>';
-    const result = record.publishScheduleResult ? `<p class="db-note-line"><strong>ملخص جدول النشر:</strong> ${esc(record.publishScheduleResult)}</p>` : '';
-    const table = rows.length ? `<div class="db-inner-table"><table><thead><tr><th>اليوم</th><th>التاريخ</th><th>ما سيتم نشره</th></tr></thead><tbody>${rows.map(r => `<tr><td>${esc(r.day || '--')}</td><td>${esc(formatDate(r.date))}</td><td>${esc(r.content || '--')}</td></tr>`).join('')}</tbody></table></div>` : '';
-    return result + table;
+    if(!rows.length) return '<p class="db-empty-line">لا يوجد جدول نشر محفوظ.</p>';
+    return `<div class="db-inner-table"><table><thead><tr><th>اليوم</th><th>التاريخ</th><th>ما سيتم نشره</th></tr></thead><tbody>${rows.map(r => `<tr><td>${esc(r.day || '--')}</td><td>${esc(formatDate(r.date))}</td><td>${esc(r.content || '--')}</td></tr>`).join('')}</tbody></table></div>`;
   }
 
   function budgetHtml(record){
@@ -472,7 +470,7 @@
     return tasks.map((task) => {
       const files = task.files || task.attachments || task.links || task.fileUrls || task.attachmentUrls || [];
       const fileList = Array.isArray(files) ? files : (files ? [files] : []);
-      return `<article class="db-section-task"><h4>${esc(label)} — ${esc(departmentLabel(task))}</h4><div class="db-info-grid"><span>اسم المسئول: <b>${esc(personLabel(task))}</b></span><span>تاريخ الاستلام: <b>${esc(formatDate(taskReceiveDate(task)))}</b></span><span>التاريخ المطلوب: <b>${esc(formatDate(taskRequiredDate(task, record)))}</b></span><span>${key === 'publish' ? 'تاريخ النشر' : 'تاريخ التسليم'}: <b>${esc(formatDate(taskDeliveryDate(task)))}</b></span><span>وقت التأخير: <b>${esc(calcDelay(taskRequiredDate(task, record), taskDeliveryDate(task)))}</b></span><span>المطلوب: <b>${esc(task.requiredText || '--')}</b></span></div>${fileList.length ? `<div class="db-files-list">${fileList.map((f, i) => {
+      return `<article class="db-section-task"><h4>${esc(label)} — ${esc(departmentLabel(task))}</h4><div class="db-info-grid"><span>اسم المسئول: <b>${esc(personLabel(task))}</b></span><span>تاريخ الاستلام: <b>${esc(formatDate(taskReceiveDate(task)))}</b></span><span>التاريخ المطلوب: <b>${esc(formatDate(taskRequiredDate(task, record)))}</b></span><span>${key === 'publish' ? 'تاريخ النشر' : 'تاريخ التسليم'}: <b>${esc(formatDate(taskDeliveryDate(task)))}</b></span><span>وقت التأخير: <b>${esc(calcDelay(taskRequiredDate(task, record), taskDeliveryDate(task)))}</b></span><span class="db-required-full-line">المطلوب: <b>${esc(task.requiredText || task.requiredTaskName || task.deliveryDetails || '--')}</b></span></div>${fileList.length ? `<div class="db-files-list">${fileList.map((f, i) => {
         const url = typeof f === 'string' ? f : (f.url || f.fileUrl || f.downloadURL || '');
         const name = typeof f === 'string' ? `ملف ${i+1}` : (f.name || f.fileName || `ملف ${i+1}`);
         return url ? `<a href="${esc(url)}" target="_blank" rel="noopener">${esc(name)}</a>` : `<span>${esc(name)}</span>`;

@@ -9321,3 +9321,53 @@ body[data-page="requiredContent"] .required-content-type-inline{
     min-width:240px!important;
   }
 }
+
+/* MZJ: final dashboard/database refinements */
+.db-info-grid .db-required-full-line{
+  grid-column:1 / -1;
+  display:block;
+  width:100%;
+  white-space:normal;
+  line-height:1.8;
+  word-break:break-word;
+}
+#createTaskModal .budget-compact-row{
+  grid-template-columns:repeat(auto-fit,minmax(160px,1fr))!important;
+  align-items:end!important;
+}
+#createTaskModal .budget-compact-row .budget-compact-title,
+#createTaskModal .budget-compact-row .budget-total-inline,
+#createTaskModal .budget-compact-row .soft-danger-btn{
+  align-self:stretch!important;
+}
+.user-content-type-kanban,
+#userContentTypeTasks{
+  overflow-x:auto!important;
+  display:grid!important;
+  grid-auto-flow:column!important;
+  grid-auto-columns:minmax(210px,calc((100% - 64px)/5))!important;
+  grid-template-columns:none!important;
+  gap:16px!important;
+  padding-bottom:12px!important;
+}
+.user-content-type-group-card{
+  min-width:210px!important;
+  max-width:100%!important;
+}
+.user-content-type-task-list .content-type-user-task-row,
+.content-type-user-task-row{
+  padding:12px!important;
+  border-radius:18px!important;
+}
+.content-type-task-actions .details-btn,
+.content-type-task-actions .receive-task-btn,
+[data-receive-task].is-received,
+[data-receive-task][disabled]{
+  border-radius:14px!important;
+}
+@media(max-width:1200px){
+  #userContentTypeTasks{grid-auto-columns:minmax(210px,calc((100% - 48px)/4))!important;}
+}
+@media(max-width:900px){
+  #userContentTypeTasks{grid-auto-columns:minmax(220px,calc((100% - 16px)/2))!important;}
+}

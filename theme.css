@@ -9371,3 +9371,160 @@ body[data-page="requiredContent"] .required-content-type-inline{
 @media(max-width:900px){
   #userContentTypeTasks{grid-auto-columns:minmax(220px,calc((100% - 16px)/2))!important;}
 }
+
+/* MZJ budget layout polish: clean multi-row budget builder */
+#createTaskModal .budget-items-card{
+  overflow:visible!important;
+}
+#createTaskModal .budget-items-list{
+  display:grid!important;
+  gap:16px!important;
+}
+#createTaskModal .budget-item-accordion.budget-item-compact{
+  padding:16px!important;
+  border-radius:22px!important;
+  background:rgba(255,255,255,.72)!important;
+  border:1px solid rgba(62,36,32,.10)!important;
+  box-shadow:0 10px 28px rgba(62,36,32,.05)!important;
+  overflow:visible!important;
+}
+#createTaskModal .budget-item-body-compact{
+  display:block!important;
+  overflow:visible!important;
+}
+#createTaskModal .budget-compact-row{
+  display:grid!important;
+  grid-template-columns:repeat(12,minmax(0,1fr))!important;
+  gap:12px!important;
+  align-items:end!important;
+  direction:rtl!important;
+}
+#createTaskModal .budget-compact-row > *{
+  min-width:0!important;
+  max-width:100%!important;
+}
+#createTaskModal .budget-compact-title{
+  grid-column:1 / -1!important;
+  display:flex!important;
+  align-items:center!important;
+  justify-content:flex-start!important;
+  min-height:32px!important;
+  padding:0 4px 4px!important;
+  font-size:15px!important;
+  font-weight:900!important;
+  color:#3e2420!important;
+}
+#createTaskModal .budget-compact-row > label:nth-of-type(1){grid-column:span 2!important;}
+#createTaskModal .budget-compact-row > label:nth-of-type(2){grid-column:span 2!important;}
+#createTaskModal .budget-save-funnel-inline{grid-column:span 1!important;}
+#createTaskModal .budget-compact-row > label:nth-of-type(3){grid-column:span 3!important;}
+#createTaskModal .budget-compact-row > label:nth-of-type(4){grid-column:span 2!important;}
+#createTaskModal .budget-compact-row > label:nth-of-type(5){grid-column:span 2!important;}
+#createTaskModal .budget-compact-row > label:nth-of-type(6){grid-column:span 2!important;}
+#createTaskModal .budget-compact-row > label:nth-of-type(7){grid-column:span 2!important;}
+#createTaskModal .budget-compact-row > label:nth-of-type(8){grid-column:span 2!important;}
+#createTaskModal .budget-compact-row > label:nth-of-type(9){grid-column:span 2!important;}
+#createTaskModal .budget-compact-row > label:nth-of-type(10){grid-column:span 2!important;}
+#createTaskModal .budget-total-inline{grid-column:span 1!important;}
+#createTaskModal .budget-compact-row .soft-danger-btn[data-remove-budget-item]{grid-column:span 1!important;}
+#createTaskModal .budget-compact-row .mzj-field{
+  margin:0!important;
+  gap:6px!important;
+}
+#createTaskModal .budget-compact-row .mzj-field span{
+  min-height:16px!important;
+  font-size:12px!important;
+  font-weight:900!important;
+  color:#6f5148!important;
+  padding-inline:4px!important;
+}
+#createTaskModal .budget-compact-row select,
+#createTaskModal .budget-compact-row input{
+  width:100%!important;
+  min-height:44px!important;
+  height:44px!important;
+  padding:9px 12px!important;
+  border-radius:14px!important;
+  border:1px solid rgba(62,36,32,.14)!important;
+  background:#fff!important;
+  font-size:13px!important;
+  font-weight:800!important;
+  color:#3e2420!important;
+  box-shadow:none!important;
+}
+#createTaskModal .budget-save-funnel-inline,
+#createTaskModal .budget-compact-row .soft-danger-btn[data-remove-budget-item]{
+  width:100%!important;
+  min-height:44px!important;
+  height:44px!important;
+  padding:9px 12px!important;
+  border-radius:14px!important;
+  align-self:end!important;
+  white-space:nowrap!important;
+  box-shadow:none!important;
+}
+#createTaskModal .budget-total-inline{
+  width:100%!important;
+  min-height:44px!important;
+  height:44px!important;
+  padding:7px 10px!important;
+  border-radius:14px!important;
+  align-self:end!important;
+  display:flex!important;
+  flex-direction:column!important;
+  align-items:center!important;
+  justify-content:center!important;
+  gap:2px!important;
+  background:#4b241f!important;
+  color:#fff!important;
+  border:1px solid #4b241f!important;
+  box-shadow:0 10px 22px rgba(62,36,32,.12)!important;
+}
+#createTaskModal .budget-total-inline span,
+#createTaskModal .budget-total-inline strong{
+  color:#fff!important;
+}
+#createTaskModal .budget-total-inline span{
+  font-size:10px!important;
+  line-height:1!important;
+}
+#createTaskModal .budget-total-inline strong{
+  font-size:15px!important;
+  line-height:1.1!important;
+}
+#createTaskModal .budget-grand-total-box{
+  width:min(260px,100%)!important;
+  min-height:68px!important;
+  margin-top:18px!important;
+  border-radius:18px!important;
+}
+@media(max-width:1350px){
+  #createTaskModal .budget-compact-row{
+    grid-template-columns:repeat(6,minmax(0,1fr))!important;
+  }
+  #createTaskModal .budget-compact-row > label:nth-of-type(1),
+  #createTaskModal .budget-compact-row > label:nth-of-type(2),
+  #createTaskModal .budget-compact-row > label:nth-of-type(4),
+  #createTaskModal .budget-compact-row > label:nth-of-type(5),
+  #createTaskModal .budget-compact-row > label:nth-of-type(6),
+  #createTaskModal .budget-compact-row > label:nth-of-type(7),
+  #createTaskModal .budget-compact-row > label:nth-of-type(8),
+  #createTaskModal .budget-compact-row > label:nth-of-type(9),
+  #createTaskModal .budget-compact-row > label:nth-of-type(10){grid-column:span 2!important;}
+  #createTaskModal .budget-compact-row > label:nth-of-type(3){grid-column:span 3!important;}
+  #createTaskModal .budget-save-funnel-inline,
+  #createTaskModal .budget-total-inline,
+  #createTaskModal .budget-compact-row .soft-danger-btn[data-remove-budget-item]{grid-column:span 1!important;}
+}
+@media(max-width:760px){
+  #createTaskModal .budget-compact-row{
+    grid-template-columns:1fr!important;
+  }
+  #createTaskModal .budget-compact-row > *,
+  #createTaskModal .budget-compact-row > label:nth-of-type(n),
+  #createTaskModal .budget-save-funnel-inline,
+  #createTaskModal .budget-total-inline,
+  #createTaskModal .budget-compact-row .soft-danger-btn[data-remove-budget-item]{
+    grid-column:1 / -1!important;
+  }
+}

@@ -7899,12 +7899,40 @@ initCreateTaskFromTemplate();
     }
     if (!task.stage) task.stage = 'required';
     const executionReady = taskExecutionReadinessWithoutPublish(task);
-    if (task.stage !== 'archive' && executionReady >= 100) {
+    const totalReady = taskReadiness(task);
+    if (task.stage !== 'archive' && (executionReady >= 100 || totalReady >= 100 || task.readyForPublish === true)) {
       task.stage = 'publish';
       ensurePublishReadyDate(task);
     }
     const publishDone = Array.isArray(task.publishSteps) ? Array.from(new Set(task.publishSteps.map(Number).filter((n) => !Number.isNaN(n)))) : [];
     if (publishDone.length >= PUBLISH_STEPS.length) task.stage = 'archive';
+    return task;
+  }
+  const mzjAutoPublishPersistingIds = new Set();
+  function mzjAutoPublishSignature(task){
+    return JSON.stringify({
+      stage: task?.stage || '',
+      readyForPublish: Boolean(task?.readyForPublish),
+      publishReadyDate: task?.publishReadyDate || '',
+      publishSteps: Array.isArray(task?.publishSteps) ? task.publishSteps.map(Number).filter((n)=>!Number.isNaN(n)).sort((a,b)=>a-b) : [],
+      publishDepartments: Array.isArray(task?.departmentTasks) ? task.departmentTasks.filter((dept)=>deptKey(dept?.departmentName)==='publish').length : 0
+    });
+  }
+  function mzjAutoStageAndPersist(task){
+    if (!task || typeof task !== 'object') return task;
+    const before = mzjAutoPublishSignature(task);
+    autoStage(task);
+    const after = mzjAutoPublishSignature(task);
+    if (before !== after && (task.stage === 'publish' || task.stage === 'archive' || task.readyForPublish === true)) {
+      const id = String(task.id || task.firestoreId || task.docId || '');
+      if (id && !mzjAutoPublishPersistingIds.has(id)) {
+        mzjAutoPublishPersistingIds.add(id);
+        Promise.resolve(saveTaskToFirestore(task))
+          .then(() => { if (typeof window.renderCampaignRecordsLive === 'function') window.renderCampaignRecordsLive(); })
+          .catch((error) => console.warn('auto publish stage persist failed:', id, error))
+          .finally(() => mzjAutoPublishPersistingIds.delete(id));
+      }
+    }
     return task;
   }
   function clearList(id, emptyText){
@@ -8318,7 +8346,7 @@ initCreateTaskFromTemplate();
     try {
       tasks = readTasks()
         .map((task) => {
-          try { return autoStage(task); }
+          try { return mzjAutoStageAndPersist(task); }
           catch (error) { console.warn('dashboard task autoStage failed:', task?.id, error); return task; }
         })
         .filter((task) => {

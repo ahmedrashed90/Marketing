@@ -7831,11 +7831,16 @@ initCreateTaskFromTemplate();
   }
   function taskExecutionReadinessWithoutPublish(task){
     const all = Array.isArray(task?.departmentTasks) ? task.departmentTasks : [];
-    const executionDepts = all
-      .map((dept, index) => ({ dept, index }))
-      .filter(({ dept }) => dept && dept.enabled !== false && deptKey(dept.departmentName) !== 'publish');
-    if (!executionDepts.length) return 0;
-    return Math.round(executionDepts.reduce((sum, item) => sum + taskDeptProgress(task, item.dept, item.index), 0) / executionDepts.length);
+    const executionUnits = [];
+    all.forEach((dept, index) => {
+      if (!dept || dept.enabled === false || deptKey(dept.departmentName) === 'publish') return;
+      const types = dashboardContentTypesForDept(dept).filter(Boolean);
+      if (types.length) types.forEach((contentType) => executionUnits.push({ dept, index, contentType }));
+      else executionUnits.push({ dept, index, contentType: '' });
+    });
+    if (!executionUnits.length) return 0;
+    const total = executionUnits.reduce((sum, item) => sum + dashboardContentTypeProgress(task, item.dept, item.index, item.contentType), 0);
+    return Math.round(total / executionUnits.length);
   }
   function ensurePublishDepartment(task){
     task.departmentTasks = Array.isArray(task.departmentTasks) ? task.departmentTasks : [];
@@ -8372,8 +8377,14 @@ initCreateTaskFromTemplate();
     const allUserContentTypeGroups = new Map();
     tasks.forEach(task => {
       try {
+        const executionReadyPercent = taskExecutionReadinessWithoutPublish(task);
+        if (task.stage !== 'archive' && executionReadyPercent >= 100 && task.stage !== 'publish') {
+          task.stage = 'publish';
+          ensurePublishReadyDate(task);
+          mzjAutoStageAndPersist(task);
+        }
         const publishDepts = (task.departmentTasks || []).filter((dept) => deptKey(dept.departmentName) === 'publish');
-        const isPublishingStage = publishDepts.length || task.stage === 'publish';
+        const isPublishingStage = publishDepts.length || task.stage === 'publish' || task.readyForPublish === true;
         if (task.stage === 'archive') appendCard(archive, archiveCard(task));
         else {
           if (!isPublishingStage && taskReceiptProgress(task) < 100) appendCard(required, requiredCard(task));

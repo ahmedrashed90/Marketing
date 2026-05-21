@@ -236,8 +236,20 @@ function syncTaskProgress() {
   }
 }
 
+function mzjNormalizeProcedureDeptKey(value) {
+  const raw = String(value || '').trim().toLowerCase();
+  if (!raw) return 'content';
+  if (['shooting','photography','photo'].includes(raw) || raw.includes('تصوير') || raw.includes('shoot') || raw.includes('photo')) return 'shooting';
+  if (['content','copy','writing'].includes(raw) || raw.includes('محتوى') || raw.includes('كتابة') || raw.includes('content') || raw.includes('copy')) return 'content';
+  if (['design'].includes(raw) || raw.includes('تصميم') || raw.includes('design')) return 'design';
+  if (['montage','video','editing'].includes(raw) || raw.includes('مونتاج') || raw.includes('فيديو') || raw.includes('video') || raw.includes('montage')) return 'montage';
+  if (['publish','publishing'].includes(raw) || raw.includes('نشر') || raw.includes('publish')) return 'publish';
+  return raw;
+}
+
 function taskStepsForDept(deptKeyValue) {
-  if (deptKeyValue === 'shooting') {
+  const deptKey = mzjNormalizeProcedureDeptKey(deptKeyValue);
+  if (deptKey === 'shooting') {
     return [
       { label: 'التصوير قبل الفلترة', value: 20 },
       { label: 'الاعتماد', value: 20, adminOnly: true },
@@ -246,7 +258,7 @@ function taskStepsForDept(deptKeyValue) {
       { label: 'التسليم و الارفاق', value: 20 }
     ];
   }
-  if (deptKeyValue === 'content' || deptKeyValue === 'publish') {
+  if (deptKey === 'content' || deptKey === 'publish') {
     return [
       { label: 'نموذج المحتوى', value: 20 },
       { label: 'الاعتماد', value: 20, adminOnly: true },
@@ -255,18 +267,18 @@ function taskStepsForDept(deptKeyValue) {
       { label: 'التسليم و الارفاق', value: 20 }
     ];
   }
-  if (deptKeyValue === 'design') {
+  if (deptKey === 'design') {
     return [
-      { label: 'النسخة الأولى', value: 35 },
+      { label: 'النسخة الاولى', value: 35 },
       { label: 'الاعتماد', value: 35, adminOnly: true },
       { label: 'التسليم و الارفاق', value: 30 }
     ];
   }
-  if (deptKeyValue === 'montage') {
+  if (deptKey === 'montage') {
     return [
       { label: 'اختيار اللقطات المناسبة', value: 10 },
       { label: 'تجهيز مشاهد الذكاء الاصطناعي', value: 10 },
-      { label: 'فويس أوفر', value: 10 },
+      { label: 'فويس اوفر', value: 10 },
       { label: 'الهوك', value: 10 },
       { label: 'الاعتماد', value: 15, adminOnly: true },
       { label: 'النسخة الأولى', value: 20 },
@@ -274,13 +286,7 @@ function taskStepsForDept(deptKeyValue) {
       { label: 'التسليم و الارفاق', value: 10 }
     ];
   }
-  return [
-    { label: 'التصوير قبل الفلترة', value: 20 },
-    { label: 'الاعتماد', value: 20, adminOnly: true },
-    { label: 'الاديت', value: 20 },
-    { label: 'الاعتماد', value: 20, adminOnly: true },
-    { label: 'التسليم و الارفاق', value: 20 }
-  ];
+  return taskStepsForDept('content');
 }
 
 function encodeTaskSteps(steps) {
@@ -1533,7 +1539,7 @@ function openTaskDetails(button) {
   if (!taskDetailsModal || !taskStepButtons) return;
 
   activeTaskCard = button.closest('[data-dept-task-card]') || button.closest('.department-task-card') || button.closest('.dept-card-template') || button.closest('[data-dash-task-id]');
-  const deptKeyValue = button.dataset.deptKey || '';
+  let deptKeyValue = button.dataset.deptKey || '';
   let deptDataFromButton = null;
   try {
     deptDataFromButton = button.dataset.deptTaskJson ? JSON.parse(decodeURIComponent(button.dataset.deptTaskJson)) : null;
@@ -1611,6 +1617,8 @@ function openTaskDetails(button) {
       deptDataFromButton.__contentTypeReadinessKey = contentTypeReadinessKey;
     }
   }
+
+  deptKeyValue = mzjNormalizeProcedureDeptKey(mzjDetailsDeptKey(clickedDept?.departmentName || deptDataFromButton?.departmentName || button.dataset.dept || deptKeyValue));
 
   const sameUserValues = [
     clickedDept.userId, clickedDept.userUid, clickedDept.uid, clickedDept.assigneeUid,
@@ -1751,7 +1759,7 @@ taskStepButtons.innerHTML = '';
   assignments.forEach(({ dept, index: deptIndex }, assignmentIndex) => {
     const readinessKey = mzjDetailsReadinessKey(dept, deptIndex);
     const selected = mzjDetailsReadinessSteps(fullTask || {}, dept, deptIndex).map(String);
-    const steps = decodeTaskSteps(button.dataset.steps || '', deptKeyValue);
+    const steps = taskStepsForDept(deptKeyValue);
     const block = document.createElement('section');
     block.className = `assignment-step-block ${assignmentIndex === 0 ? 'is-active' : ''}`;
     block.dataset.assignmentStepBlock = 'true';
@@ -7869,7 +7877,7 @@ initCreateTaskFromTemplate();
     const filtered = contentType ? dashboardFilteredDeptByContentType(deptTask, contentType) : deptTask;
     const selected = readinessStepsForDept(task, deptTask, deptIndex, contentType);
     if (selected.length) {
-      const steps = taskStepsForDept(deptKey(filtered.departmentName));
+      const steps = taskStepsForDept(deptKey(filtered.departmentName || deptTask.departmentName));
       return mzjEffectiveTaskPercentFromIndexes(steps, selected, !userIsAdmin());
     }
     return taskDeptProgress(task, deptTask, deptIndex);
@@ -8088,7 +8096,10 @@ initCreateTaskFromTemplate();
           const selected = Array.from(block.querySelectorAll('.task-step-btn.is-done')).map((btn) => Number(btn.dataset.stepIndex)).filter((value) => !Number.isNaN(value));
           if (legacyKey && legacyKey !== key) delete task.readiness[legacyKey];
           if (key) task.readiness[key] = selected;
-          const dept = (task.departmentTasks || []).find((d, index) => String(dashboardDeptReadinessKey(d, index)) === String(key));
+          const dept = (task.departmentTasks || []).find((d, index) => {
+            const base = String(dashboardDeptReadinessKey(d, index));
+            return String(key) === base || String(key).startsWith(base + '::contentType::');
+          });
           const stepButtons = Array.from(block.querySelectorAll('.task-step-btn'));
           const lastIndex = stepButtons.length ? Number(stepButtons[stepButtons.length - 1].dataset.stepIndex) : -1;
           if (dept && selected.includes(lastIndex)) {
@@ -8102,7 +8113,10 @@ initCreateTaskFromTemplate();
         const legacyKey = activeTaskDetailsMeta?.legacyReadinessKey || '';
         if (legacyKey && legacyKey !== key) delete task.readiness[legacyKey];
         task.readiness[key] = (activeTaskCard.dataset.completedSteps || '').split(',').filter(Boolean).map(Number);
-        const dept = (task.departmentTasks || []).find((d, index) => String(dashboardDeptReadinessKey(d, index)) === String(key));
+        const dept = (task.departmentTasks || []).find((d, index) => {
+          const base = String(dashboardDeptReadinessKey(d, index));
+          return String(key) === base || String(key).startsWith(base + '::contentType::');
+        });
         const selected = task.readiness[key] || [];
         const stepButtons = Array.from(taskStepButtons?.querySelectorAll('.task-step-btn') || []);
         const lastIndex = stepButtons.length ? Number(stepButtons[stepButtons.length - 1].dataset.stepIndex) : -1;

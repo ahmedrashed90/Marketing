@@ -8979,3 +8979,59 @@ body[data-page="requiredContent"] .required-content-type-inline{
   .content-type-user-task-actions{justify-content:stretch!important;}
   .content-type-user-task-actions button{flex:1!important;}
 }
+
+
+/* MZJ fix: user dashboard content types as Kanban columns */
+.user-content-type-dashboard-list{
+  display:flex!important;
+  flex-wrap:nowrap!important;
+  gap:18px!important;
+  overflow-x:auto!important;
+  overflow-y:visible!important;
+  align-items:stretch!important;
+  padding:8px 4px 16px!important;
+  scroll-snap-type:x mandatory!important;
+}
+.user-content-type-dashboard-list .user-content-type-group-card{
+  flex:0 0 390px!important;
+  max-width:390px!important;
+  min-height:360px!important;
+  display:flex!important;
+  flex-direction:column!important;
+  scroll-snap-align:start!important;
+}
+.user-content-type-group-card .content-type-group-head{
+  position:sticky!important;
+  top:0!important;
+  z-index:2!important;
+  background:#fffaf6!important;
+  border-bottom:1px dashed rgba(62,36,32,.12)!important;
+  padding-bottom:12px!important;
+}
+.content-type-user-task-list{
+  display:flex!important;
+  flex-direction:column!important;
+  gap:12px!important;
+  flex:1 1 auto!important;
+}
+.content-type-user-task-row{
+  grid-template-columns:1fr!important;
+  align-items:stretch!important;
+  min-height:118px!important;
+}
+.content-type-user-task-actions{
+  justify-content:flex-start!important;
+}
+.content-type-user-task-actions button{
+  min-width:115px!important;
+}
+@media(max-width:760px){
+  .user-content-type-dashboard-list{
+    display:flex!important;
+    overflow-x:auto!important;
+  }
+  .user-content-type-dashboard-list .user-content-type-group-card{
+    flex-basis:86vw!important;
+    max-width:86vw!important;
+  }
+}

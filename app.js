@@ -1425,6 +1425,53 @@ function mzjDecodeJsonDataAttr(value, fallback = []) {
   return fallback;
 }
 
+
+function mzjForceSingleContentTypeForDetails(dept, contentType) {
+  const type = String(contentType || '').trim();
+  if (!dept || !type) return dept;
+  const clone = { ...dept };
+  const matchType = (value) => String(value || '').trim() === type;
+  const filterItems = (items) => Array.isArray(items) ? items.filter((item) => matchType(item?.contentType || item?.title || item?.name || item?.deliverable)) : [];
+  const contentItems = filterItems(clone.contentItems);
+  const photoItems = filterItems(clone.photoItems);
+  const selectedDeliverables = filterItems(clone.selectedDeliverables);
+  const detailsItems = filterItems(clone.requiredDetails?.items);
+  const detailsDeliverables = filterItems(clone.requiredDetails?.deliverables);
+
+  clone.__contentTypeFilter = type;
+  clone.__selectedContentTypesFromButton = [type];
+  clone.selectedContentTypes = [type];
+  clone.selectedContentTypeTitles = [type];
+  clone.contentType = type;
+  clone.contentTypes = [type];
+  if (contentItems.length) clone.contentItems = contentItems;
+  if (photoItems.length) clone.photoItems = photoItems;
+  if (selectedDeliverables.length) clone.selectedDeliverables = selectedDeliverables;
+  clone.requiredDetails = { ...(clone.requiredDetails || {}) };
+  clone.requiredDetails.__selectedContentTypesFromButton = [type];
+  clone.requiredDetails.selectedContentTypes = [type];
+  clone.requiredDetails.selectedContentTypeTitles = [type];
+  clone.requiredDetails.contentType = type;
+  if (detailsItems.length) clone.requiredDetails.items = detailsItems;
+  if (detailsDeliverables.length) clone.requiredDetails.deliverables = detailsDeliverables;
+
+  const filteredItems = contentItems.length ? contentItems : (photoItems.length ? photoItems : (selectedDeliverables.length ? selectedDeliverables : detailsItems));
+  const cars = mzjUniqueStrings((filteredItems || []).map((item) => item?.carType || item?.car || item?.vehicle).filter(Boolean));
+  if (cars.length) {
+    clone.__selectedCarsFromButton = cars;
+    clone.selectedCars = cars;
+    clone.selectedCarValues = cars;
+    clone.carType = cars.join('، ');
+  }
+  const quantityMap = Object.assign({}, clone.contentTypeQuantities || {}, clone.selectedContentTypeQuantities || {}, clone.requiredDetails?.contentTypeQuantities || {}, clone.requiredDetails?.selectedContentTypeQuantities || {});
+  const qty = quantityMap[type] || (filteredItems || []).map((item) => item?.quantity || item?.qty || item?.count || item?.requiredCount || item?.requiredQuantity).find(Boolean);
+  clone.contentTypeQuantities = qty ? { [type]: qty } : {};
+  clone.selectedContentTypeQuantities = qty ? { [type]: qty } : {};
+  clone.requiredDetails.contentTypeQuantities = qty ? { [type]: qty } : {};
+  clone.requiredDetails.selectedContentTypeQuantities = qty ? { [type]: qty } : {};
+  return clone;
+}
+
 function openTaskDetails(button) {
   if (!taskDetailsModal || !taskStepButtons) return;
 
@@ -1438,7 +1485,10 @@ function openTaskDetails(button) {
   }
 
   const datasetCars = mzjDecodeJsonDataAttr(button.dataset.selectedCarsJson || '', []);
-  const datasetContentTypes = mzjDecodeJsonDataAttr(button.dataset.selectedContentTypesJson || '', []);
+  const contentTypeFilterFromButton = String(button.dataset.contentTypeFilter || '').trim();
+  let datasetContentTypes = mzjDecodeJsonDataAttr(button.dataset.selectedContentTypesJson || '', []);
+  if (!datasetContentTypes.length && contentTypeFilterFromButton) datasetContentTypes = [contentTypeFilterFromButton];
+  if (contentTypeFilterFromButton && !datasetContentTypes.includes(contentTypeFilterFromButton)) datasetContentTypes = [contentTypeFilterFromButton];
   if (deptDataFromButton) {
     deptDataFromButton.__selectedCarsFromButton = datasetCars;
     deptDataFromButton.__selectedContentTypesFromButton = datasetContentTypes;
@@ -1494,7 +1544,11 @@ function openTaskDetails(button) {
   const deptIndexFromButton = button.dataset.deptIndex === undefined || button.dataset.deptIndex === '' ? -1 : Number(button.dataset.deptIndex);
   const clickedIndex = Number.isInteger(deptIndexFromButton) && deptIndexFromButton >= 0 ? deptIndexFromButton : departmentTasks.findIndex((dept) => String(mzjDetailsDeptIdentity(dept)) === String(clickedIdentity) && mzjDetailsDeptKey(dept.departmentName) === deptKeyValue);
   const clickedDeptIndex = clickedIndex >= 0 ? clickedIndex : 0;
-  const clickedDept = clickedIndex >= 0 ? departmentTasks[clickedIndex] : (deptDataFromButton || {});
+  let clickedDept = clickedIndex >= 0 ? departmentTasks[clickedIndex] : (deptDataFromButton || {});
+  if (contentTypeFilterFromButton) {
+    clickedDept = mzjForceSingleContentTypeForDetails(clickedDept, contentTypeFilterFromButton);
+    if (deptDataFromButton) deptDataFromButton = mzjForceSingleContentTypeForDetails(deptDataFromButton, contentTypeFilterFromButton);
+  }
 
   const sameUserValues = [
     clickedDept.userId, clickedDept.userUid, clickedDept.uid, clickedDept.assigneeUid,
@@ -1548,12 +1602,13 @@ function openTaskDetails(button) {
           mergedDept.contentType = datasetContentTypes.join('، ');
         }
       }
+      const detailDeptForMeta = contentTypeFilterFromButton ? mzjForceSingleContentTypeForDetails(mergedDept, contentTypeFilterFromButton) : mergedDept;
       return {
-        deptIdentity: mzjDetailsDeptIdentity(mergedDept),
-        readinessKey: mzjDetailsReadinessKey(mergedDept, index),
-        legacyReadinessKey: mzjDetailsLegacyReadinessKey(mergedDept),
+        deptIdentity: mzjDetailsDeptIdentity(detailDeptForMeta),
+        readinessKey: mzjDetailsReadinessKey(detailDeptForMeta, index),
+        legacyReadinessKey: mzjDetailsLegacyReadinessKey(detailDeptForMeta),
         deptIndex: index,
-        deptData: mergedDept
+        deptData: detailDeptForMeta
       };
     })
   };
@@ -1586,8 +1641,9 @@ function openTaskDetails(button) {
         selectedDeptForRender.contentType = datasetContentTypes.join('، ');
       }
     }
+    const finalDeptForRender = contentTypeFilterFromButton ? mzjForceSingleContentTypeForDetails(selectedDeptForRender, contentTypeFilterFromButton) : selectedDeptForRender;
     if (taskDetailsRequired) {
-      taskDetailsRequired.innerHTML = renderTaskDetailsSummary(selectedDeptForRender, deptKeyValue) || renderStructuredDepartmentRequirement(selectedDeptForRender, deptKeyValue) || renderTaskRequirementDetails(formatDepartmentRequirement(selectedDeptForRender), deptKeyValue);
+      taskDetailsRequired.innerHTML = renderTaskDetailsSummary(finalDeptForRender, deptKeyValue) || renderStructuredDepartmentRequirement(finalDeptForRender, deptKeyValue) || renderTaskRequirementDetails(formatDepartmentRequirement(finalDeptForRender), deptKeyValue);
     }
   };
   renderSelectedRequirement(0);

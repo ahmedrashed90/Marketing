@@ -307,96 +307,6 @@ function mzjStepIsAdminOnly(step) {
   return Boolean(step && (step.adminOnly || String(step.label || '').includes('اعتماد')));
 }
 
-
-function mzjNormalizeContentTypeComparable(value) {
-  return String(value || '')
-    .replace(/[\u064B-\u065F\u0670]/g, '')
-    .replace(/[أإآ]/g, 'ا')
-    .replace(/ى/g, 'ي')
-    .replace(/ة/g, 'ه')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .toLowerCase();
-}
-
-function mzjUniqueStepIndexes(values) {
-  return Array.from(new Set((values || [])
-    .map((value) => Number(value))
-    .filter((value) => !Number.isNaN(value))))
-    .sort((a, b) => a - b);
-}
-
-function mzjCollectReadinessStepsForScopedKey(readiness, scopedKey, contentType) {
-  const source = readiness || {};
-  const key = String(scopedKey || '');
-  const collected = [];
-  const add = (arr) => {
-    if (Array.isArray(arr)) arr.forEach((value) => collected.push(value));
-  };
-  add(source[key]);
-  if (key.includes('::contentType::')) {
-    const baseKey = key.split('::contentType::')[0];
-    const requestedType = mzjNormalizeContentTypeComparable(contentType || key.split('::contentType::').slice(1).join('::contentType::'));
-    Object.keys(source).forEach((candidateKey) => {
-      if (!candidateKey.startsWith(baseKey + '::contentType::')) return;
-      const candidateType = mzjNormalizeContentTypeComparable(candidateKey.split('::contentType::').slice(1).join('::contentType::'));
-      if (requestedType && candidateType === requestedType) add(source[candidateKey]);
-    });
-  }
-  return mzjUniqueStepIndexes(collected);
-}
-
-function mzjDeliveryStepIndexForDept(deptTask) {
-  const deptName = typeof deptTask === 'string' ? deptTask : (deptTask?.departmentName || deptTask?.deptKey || 'content');
-  const steps = taskStepsForDept(mzjNormalizeProcedureDeptKey(deptName));
-  const found = steps.findIndex((step) => String(step.label || '').includes('التسليم') || String(step.label || '').includes('الارفاق') || String(step.label || '').includes('الإرفاق'));
-  return found >= 0 ? found : Math.max(steps.length - 1, 0);
-}
-
-function mzjDeliveryContentTypeFromDept(deptTask) {
-  const values = [];
-  const add = (value) => {
-    if (Array.isArray(value)) { value.forEach(add); return; }
-    if (value && typeof value === 'object') { add(value.contentType || value.title || value.name || value.value || value.label); return; }
-    const clean = String(value || '').replace(/\s+/g, ' ').trim();
-    if (clean) values.push(clean);
-  };
-  add(deptTask?.__contentTypeFilter);
-  add(deptTask?.__selectedContentTypesFromButton);
-  add(deptTask?.selectedContentTypes);
-  add(deptTask?.selectedContentTypeTitles);
-  add(deptTask?.contentTypes);
-  add(deptTask?.requiredDetails?.__selectedContentTypesFromButton);
-  add(deptTask?.requiredDetails?.selectedContentTypes);
-  add(deptTask?.requiredDetails?.selectedContentTypeTitles);
-  add(deptTask?.requiredDetails?.contentTypes);
-  add(deptTask?.contentType);
-  const unique = mzjUniqueStrings(values).filter(Boolean);
-  return unique.length === 1 ? unique[0] : '';
-}
-
-function mzjDeliveryTypeIsMarked(deptTask, contentType) {
-  const type = String(contentType || '').trim();
-  const maps = [deptTask?.deliveredContentTypes, deptTask?.deliveryContentTypes, deptTask?.attachmentContentTypes, deptTask?.fileContentTypes];
-  if (type) {
-    const normalized = mzjNormalizeContentTypeComparable(type);
-    for (const map of maps) {
-      if (!map || typeof map !== 'object') continue;
-      for (const [key, value] of Object.entries(map)) {
-        if (mzjNormalizeContentTypeComparable(key) === normalized && (value === true || value?.delivered || value?.uploaded || value?.fileUrl || value?.url || value?.uploadedAt)) return true;
-      }
-    }
-  }
-  const files = [deptTask?.files, deptTask?.attachments, deptTask?.driveFiles].filter(Array.isArray).flat();
-  if (!files.length) return false;
-  if (!type) return true;
-  const normalized = mzjNormalizeContentTypeComparable(type);
-  return files.some((file) => {
-    const fileType = file?.taskContentType || file?.contentTypeName || file?.contentTypeTitle || file?.contentTypeLabel || file?.forContentType;
-    return fileType && mzjNormalizeContentTypeComparable(fileType) === normalized;
-  });
-}
-
 function mzjEffectiveTaskPercentFromIndexes(steps, selectedIndexes, normalizeForUser = false) {
   // MZJ FIX: نسبة اكتمال التاسك لازم تتحسب من أوزان إجراءات القسم كاملة = 100%.
   // خطوات الاعتماد للأدمن فقط في الصلاحية، لكنها جزء من إجمالي 100% وليست مستبعدة من المقام.
@@ -1385,10 +1295,7 @@ async function uploadTaskFileToDrive(file, meta) {
     uploadedAt: new Date().toISOString(),
     uploadedBy,
     departmentKey: payload.meta.departmentKey,
-    departmentName: payload.meta.departmentName,
-    taskContentType: mzjDeliveryContentTypeFromDept(meta?.deptData || {}),
-    contentTypeName: mzjDeliveryContentTypeFromDept(meta?.deptData || {}),
-    readinessKey: meta?.relatedAssignments?.[0]?.readinessKey || meta?.readinessKey || ''
+    departmentName: payload.meta.departmentName
   };
 }
 
@@ -1462,6 +1369,39 @@ async function removeTaskAttachmentFromFirebase(meta, encodedFileKey) {
   return removed;
 }
 
+
+function mzjMarkDeliveryStepInReadiness(readiness, dept, deptIndex, meta) {
+  const next = readiness && typeof readiness === 'object' ? { ...readiness } : {};
+  const contentType = String(
+    meta?.deptData?.__contentTypeFilter ||
+    (Array.isArray(meta?.deptData?.__selectedContentTypesFromButton) && meta.deptData.__selectedContentTypesFromButton.length === 1 ? meta.deptData.__selectedContentTypesFromButton[0] : '') ||
+    (Array.isArray(meta?.deptData?.selectedContentTypes) && meta.deptData.selectedContentTypes.length === 1 ? meta.deptData.selectedContentTypes[0] : '') ||
+    (Array.isArray(meta?.deptData?.contentTypes) && meta.deptData.contentTypes.length === 1 ? meta.deptData.contentTypes[0] : '') ||
+    meta?.deptData?.contentType || ''
+  ).trim();
+  const deliveryIndex = mzjDeliveryStepIndexForDept(dept || meta?.deptData || meta?.deptKey || 'content');
+  const addIndex = (key) => {
+    if (!key) return;
+    const arr = Array.isArray(next[key]) ? next[key].slice() : [];
+    if (!arr.map(String).includes(String(deliveryIndex))) arr.push(deliveryIndex);
+    next[key] = mzjUniqueStepIndexes(arr);
+  };
+  const related = Array.isArray(meta?.relatedAssignments) ? meta.relatedAssignments : [];
+  related.forEach((assignment) => addIndex(assignment?.readinessKey));
+  const scopedDept = { ...(dept || meta?.deptData || {}) };
+  if (contentType) {
+    scopedDept.__contentTypeFilter = contentType;
+    scopedDept.__selectedContentTypesFromButton = [contentType];
+  }
+  addIndex(mzjDetailsReadinessKey(scopedDept, Number.isInteger(Number(deptIndex)) ? Number(deptIndex) : 0));
+  if (contentType) {
+    const baseDept = { ...(dept || meta?.deptData || {}), __contentTypeFilter: '', __selectedContentTypesFromButton: [] };
+    const baseKey = mzjDetailsReadinessKey(baseDept, Number.isInteger(Number(deptIndex)) ? Number(deptIndex) : 0).split('::contentType::')[0];
+    addIndex(mzjContentTypeReadinessKey(baseKey, contentType));
+  }
+  return next;
+}
+
 async function saveTaskAttachmentToFirebase(meta, fileRecord) {
   if (!meta?.taskId) throw new Error('لا يوجد رقم للتاسك لحفظ المرفق.');
   if (!window.firebase || !window.MZJ_FIREBASE_CONFIG || !firebase.firestore) throw new Error('Firebase SDK غير موجود.');
@@ -1473,43 +1413,28 @@ async function saveTaskAttachmentToFirebase(meta, fileRecord) {
   if (!snap.exists) throw new Error('لم يتم العثور على الحملة في workspace_tasks لحفظ المرفق.');
 
   const data = snap.data() || {};
+  let nextReadiness = data.readiness && typeof data.readiness === 'object' ? { ...data.readiness } : {};
   const departmentTasks = Array.isArray(data.departmentTasks) ? data.departmentTasks : [];
-  const uploadedContentType = mzjDeliveryContentTypeFromDept(meta?.deptData || meta?.relatedAssignments?.[0]?.deptData || {});
-  const enrichedFileRecord = {
-    ...(fileRecord || {}),
-    taskContentType: uploadedContentType || fileRecord?.taskContentType || '',
-    contentTypeName: uploadedContentType || fileRecord?.contentTypeName || '',
-    readinessKey: meta?.relatedAssignments?.[0]?.readinessKey || meta?.readinessKey || fileRecord?.readinessKey || ''
-  };
-  const updatedDepartments = departmentTasks.map((dept) => {
+  const updatedDepartments = departmentTasks.map((dept, deptIndex) => {
     const sameDept = rawDeptIdentity(dept) === String(meta.deptIdentity || '');
     if (!sameDept) return dept;
     const files = Array.isArray(dept.files) ? dept.files.slice() : [];
     const attachments = Array.isArray(dept.attachments) ? dept.attachments.slice() : [];
     const driveFiles = Array.isArray(dept.driveFiles) ? dept.driveFiles.slice() : [];
-    files.push(enrichedFileRecord);
-    attachments.push(enrichedFileRecord);
-    driveFiles.push(enrichedFileRecord);
-    const deliveredContentTypes = { ...(dept.deliveredContentTypes || dept.deliveryContentTypes || {}) };
-    if (uploadedContentType) {
-      deliveredContentTypes[uploadedContentType] = {
-        delivered: true,
-        uploaded: true,
-        uploadedAt: enrichedFileRecord.uploadedAt || new Date().toISOString(),
-        fileUrl: enrichedFileRecord.fileUrl || enrichedFileRecord.url || ''
-      };
-    }
-    return {
+    files.push(fileRecord);
+    attachments.push(fileRecord);
+    driveFiles.push(fileRecord);
+    const nextDept = {
       ...dept,
       files,
       attachments,
       driveFiles,
-      deliveredContentTypes,
-      deliveryContentTypes: deliveredContentTypes,
-      fileUrl: enrichedFileRecord.fileUrl || enrichedFileRecord.url || '',
-      attachmentUrl: enrichedFileRecord.fileUrl || enrichedFileRecord.url || '',
+      fileUrl: fileRecord.fileUrl || fileRecord.url || '',
+      attachmentUrl: fileRecord.fileUrl || fileRecord.url || '',
       updatedAt: new Date().toISOString()
     };
+    nextReadiness = mzjMarkDeliveryStepInReadiness(nextReadiness, nextDept, deptIndex, meta);
+    return nextDept;
   });
 
   await docRef.set({
@@ -1522,16 +1447,16 @@ async function saveTaskAttachmentToFirebase(meta, fileRecord) {
     const currentFiles = Array.isArray(meta.deptData.files) ? meta.deptData.files.slice() : [];
     const currentAttachments = Array.isArray(meta.deptData.attachments) ? meta.deptData.attachments.slice() : [];
     const currentDriveFiles = Array.isArray(meta.deptData.driveFiles) ? meta.deptData.driveFiles.slice() : [];
-    currentFiles.push(enrichedFileRecord);
-    currentAttachments.push(enrichedFileRecord);
-    currentDriveFiles.push(enrichedFileRecord);
+    currentFiles.push(fileRecord);
+    currentAttachments.push(fileRecord);
+    currentDriveFiles.push(fileRecord);
     meta.deptData = {
       ...meta.deptData,
       files: currentFiles,
       attachments: currentAttachments,
       driveFiles: currentDriveFiles,
-      fileUrl: enrichedFileRecord.fileUrl || enrichedFileRecord.url || '',
-      attachmentUrl: enrichedFileRecord.fileUrl || enrichedFileRecord.url || '',
+      fileUrl: fileRecord.fileUrl || fileRecord.url || '',
+      attachmentUrl: fileRecord.fileUrl || fileRecord.url || '',
       updatedAt: new Date().toISOString()
     };
   }
@@ -1618,20 +1543,13 @@ function mzjDetailsReadinessSteps(task, deptTask, deptIndex = 0) {
   const readiness = task?.readiness || {};
   const key = mzjDetailsReadinessKey(deptTask, deptIndex);
   const legacyKey = mzjDetailsLegacyReadinessKey(deptTask);
-  const hasContentTypeScope = String(key || '').includes('::contentType::') || Boolean(deptTask?.__contentTypeFilter);
+  const contentType = deptTask?.__contentTypeFilter || (Array.isArray(deptTask?.__selectedContentTypesFromButton) && deptTask.__selectedContentTypesFromButton.length === 1 ? deptTask.__selectedContentTypesFromButton[0] : '') || '';
+  const hasContentTypeScope = String(key || '').includes('::contentType::') || Boolean(contentType);
   let selected = [];
-  if (hasContentTypeScope) {
-    selected = mzjCollectReadinessStepsForScopedKey(readiness, key, deptTask?.__contentTypeFilter || deptTask?.contentType || '');
-  } else if (Array.isArray(readiness[key])) {
-    selected = readiness[key];
-  } else {
-    selected = Array.isArray(readiness[legacyKey]) ? readiness[legacyKey] : [];
-  }
-  selected = mzjUniqueStepIndexes(selected);
-  const scopedType = deptTask?.__contentTypeFilter || (Array.isArray(deptTask?.__selectedContentTypesFromButton) && deptTask.__selectedContentTypesFromButton.length === 1 ? deptTask.__selectedContentTypesFromButton[0] : deptTask?.contentType || '');
-  if (mzjDeliveryTypeIsMarked(deptTask, scopedType)) {
-    const deliveryIndex = mzjDeliveryStepIndexForDept(deptTask || {});
-    if (!selected.includes(deliveryIndex)) selected.push(deliveryIndex);
+  if (hasContentTypeScope) selected = mzjCollectReadinessStepsForScopedKey(readiness, key, contentType);
+  else selected = Array.isArray(readiness[key]) ? readiness[key] : (Array.isArray(readiness[legacyKey]) ? readiness[legacyKey] : []);
+  if (contentType && typeof mzjDeliveryTypeIsMarked === 'function' && mzjDeliveryTypeIsMarked(deptTask, contentType)) {
+    selected = selected.concat([mzjDeliveryStepIndexForDept(deptTask)]);
   }
   return mzjUniqueStepIndexes(selected);
 }
@@ -7464,13 +7382,12 @@ initCreateTaskFromTemplate();
     return Array.from(map.values());
   }
   window.MZJReadDashboardTasks = readTasks;
-  window.MZJRefreshDashboardTaskCache = function refreshDashboardTaskCache(taskId, departmentTasks, readiness){
+  window.MZJRefreshDashboardTaskCache = function refreshDashboardTaskCache(taskId, departmentTasks){
     const idx = firestoreTaskCache.findIndex((item) => String(item.id || item.firestoreId || item.docId) === String(taskId));
     if (idx >= 0) {
       firestoreTaskCache[idx] = {
         ...firestoreTaskCache[idx],
         departmentTasks,
-        ...(readiness ? { readiness } : {}),
         updatedAt: new Date().toISOString()
       };
     }
@@ -7623,11 +7540,14 @@ initCreateTaskFromTemplate();
     const baseKey = dashboardDeptReadinessKey(deptTask, deptIndex);
     const typeKey = contentType ? dashboardContentTypeReadinessKey(deptTask, deptIndex, contentType) : '';
     const legacyKey = legacyDeptReadinessKey(deptTask);
-    let selected = typeKey ? mzjCollectReadinessStepsForScopedKey(readiness, typeKey, contentType) : (Array.isArray(readiness[baseKey]) ? readiness[baseKey] : (Array.isArray(readiness[legacyKey]) ? readiness[legacyKey] : []));
-    selected = mzjUniqueStepIndexes(selected);
-    if (mzjDeliveryTypeIsMarked(deptTask, contentType)) {
-      const deliveryIndex = mzjDeliveryStepIndexForDept(deptTask || {});
-      if (!selected.includes(deliveryIndex)) selected.push(deliveryIndex);
+    let selected = [];
+    if (typeKey) {
+      selected = mzjCollectReadinessStepsForScopedKey(readiness, typeKey, contentType);
+    } else {
+      selected = Array.isArray(readiness[baseKey]) ? readiness[baseKey] : (Array.isArray(readiness[legacyKey]) ? readiness[legacyKey] : []);
+    }
+    if (contentType && typeof mzjDeliveryTypeIsMarked === 'function' && mzjDeliveryTypeIsMarked(deptTask, contentType)) {
+      selected = selected.concat([mzjDeliveryStepIndexForDept(deptTask)]);
     }
     return mzjUniqueStepIndexes(selected);
   }
@@ -8262,10 +8182,11 @@ initCreateTaskFromTemplate();
 
   document.addEventListener('click', function(event){
     const step = event.target.closest('#taskStepButtons .task-step-btn');
-    if (!step || !activeTaskCard || !activeTaskCard.dataset.taskId) return;
+    const activeModalTaskId = String(activeTaskDetailsMeta?.taskId || activeTaskCard?.dataset?.taskId || activeTaskCard?.dataset?.dashTaskId || '');
+    if (!step || !activeModalTaskId) return;
     setTimeout(function(){
       const tasks = readTasks();
-      const task = tasks.find(t => t.id === activeTaskCard.dataset.taskId);
+      const task = tasks.find(t => String(t.id) === activeModalTaskId);
       if (!task) return;
       task.readiness = task.readiness || {};
 
@@ -8317,7 +8238,12 @@ initCreateTaskFromTemplate();
       }
 
       autoStage(task);
-      saveTaskToFirestore(task).then(() => window.renderDashboardTasks()).catch((error) => alert('فشل تحديث تفاصيل التاسك في Firebase: ' + (error?.message || error?.code || error)));
+      saveTaskToFirestore(task).then(() => {
+        if (typeof window.MZJRefreshDashboardTaskCache === 'function') {
+          window.MZJRefreshDashboardTaskCache(String(task.id), task.departmentTasks || [], task.readiness || {});
+        }
+        window.renderDashboardTasks();
+      }).catch((error) => alert('فشل تحديث تفاصيل التاسك في Firebase: ' + (error?.message || error?.code || error)));
     }, 0);
   });
 

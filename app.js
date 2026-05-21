@@ -166,7 +166,7 @@ function syncTaskProgress() {
     blocks.forEach((block) => {
       const buttons = Array.from(block.querySelectorAll('.task-step-btn'));
       const activeButtons = buttons.filter((btn) => btn.classList.contains('is-done'));
-      const buttonsSelectedIndexes = activeButtons.map((btn) => btn.dataset.stepIndex);
+      const buttonsSelectedIndexes = mzjEnsureDeliveryStepSelectedFromButtons(activeButtons.map((btn) => btn.dataset.stepIndex), buttons, block.dataset.deptKey || activeTaskDetailsMeta?.deptKey || 'content');
       const canonicalSteps = taskStepsForDept(block.dataset.deptKey || activeTaskDetailsMeta?.deptKey || 'content');
       const rawTaskPercent = mzjEffectiveTaskPercentFromIndexes(canonicalSteps, buttonsSelectedIndexes, false);
       const contentTypeCount = Math.max(Number(block.dataset.contentTypeCount || 1), 1);
@@ -207,7 +207,7 @@ function syncTaskProgress() {
   const activeButtons = allButtons.filter((btn) => btn.classList.contains('is-done'));
   const allStepDefs = taskStepsForDept(activeTaskDetailsMeta?.deptKey || 'content');
   const singleContentTypeCount = Math.max(Number(taskStepButtons.querySelector('[data-assignment-step-block]')?.dataset.contentTypeCount || 1), 1);
-  const taskPercent = Math.min(100, Math.round(mzjEffectiveTaskPercentFromIndexes(allStepDefs, activeButtons.map((btn) => btn.dataset.stepIndex), false) / singleContentTypeCount));
+  const taskPercent = Math.min(100, Math.round(mzjEffectiveTaskPercentFromIndexes(allStepDefs, mzjEnsureDeliveryStepSelectedFromButtons(activeButtons.map((btn) => btn.dataset.stepIndex), allButtons, activeTaskDetailsMeta?.deptKey || 'content'), false) / singleContentTypeCount));
   const campaignPercent = Math.round(activeButtons.reduce((sum, btn) => sum + Number(btn.dataset.campaignValue || 0), 0));
 
   if (modalTaskPercent) modalTaskPercent.textContent = taskPercent + '%';
@@ -1557,6 +1557,18 @@ function mzjUniqueStepIndexes(values) {
   return out.sort((a, b) => a - b);
 }
 
+
+function mzjEnsureDeliveryStepSelectedFromButtons(selectedIndexes, buttons, deptKeyValue) {
+  const selected = mzjUniqueStepIndexes(selectedIndexes || []);
+  const deliveryButton = (Array.isArray(buttons) ? buttons : []).find((btn) => btn && (btn.dataset?.isDeliveryStep === 'true' || /التسليم|الارفاق|الإرفاق/.test(String(btn.textContent || ''))));
+  if (!deliveryButton) return selected;
+  const deliveryIndex = Number(deliveryButton.dataset?.stepIndex ?? mzjDeliveryStepIndexForDept(deptKeyValue || 'content'));
+  if (Number.isNaN(deliveryIndex)) return selected;
+  if (deliveryButton.classList?.contains('is-done') && !selected.map(String).includes(String(deliveryIndex))) selected.push(deliveryIndex);
+  if (!deliveryButton.classList?.contains('is-done')) return selected.filter((idx) => String(idx) !== String(deliveryIndex));
+  return mzjUniqueStepIndexes(selected);
+}
+
 function mzjCollectReadinessStepsForScopedKey(readiness, scopedKey, contentType) {
   const store = readiness && typeof readiness === 'object' ? readiness : {};
   const wantedType = mzjContentTypeKeyPart(contentType || mzjContentTypeFromReadinessKey(scopedKey));
@@ -2066,6 +2078,9 @@ taskStepButtons.innerHTML = '';
       stepButton.dataset.stepValue = String(stepValue);
       stepButton.dataset.campaignValue = String(campaignValue);
       stepButton.dataset.readinessKey = readinessKey;
+      if (String(step.label || '').includes('التسليم') || String(step.label || '').includes('الارفاق') || String(step.label || '').includes('الإرفاق')) {
+        stepButton.dataset.isDeliveryStep = 'true';
+      }
 
       if (isApprovalStep) {
         stepButton.classList.add('is-approval-step');
@@ -8375,7 +8390,9 @@ initCreateTaskFromTemplate();
         blocks.forEach((block) => {
           const key = block.dataset.readinessKey || '';
           const legacyKey = block.dataset.legacyReadinessKey || '';
-          const selected = Array.from(block.querySelectorAll('.task-step-btn.is-done')).map((btn) => Number(btn.dataset.stepIndex)).filter((value) => !Number.isNaN(value));
+          const stepButtons = Array.from(block.querySelectorAll('.task-step-btn'));
+          let selected = Array.from(block.querySelectorAll('.task-step-btn.is-done')).map((btn) => Number(btn.dataset.stepIndex)).filter((value) => !Number.isNaN(value));
+          selected = mzjEnsureDeliveryStepSelectedFromButtons(selected, stepButtons, block.dataset.deptKey || activeTaskDetailsMeta?.deptKey || 'content');
           if (legacyKey && legacyKey !== key) delete task.readiness[legacyKey];
           if (key && String(key).includes('::contentType::')) {
             const baseKey = key.split('::contentType::')[0];
@@ -8387,7 +8404,6 @@ initCreateTaskFromTemplate();
             return String(key) === base || String(key).startsWith(base + '::contentType::');
           });
           const dept = found?.d;
-          const stepButtons = Array.from(block.querySelectorAll('.task-step-btn'));
           const lastIndex = stepButtons.length ? Number(stepButtons[stepButtons.length - 1].dataset.stepIndex) : -1;
           const scopedContentType = String(block.dataset.contentType || mzjContentTypeFromReadinessKey(key) || '').trim();
           if (dept) {
@@ -8417,8 +8433,9 @@ initCreateTaskFromTemplate();
           return String(key) === base || String(key).startsWith(base + '::contentType::');
         });
         const dept = found?.d;
-        const selected = task.readiness[key] || [];
         const stepButtons = Array.from(taskStepButtons?.querySelectorAll('.task-step-btn') || []);
+        const selected = mzjEnsureDeliveryStepSelectedFromButtons(task.readiness[key] || [], stepButtons, activeTaskDetailsMeta?.deptKey || 'content');
+        task.readiness[key] = selected;
         const lastIndex = stepButtons.length ? Number(stepButtons[stepButtons.length - 1].dataset.stepIndex) : -1;
         if (dept) {
           const scopedContentType = String(mzjContentTypeFromReadinessKey(key) || activeTaskDetailsMeta?.deptData?.__contentTypeFilter || '').trim();

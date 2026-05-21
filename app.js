@@ -8066,8 +8066,7 @@ initCreateTaskFromTemplate();
           <span>المسؤول: ${esc(publishDept.departmentName ? deptAssigneeLabel(publishDept) : '--')}</span>
         </div>
         <div class="publish-compact-actions">
-          <button class="primary-btn ${deliveryDate !== '--' ? 'is-done' : ''}" type="button" data-start-publish data-task-id="${esc(task.id)}" ${!userIsAdmin()?'disabled':''}>${deliveryDate !== '--' ? 'تم بدء النشر' : 'بدء النشر'}</button>
-          ${PUBLISH_STEPS.map((step,i)=>`<button type="button" class="task-step-btn publish-mini-step ${done.includes(i) ? 'is-done' : ''} ${step.auto ? 'is-auto-step' : ''}" data-publish-step data-task-id="${esc(task.id)}" data-step-index="${i}" ${(step.auto || step.adminOnly || !userIsAdmin())?'disabled':''}>${esc(step.label)} <small>${esc(step.value)}%${step.auto ? ' - تلقائي' : ''}</small></button>`).join('')}
+          ${PUBLISH_STEPS.map((step,i)=>`<button type="button" class="task-step-btn publish-mini-step ${done.includes(i) ? 'is-done' : ''} ${step.auto ? 'is-auto-step' : ''}" data-publish-step data-task-id="${esc(task.id)}" data-step-index="${i}" ${(step.auto || !userIsAdmin())?'disabled':''}>${esc(step.label)} <small>${esc(step.value)}%${step.auto ? ' - تلقائي' : ''}</small></button>`).join('')}
           <button class="danger-btn publish-mini-delete" type="button" data-delete-task="${esc(task.id)}" data-admin-only>مسح</button>
         </div>
       </div>
@@ -8346,16 +8345,19 @@ initCreateTaskFromTemplate();
     tasks.forEach(task => {
       try {
         const publishDepts = (task.departmentTasks || []).filter((dept) => deptKey(dept.departmentName) === 'publish');
+        const isPublishingStage = publishDepts.length || task.stage === 'publish';
         if (task.stage === 'archive') appendCard(archive, archiveCard(task));
         else {
-          if (taskReceiptProgress(task) < 100) appendCard(required, requiredCard(task));
-          try {
-            appendCard(readiness, readinessCard(task));
-          } catch (error) {
-            console.warn('readiness card failed:', task?.id, error);
-            appendCard(readiness, safeDashboardCard(task, 'جاهزية المطلوب', 'اضغط تحديث لو التفاصيل لم تظهر'));
+          if (!isPublishingStage && taskReceiptProgress(task) < 100) appendCard(required, requiredCard(task));
+          if (!isPublishingStage) {
+            try {
+              appendCard(readiness, readinessCard(task));
+            } catch (error) {
+              console.warn('readiness card failed:', task?.id, error);
+              appendCard(readiness, safeDashboardCard(task, 'جاهزية المطلوب', 'اضغط تحديث لو التفاصيل لم تظهر'));
+            }
           }
-          if (publishDepts.length || task.stage === 'publish') {
+          if (isPublishingStage) {
             try {
               appendCard(publishing, publishCard(task));
             } catch (error) {

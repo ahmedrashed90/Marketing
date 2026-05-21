@@ -1618,6 +1618,56 @@ function mzjSetDeliveryTypeMarked(deptTask, contentType, done, actor) {
   }
 }
 
+function mzjSetContentTypeStepMap(deptTask, contentType, selectedIndexes) {
+  if (!deptTask || !contentType) return;
+  const key = mzjContentTypeKeyPart(contentType);
+  if (!key) return;
+  const selected = mzjUniqueStepIndexes(selectedIndexes);
+  deptTask.readinessByContentType = deptTask.readinessByContentType || {};
+  deptTask.contentTypeReadiness = deptTask.contentTypeReadiness || {};
+  deptTask.stepReadinessByContentType = deptTask.stepReadinessByContentType || {};
+  deptTask.readinessByContentType[key] = selected;
+  deptTask.contentTypeReadiness[key] = selected;
+  deptTask.stepReadinessByContentType[key] = selected;
+}
+
+function mzjReadContentTypeStepMap(deptTask, contentType) {
+  if (!deptTask || !contentType) return [];
+  const key = mzjContentTypeKeyPart(contentType);
+  if (!key) return [];
+  const maps = [deptTask.readinessByContentType, deptTask.contentTypeReadiness, deptTask.stepReadinessByContentType, deptTask.deliveryStepReadinessByContentType];
+  const out = [];
+  maps.forEach((map) => {
+    if (!map || typeof map !== 'object') return;
+    Object.keys(map).forEach((mapKey) => {
+      if (mzjContentTypeKeyPart(mapKey) !== key) return;
+      const value = map[mapKey];
+      if (Array.isArray(value)) out.push(...value);
+      else if (value && typeof value === 'object' && Array.isArray(value.steps)) out.push(...value.steps);
+      else if (value && typeof value === 'object' && Array.isArray(value.selected)) out.push(...value.selected);
+    });
+  });
+  return mzjUniqueStepIndexes(out);
+}
+
+function mzjWriteScopedReadinessKeys(readiness, deptTask, deptIndex, contentType, selectedIndexes) {
+  const store = readiness && typeof readiness === 'object' ? readiness : {};
+  const selected = mzjUniqueStepIndexes(selectedIndexes);
+  const keys = [];
+  const addKey = (key) => { if (key && !keys.includes(key)) keys.push(key); };
+  const baseKey = typeof dashboardDeptReadinessKey === 'function' ? dashboardDeptReadinessKey(deptTask, deptIndex) : mzjDetailsReadinessKey({ ...(deptTask || {}), __contentTypeFilter: '', __selectedContentTypesFromButton: [] }, deptIndex).split('::contentType::')[0];
+  const detailBaseKey = mzjDetailsReadinessKey({ ...(deptTask || {}), __contentTypeFilter: '', __selectedContentTypesFromButton: [], __contentTypeReadinessKey: '' }, deptIndex).split('::contentType::')[0];
+  if (contentType) {
+    addKey(mzjContentTypeReadinessKey(baseKey, contentType));
+    addKey(mzjContentTypeReadinessKey(detailBaseKey, contentType));
+  } else {
+    addKey(baseKey);
+    addKey(detailBaseKey);
+  }
+  keys.forEach((key) => { store[key] = selected; });
+  return store;
+}
+
 function mzjDetailsReadinessKey(deptTask, deptIndex = 0) {
   if (deptTask?.__contentTypeReadinessKey) return deptTask.__contentTypeReadinessKey;
   // MZJ FIX: المفتاح الأساسي لا يستخدم نوع المحتوى أو نص المطلوب، حتى لا يتغير بين الكارت والتفاصيل.
@@ -1637,12 +1687,12 @@ function mzjDetailsReadinessSteps(task, deptTask, deptIndex = 0) {
   let selected = [];
   if (hasContentTypeScope) selected = mzjCollectReadinessStepsForScopedKey(readiness, key, contentType);
   else selected = Array.isArray(readiness[key]) ? readiness[key] : (Array.isArray(readiness[legacyKey]) ? readiness[legacyKey] : []);
+  if (contentType) selected = selected.concat(mzjReadContentTypeStepMap(deptTask, contentType));
   if (contentType && typeof mzjDeliveryTypeIsMarked === 'function' && mzjDeliveryTypeIsMarked(deptTask, contentType)) {
     selected = selected.concat([mzjDeliveryStepIndexForDept(deptTask)]);
   }
   return mzjUniqueStepIndexes(selected);
 }
-
 function mzjDetailsReadTasks() {
   if (typeof readTasks === 'function') return readTasks();
   if (window.MZJReadDashboardTasks) return window.MZJReadDashboardTasks();
@@ -7637,6 +7687,7 @@ initCreateTaskFromTemplate();
     } else {
       selected = Array.isArray(readiness[baseKey]) ? readiness[baseKey] : (Array.isArray(readiness[legacyKey]) ? readiness[legacyKey] : []);
     }
+    if (contentType) selected = selected.concat(mzjReadContentTypeStepMap(deptTask, contentType));
     if (contentType && typeof mzjDeliveryTypeIsMarked === 'function' && mzjDeliveryTypeIsMarked(deptTask, contentType)) {
       selected = selected.concat([mzjDeliveryStepIndexForDept(deptTask)]);
     }
@@ -8292,7 +8343,7 @@ initCreateTaskFromTemplate();
             const baseKey = key.split('::contentType::')[0];
             if (baseKey && baseKey !== key && Array.isArray(task.readiness[baseKey])) delete task.readiness[baseKey];
           }
-          if (key) task.readiness[key] = selected;
+          const scopedContentType = String(block.dataset.contentType || mzjContentTypeFromReadinessKey(key) || '').trim();
           const found = (task.departmentTasks || []).map((d, index) => ({ d, index })).find(({ d, index }) => {
             const base = String(dashboardDeptReadinessKey(d, index));
             return String(key) === base || String(key).startsWith(base + '::contentType::');
@@ -8300,7 +8351,12 @@ initCreateTaskFromTemplate();
           const dept = found?.d;
           const stepButtons = Array.from(block.querySelectorAll('.task-step-btn'));
           const lastIndex = stepButtons.length ? Number(stepButtons[stepButtons.length - 1].dataset.stepIndex) : -1;
-          const scopedContentType = String(block.dataset.contentType || mzjContentTypeFromReadinessKey(key) || '').trim();
+          if (dept && scopedContentType) {
+            mzjSetContentTypeStepMap(dept, scopedContentType, selected);
+            task.readiness = mzjWriteScopedReadinessKeys(task.readiness, dept, found.index, scopedContentType, selected);
+          } else if (key) {
+            task.readiness[key] = selected;
+          }
           if (dept) {
             const doneDelivery = selected.map(String).includes(String(lastIndex));
             if (scopedContentType) mzjSetDeliveryTypeMarked(dept, scopedContentType, doneDelivery, user()?.email || user()?.uid || user()?.id || user()?.name || '');
@@ -8319,17 +8375,23 @@ initCreateTaskFromTemplate();
           const baseKey = key.split('::contentType::')[0];
           if (baseKey && baseKey !== key && Array.isArray(task.readiness[baseKey])) delete task.readiness[baseKey];
         }
-        task.readiness[key] = (activeTaskCard.dataset.completedSteps || '').split(',').filter(Boolean).map(Number);
+        const activeSelectedSteps = (activeTaskCard.dataset.completedSteps || '').split(',').filter(Boolean).map(Number);
         const found = (task.departmentTasks || []).map((d, index) => ({ d, index })).find(({ d, index }) => {
           const base = String(dashboardDeptReadinessKey(d, index));
           return String(key) === base || String(key).startsWith(base + '::contentType::');
         });
         const dept = found?.d;
-        const selected = task.readiness[key] || [];
+        const selected = activeSelectedSteps;
         const stepButtons = Array.from(taskStepButtons?.querySelectorAll('.task-step-btn') || []);
         const lastIndex = stepButtons.length ? Number(stepButtons[stepButtons.length - 1].dataset.stepIndex) : -1;
         if (dept) {
           const scopedContentType = String(mzjContentTypeFromReadinessKey(key) || activeTaskDetailsMeta?.deptData?.__contentTypeFilter || '').trim();
+          if (scopedContentType) {
+            mzjSetContentTypeStepMap(dept, scopedContentType, selected);
+            task.readiness = mzjWriteScopedReadinessKeys(task.readiness, dept, found.index, scopedContentType, selected);
+          } else if (key) {
+            task.readiness[key] = selected;
+          }
           const doneDelivery = selected.map(String).includes(String(lastIndex));
           if (scopedContentType) mzjSetDeliveryTypeMarked(dept, scopedContentType, doneDelivery, user()?.email || user()?.uid || user()?.id || user()?.name || '');
           if (doneDelivery) {

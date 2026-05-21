@@ -7586,6 +7586,7 @@ initCreateTaskFromTemplate();
     const collectionName = task.sourceFirestoreCollection || 'workspace_tasks';
     const docId = task.firestoreId || task.docId || task.id;
     if (!docId) throw new Error('لا يوجد ID للتاسك');
+    mzjCanonicalizeTaskStepStoresBeforeSave(task);
     const cleanTask = JSON.parse(JSON.stringify({ ...task, firestoreId: docId, sourceFirestoreCollection: collectionName }));
     await firebase.firestore().collection(collectionName).doc(String(docId)).set(cleanTask, { merge: true });
     const index = firestoreTaskCache.findIndex((item) => String(item.id || item.firestoreId || item.docId) === String(task.id));
@@ -7593,6 +7594,36 @@ initCreateTaskFromTemplate();
     else firestoreTaskCache.unshift(cleanTask);
   }
   function writeTasks(tasks){ firestoreTaskCache = tasks; }
+
+
+  function mzjCanonicalizeTaskStepStoresBeforeSave(task){
+    if (!task || !Array.isArray(task.departmentTasks)) return task;
+    task.readiness = task.readiness && typeof task.readiness === 'object' ? task.readiness : {};
+    const actor = user()?.email || user()?.uid || user()?.id || user()?.name || '';
+    task.departmentTasks.forEach((dept, deptIndex) => {
+      if (!dept || typeof dept !== 'object') return;
+      const deptKeyValue = dept.departmentName || dept.departmentId || dept.departmentKind || 'content';
+      const deliveryIndex = mzjDeliveryStepIndexForDept(deptKeyValue);
+      const types = dashboardContentTypesForDept(dept).filter(Boolean);
+      types.forEach((type) => {
+        const contentKey = dashboardContentTypeReadinessKey(dept, deptIndex, type);
+        let selected = mzjCollectReadinessStepsForScopedKey(task.readiness, contentKey, type);
+        const aliases = mzjContentTypeAliasesForDept(dept, type);
+        [dept.contentTypeReadiness, dept.readinessByContentType, dept.stepReadinessByContentType].forEach((map) => {
+          if (!map || typeof map !== 'object') return;
+          aliases.forEach((alias) => { if (Array.isArray(map[alias])) selected = selected.concat(map[alias]); });
+        });
+        selected = mzjUniqueStepIndexes(selected);
+        const explicitDelivery = mzjDeliveryTypeIsMarked(dept, type) || selected.map(String).includes(String(deliveryIndex));
+        if (explicitDelivery && !selected.map(String).includes(String(deliveryIndex))) selected.push(deliveryIndex);
+        if (!explicitDelivery) selected = selected.filter((idx) => String(idx) !== String(deliveryIndex));
+        selected = mzjUniqueStepIndexes(selected);
+        task.readiness[contentKey] = selected;
+        mzjSyncDeptStepStateMaps(dept, type, selected, deptKeyValue, actor);
+      });
+    });
+    return task;
+  }
 
   let dashboardLiveUnsubscribers = [];
   let dashboardLiveStarted = false;
@@ -8384,6 +8415,10 @@ initCreateTaskFromTemplate();
       const task = tasks.find(t => String(t.id) === activeModalTaskId);
       if (!task) return;
       task.readiness = task.readiness || {};
+      const actor = user()?.email || user()?.uid || user()?.id || user()?.name || '';
+      const clickedIndex = Number(step.dataset.stepIndex);
+      const clickedIsDelivery = step.dataset.isDeliveryStep === 'true' || /التسليم|الارفاق|الإرفاق/.test(String(step.textContent || ''));
+      const clickedDone = step.classList.contains('is-done');
 
       const blocks = Array.from(taskStepButtons?.querySelectorAll('[data-assignment-step-block]') || []);
       if (blocks.length) {
@@ -8392,6 +8427,11 @@ initCreateTaskFromTemplate();
           const legacyKey = block.dataset.legacyReadinessKey || '';
           const stepButtons = Array.from(block.querySelectorAll('.task-step-btn'));
           let selected = Array.from(block.querySelectorAll('.task-step-btn.is-done')).map((btn) => Number(btn.dataset.stepIndex)).filter((value) => !Number.isNaN(value));
+          const blockContainsClickedStep = block.contains(step);
+          if (blockContainsClickedStep && clickedIsDelivery && !Number.isNaN(clickedIndex)) {
+            if (clickedDone && !selected.map(String).includes(String(clickedIndex))) selected.push(clickedIndex);
+            if (!clickedDone) selected = selected.filter((idx) => String(idx) !== String(clickedIndex));
+          }
           selected = mzjEnsureDeliveryStepSelectedFromButtons(selected, stepButtons, block.dataset.deptKey || activeTaskDetailsMeta?.deptKey || 'content');
           if (legacyKey && legacyKey !== key) delete task.readiness[legacyKey];
           if (key && String(key).includes('::contentType::')) {
@@ -8404,13 +8444,13 @@ initCreateTaskFromTemplate();
             return String(key) === base || String(key).startsWith(base + '::contentType::');
           });
           const dept = found?.d;
-          const lastIndex = stepButtons.length ? Number(stepButtons[stepButtons.length - 1].dataset.stepIndex) : -1;
+          const deliveryIndex = mzjDeliveryStepIndexForDept(dept || block.dataset.deptKey || activeTaskDetailsMeta?.deptKey || 'content');
           const scopedContentType = String(block.dataset.contentType || mzjContentTypeFromReadinessKey(key) || '').trim();
           if (dept) {
-            const doneDelivery = selected.map(String).includes(String(lastIndex));
+            const doneDelivery = selected.map(String).includes(String(deliveryIndex));
             if (scopedContentType) {
-              mzjSetDeliveryTypeMarked(dept, scopedContentType, doneDelivery, user()?.email || user()?.uid || user()?.id || user()?.name || '');
-              mzjSyncDeptStepStateMaps(dept, scopedContentType, selected, block.dataset.deptKey || dept.departmentName || '', user()?.email || user()?.uid || user()?.id || user()?.name || '');
+              mzjSetDeliveryTypeMarked(dept, scopedContentType, doneDelivery, actor);
+              mzjSyncDeptStepStateMaps(dept, scopedContentType, selected, block.dataset.deptKey || dept.departmentName || '', actor);
             }
             if (doneDelivery) {
               const today = todayISODate();
@@ -8434,15 +8474,20 @@ initCreateTaskFromTemplate();
         });
         const dept = found?.d;
         const stepButtons = Array.from(taskStepButtons?.querySelectorAll('.task-step-btn') || []);
-        const selected = mzjEnsureDeliveryStepSelectedFromButtons(task.readiness[key] || [], stepButtons, activeTaskDetailsMeta?.deptKey || 'content');
+        let selected = mzjEnsureDeliveryStepSelectedFromButtons(task.readiness[key] || [], stepButtons, activeTaskDetailsMeta?.deptKey || 'content');
+        if (clickedIsDelivery && !Number.isNaN(clickedIndex)) {
+          if (clickedDone && !selected.map(String).includes(String(clickedIndex))) selected.push(clickedIndex);
+          if (!clickedDone) selected = selected.filter((idx) => String(idx) !== String(clickedIndex));
+          selected = mzjUniqueStepIndexes(selected);
+        }
         task.readiness[key] = selected;
-        const lastIndex = stepButtons.length ? Number(stepButtons[stepButtons.length - 1].dataset.stepIndex) : -1;
         if (dept) {
           const scopedContentType = String(mzjContentTypeFromReadinessKey(key) || activeTaskDetailsMeta?.deptData?.__contentTypeFilter || '').trim();
-          const doneDelivery = selected.map(String).includes(String(lastIndex));
+          const deliveryIndex = mzjDeliveryStepIndexForDept(dept || activeTaskDetailsMeta?.deptKey || 'content');
+          const doneDelivery = selected.map(String).includes(String(deliveryIndex));
           if (scopedContentType) {
-            mzjSetDeliveryTypeMarked(dept, scopedContentType, doneDelivery, user()?.email || user()?.uid || user()?.id || user()?.name || '');
-            mzjSyncDeptStepStateMaps(dept, scopedContentType, selected, activeTaskDetailsMeta?.deptKey || dept.departmentName || '', user()?.email || user()?.uid || user()?.id || user()?.name || '');
+            mzjSetDeliveryTypeMarked(dept, scopedContentType, doneDelivery, actor);
+            mzjSyncDeptStepStateMaps(dept, scopedContentType, selected, activeTaskDetailsMeta?.deptKey || dept.departmentName || '', actor);
           }
           if (doneDelivery) {
             const today = todayISODate();

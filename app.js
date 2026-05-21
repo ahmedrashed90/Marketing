@@ -166,7 +166,13 @@ function syncTaskProgress() {
     blocks.forEach((block) => {
       const buttons = Array.from(block.querySelectorAll('.task-step-btn'));
       const activeButtons = buttons.filter((btn) => btn.classList.contains('is-done'));
-      const taskPercent = Math.min(100, Math.round(activeButtons.reduce((sum, btn) => sum + Number(btn.dataset.stepValue || 0), 0)));
+      const buttonsSelectedIndexes = activeButtons.map((btn) => btn.dataset.stepIndex);
+      const blockSteps = buttons.map((btn) => ({
+        label: btn.querySelector('span')?.textContent || '',
+        value: Number(btn.dataset.stepValue || 0),
+        adminOnly: btn.classList.contains('is-approval-step')
+      }));
+      const taskPercent = mzjEffectiveTaskPercentFromIndexes(blockSteps, buttonsSelectedIndexes, mzjShouldNormalizeTaskProgressForCurrentUser());
       const campaignPercent = Math.round(activeButtons.reduce((sum, btn) => sum + Number(btn.dataset.campaignValue || 0), 0));
       const percentNode = block.querySelector('[data-assignment-task-percent]');
       const campaignNode = block.querySelector('[data-assignment-campaign-percent]');
@@ -201,7 +207,12 @@ function syncTaskProgress() {
 
   const allButtons = Array.from(taskStepButtons.querySelectorAll('.task-step-btn'));
   const activeButtons = allButtons.filter((btn) => btn.classList.contains('is-done'));
-  const taskPercent = Math.min(100, Math.round(activeButtons.reduce((sum, btn) => sum + Number(btn.dataset.stepValue || 0), 0)));
+  const allStepDefs = allButtons.map((btn) => ({
+    label: btn.querySelector('span')?.textContent || '',
+    value: Number(btn.dataset.stepValue || 0),
+    adminOnly: btn.classList.contains('is-approval-step')
+  }));
+  const taskPercent = mzjEffectiveTaskPercentFromIndexes(allStepDefs, activeButtons.map((btn) => btn.dataset.stepIndex), mzjShouldNormalizeTaskProgressForCurrentUser());
   const campaignPercent = Math.round(activeButtons.reduce((sum, btn) => sum + Number(btn.dataset.campaignValue || 0), 0));
 
   if (modalTaskPercent) modalTaskPercent.textContent = taskPercent + '%';
@@ -289,6 +300,28 @@ function decodeTaskSteps(encoded, deptKeyValue) {
 
 function getTaskDetailsSteps(deptKeyValue) {
   return taskStepsForDept(deptKeyValue);
+}
+
+function mzjStepIsAdminOnly(step) {
+  return Boolean(step && (step.adminOnly || String(step.label || '').includes('اعتماد')));
+}
+
+function mzjEffectiveTaskPercentFromIndexes(steps, selectedIndexes, normalizeForUser = false) {
+  const selected = (selectedIndexes || []).map((value) => String(value));
+  const usableSteps = (steps || []).filter((step) => !(normalizeForUser && mzjStepIsAdminOnly(step)));
+  const denominator = normalizeForUser
+    ? usableSteps.reduce((sum, step) => sum + Number(step.value || 0), 0)
+    : (steps || []).reduce((sum, step) => sum + Number(step.value || 0), 0);
+  const selectedTotal = (steps || []).reduce((sum, step, index) => {
+    if (normalizeForUser && mzjStepIsAdminOnly(step)) return sum;
+    return selected.includes(String(index)) ? sum + Number(step.value || 0) : sum;
+  }, 0);
+  if (!denominator) return 0;
+  return Math.min(100, Math.round((selectedTotal / denominator) * 100));
+}
+
+function mzjShouldNormalizeTaskProgressForCurrentUser() {
+  return !isAdminUser();
 }
 
 function formatDepartmentRequirement(deptTask) {
@@ -7388,8 +7421,7 @@ initCreateTaskFromTemplate();
   function taskDeptProgress(task, deptTask, deptIndex = 0){
     const selected = readinessStepsForDept(task, deptTask, deptIndex);
     const steps = taskStepsForDept(deptKey(deptTask.departmentName));
-    const total = selected.reduce((sum, index) => sum + Number(steps[Number(index)]?.value || 0), 0);
-    return Math.min(100, Math.round(total));
+    return mzjEffectiveTaskPercentFromIndexes(steps, selected, !userIsAdmin());
   }
   function taskReadiness(task){
     const depts = (task.departmentTasks || []).filter((d) => d && d.enabled !== false);
@@ -7727,6 +7759,16 @@ initCreateTaskFromTemplate();
     return Boolean(record?.receivedConfirmed || record?.received || record?.receivedAt || deptTask.receivedConfirmed || deptTask.received || deptTask.receivedAt);
   }
 
+  function dashboardContentTypeProgress(task, deptTask, deptIndex, contentType) {
+    const filtered = contentType ? dashboardFilteredDeptByContentType(deptTask, contentType) : deptTask;
+    const selected = mzjDetailsReadinessSteps(task, filtered, deptIndex);
+    if (selected.length) {
+      const steps = taskStepsForDept(deptKey(filtered.departmentName));
+      return mzjEffectiveTaskPercentFromIndexes(steps, selected, !userIsAdmin());
+    }
+    return taskDeptProgress(task, deptTask, deptIndex);
+  }
+
   function userContentTypeGroupCard(group) {
     const entries = group.entries || [];
     const first = entries[0] || {};
@@ -7747,7 +7789,7 @@ initCreateTaskFromTemplate();
       const selected = readinessStepsForDept(entry.task, entry.dept, entry.index).join(',');
       const dkey = deptKey(entry.dept.departmentName);
       const received = dashboardContentTypeReceived(entry.dept, group.contentType);
-      const rowProgress = taskDeptProgress(entry.task, entry.dept, entry.index);
+      const rowProgress = dashboardContentTypeProgress(entry.task, entry.dept, entry.index, group.contentType);
       const rowCampaignPercent = Math.round(rowProgress / Math.max((entry.task.departmentTasks || []).length, 1));
       return `<article class="content-type-user-task-row">
         <div class="content-type-user-task-main">

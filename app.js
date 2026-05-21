@@ -1592,10 +1592,11 @@ function mzjContentTypeMapHas(map, contentType) {
 
 function mzjDeliveryTypeIsMarked(deptTask, contentType) {
   if (!deptTask || !contentType) return false;
+  // MZJ FIX: "تم الاستلام" حالة منفصلة عن خطوة "التسليم و الارفاق".
+  // لا تقرأ receivedContentTypes هنا، لأن ضغط زر تم الاستلام كان يعلّم خطوة التسليم والإرفاق بالخطأ.
   return mzjContentTypeMapHas(deptTask.deliveryDoneContentTypes, contentType) ||
     mzjContentTypeMapHas(deptTask.deliveredContentTypes, contentType) ||
-    mzjContentTypeMapHas(deptTask.deliveryContentTypes, contentType) ||
-    mzjContentTypeMapHas(deptTask.receivedContentTypes, contentType);
+    mzjContentTypeMapHas(deptTask.deliveryContentTypes, contentType);
 }
 
 function mzjSetDeliveryTypeMarked(deptTask, contentType, done, actor) {

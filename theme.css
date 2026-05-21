@@ -9141,3 +9141,96 @@ body[data-page="requiredContent"] .required-content-type-inline{
     grid-template-columns:1fr!important;
   }
 }
+
+/* MZJ tweak: compact user content-type kanban - show 5 columns per screen then horizontal scroll */
+.user-content-type-dashboard-list{
+  display:flex!important;
+  flex-wrap:nowrap!important;
+  gap:14px!important;
+  overflow-x:auto!important;
+  overflow-y:visible!important;
+  padding:8px 4px 16px!important;
+  scroll-snap-type:x proximity!important;
+}
+.user-content-type-dashboard-list .user-content-type-group-card{
+  flex:0 0 calc((100% - 56px) / 5)!important;
+  max-width:calc((100% - 56px) / 5)!important;
+  min-width:210px!important;
+  padding:12px!important;
+  border-radius:18px!important;
+  scroll-snap-align:start!important;
+}
+.user-content-type-group-card .content-type-group-head{
+  margin-bottom:8px!important;
+  padding-bottom:8px!important;
+}
+.content-type-group-head strong,
+.user-content-type-group-card h3,
+.user-content-type-group-card h4{
+  font-size:18px!important;
+  line-height:1.35!important;
+}
+.content-type-user-task-list{
+  gap:10px!important;
+}
+.content-type-user-task-row{
+  padding:12px!important;
+  border-radius:18px!important;
+  gap:10px!important;
+}
+.content-type-user-task-main{
+  padding-bottom:8px!important;
+}
+.content-type-user-task-main b{
+  font-size:14px!important;
+}
+.content-type-user-task-main small{
+  font-size:11px!important;
+  line-height:1.5!important;
+}
+.content-type-user-task-actions{
+  gap:8px!important;
+}
+.content-type-user-task-actions .details-btn,
+.content-type-user-task-actions .receive-task-btn,
+.content-type-user-task-actions .user-task-action-btn{
+  min-height:38px!important;
+  border-radius:13px!important;
+  padding:8px 10px!important;
+  font-size:12px!important;
+}
+.content-type-task-progress{
+  gap:8px!important;
+}
+.content-type-task-progress .department-progress-box{
+  min-height:54px!important;
+  border-radius:13px!important;
+  padding:8px!important;
+}
+.content-type-task-progress .department-progress-box span,
+.content-type-task-progress .department-progress-box small{
+  font-size:11px!important;
+}
+.content-type-task-progress .department-progress-box strong,
+.content-type-task-progress .department-progress-box b{
+  font-size:14px!important;
+}
+@media(max-width:1400px){
+  .user-content-type-dashboard-list .user-content-type-group-card{
+    flex-basis:calc((100% - 42px) / 4)!important;
+    max-width:calc((100% - 42px) / 4)!important;
+  }
+}
+@media(max-width:1050px){
+  .user-content-type-dashboard-list .user-content-type-group-card{
+    flex-basis:calc((100% - 28px) / 3)!important;
+    max-width:calc((100% - 28px) / 3)!important;
+  }
+}
+@media(max-width:760px){
+  .user-content-type-dashboard-list .user-content-type-group-card{
+    flex-basis:78vw!important;
+    max-width:78vw!important;
+    min-width:260px!important;
+  }
+}

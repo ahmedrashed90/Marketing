@@ -172,7 +172,9 @@ function syncTaskProgress() {
         value: Number(btn.dataset.stepValue || 0),
         adminOnly: btn.classList.contains('is-approval-step')
       }));
-      const taskPercent = mzjEffectiveTaskPercentFromIndexes(blockSteps, buttonsSelectedIndexes, false);
+      const rawTaskPercent = mzjEffectiveTaskPercentFromIndexes(blockSteps, buttonsSelectedIndexes, false);
+      const contentTypeCount = Math.max(Number(block.dataset.contentTypeCount || 1), 1);
+      const taskPercent = Math.round(rawTaskPercent / contentTypeCount);
       const campaignPercent = Math.round(activeButtons.reduce((sum, btn) => sum + Number(btn.dataset.campaignValue || 0), 0));
       const percentNode = block.querySelector('[data-assignment-task-percent]');
       const campaignNode = block.querySelector('[data-assignment-campaign-percent]');
@@ -313,13 +315,12 @@ function mzjStepIsAdminOnly(step) {
 }
 
 function mzjEffectiveTaskPercentFromIndexes(steps, selectedIndexes, normalizeForUser = false) {
+  // MZJ FIX: نسبة اكتمال التاسك لازم تتحسب من أوزان إجراءات القسم كاملة = 100%.
+  // خطوات الاعتماد للأدمن فقط في الصلاحية، لكنها جزء من إجمالي 100% وليست مستبعدة من المقام.
   const selected = (selectedIndexes || []).map((value) => String(value));
-  const usableSteps = (steps || []).filter((step) => !(normalizeForUser && mzjStepIsAdminOnly(step)));
-  const denominator = normalizeForUser
-    ? usableSteps.reduce((sum, step) => sum + Number(step.value || 0), 0)
-    : (steps || []).reduce((sum, step) => sum + Number(step.value || 0), 0);
-  const selectedTotal = (steps || []).reduce((sum, step, index) => {
-    if (normalizeForUser && mzjStepIsAdminOnly(step)) return sum;
+  const allSteps = Array.isArray(steps) ? steps : [];
+  const denominator = allSteps.reduce((sum, step) => sum + Number(step.value || 0), 0);
+  const selectedTotal = allSteps.reduce((sum, step, index) => {
     return selected.includes(String(index)) ? sum + Number(step.value || 0) : sum;
   }, 0);
   if (!denominator) return 0;
@@ -328,6 +329,54 @@ function mzjEffectiveTaskPercentFromIndexes(steps, selectedIndexes, normalizeFor
 
 function mzjShouldNormalizeTaskProgressForCurrentUser() {
   return !isAdminUser();
+}
+
+function mzjTaskContentTypesForProgress(deptTask) {
+  const values = [];
+  const add = (value) => {
+    if (Array.isArray(value)) {
+      value.forEach(add);
+      return;
+    }
+    if (value && typeof value === 'object') {
+      add(value.contentType || value.title || value.name || value.value || value.label);
+      return;
+    }
+    const clean = String(value || '').replace(/\s+/g, ' ').trim();
+    if (clean) values.push(clean);
+  };
+  add(deptTask?.__selectedContentTypesFromButton);
+  add(deptTask?.selectedContentTypes);
+  add(deptTask?.selectedContentTypeTitles);
+  add(deptTask?.contentTypes);
+  add(deptTask?.requiredDetails?.__selectedContentTypesFromButton);
+  add(deptTask?.requiredDetails?.selectedContentTypes);
+  add(deptTask?.requiredDetails?.selectedContentTypeTitles);
+  add(deptTask?.requiredDetails?.contentTypes);
+  add(deptTask?.contentItems);
+  add(deptTask?.photoItems);
+  add(deptTask?.selectedDeliverables);
+  const single = String(deptTask?.contentType || deptTask?.deliverable || '').replace(/\s+/g, ' ').trim();
+  if (single && !single.includes('،') && !single.includes(',')) add(single);
+  return mzjUniqueStrings(values).filter((type) => type && !/^مطلوب\s*\d+/i.test(type));
+}
+
+function mzjTaskContentTypeCountForProgress(fullTask, deptTask, deptIndex) {
+  const direct = mzjTaskContentTypesForProgress(deptTask);
+  if (direct.length > 1) return direct.length;
+  const siblings = Array.isArray(fullTask?.departmentTasks) ? fullTask.departmentTasks : [];
+  const currentDeptKey = mzjDetailsDeptKey(deptTask?.departmentName || '');
+  const currentIdentity = mzjDetailsDeptIdentity(deptTask || {});
+  const values = [];
+  siblings.forEach((item, index) => {
+    if (currentDeptKey && mzjDetailsDeptKey(item?.departmentName || '') !== currentDeptKey) return;
+    const sameIndex = Number(deptIndex) === Number(index);
+    const sameIdentity = currentIdentity && mzjDetailsDeptIdentity(item || {}) === currentIdentity;
+    if (!sameIndex && !sameIdentity) return;
+    values.push(...mzjTaskContentTypesForProgress(item));
+  });
+  const unique = mzjUniqueStrings(values);
+  return Math.max(unique.length || direct.length || 1, 1);
 }
 
 function formatDepartmentRequirement(deptTask) {
@@ -1452,7 +1501,9 @@ function mzjContentTypeReadinessKey(baseKey, contentType) {
 
 function mzjDetailsReadinessKey(deptTask, deptIndex = 0) {
   if (deptTask?.__contentTypeReadinessKey) return deptTask.__contentTypeReadinessKey;
-  const stable = deptTask?.assignmentId || deptTask?.linkKey || deptTask?.taskNo || deptTask?.contentTaskId || deptTask?.contentType || deptTask?.requiredText || mzjDetailsDeptIdentity(deptTask) || mzjDetailsLegacyReadinessKey(deptTask) || 'dept';
+  // MZJ FIX: المفتاح الأساسي لا يستخدم نوع المحتوى أو نص المطلوب، حتى لا يتغير بين الكارت والتفاصيل.
+  // نوع المحتوى يضاف فقط كسكوب مستقل في آخر المفتاح.
+  const stable = deptTask?.assignmentId || deptTask?.linkKey || deptTask?.taskNo || deptTask?.contentTaskId || mzjDetailsDeptIdentity(deptTask) || mzjDetailsLegacyReadinessKey(deptTask) || 'dept';
   const baseKey = `${stable}::${deptIndex}`;
   const type = deptTask?.__contentTypeFilter || (Array.isArray(deptTask?.__selectedContentTypesFromButton) && deptTask.__selectedContentTypesFromButton.length === 1 ? deptTask.__selectedContentTypesFromButton[0] : '');
   return mzjContentTypeReadinessKey(baseKey, type);
@@ -1757,6 +1808,8 @@ taskStepButtons.innerHTML = '';
     taskStepButtons.appendChild(switcher);
   }
   const deptCampaignShare = activeTaskCard ? Number(activeTaskCard.dataset.departmentShare || 0) : 0;
+  const baseDeptForContentTypeCount = departmentTasks[clickedDeptIndex] || clickedDept || deptDataFromButton || {};
+  const totalContentTypesForTask = mzjTaskContentTypeCountForProgress(fullTask || {}, baseDeptForContentTypeCount, clickedDeptIndex);
   const totalAssignments = Math.max(assignments.length, 1);
 
   assignments.forEach(({ dept, index: deptIndex }, assignmentIndex) => {
@@ -1772,6 +1825,7 @@ taskStepButtons.innerHTML = '';
     block.dataset.legacyReadinessKey = mzjDetailsLegacyReadinessKey(dept);
     block.dataset.deptIndex = String(deptIndex);
     block.dataset.deptIdentity = mzjDetailsDeptIdentity(dept);
+    block.dataset.contentTypeCount = String(totalContentTypesForTask);
 
     const assignmentTitle = dept.taskName || dept.requiredTaskName || dept.contentType || dept.deliverable || dept.taskNo || 'تكليف مطلوب';
 
@@ -1796,7 +1850,7 @@ taskStepButtons.innerHTML = '';
     steps.forEach((step, stepIndex) => {
       const isApprovalStep = Boolean(step.adminOnly) || String(step.label || '').includes('اعتماد');
       const stepValue = Number(step.value || 0);
-      const campaignValue = Math.round(((deptCampaignShare / totalAssignments) * stepValue / 100) * 100) / 100;
+      const campaignValue = Math.round(((deptCampaignShare / totalContentTypesForTask) * stepValue / 100) * 100) / 100;
       const stepButton = document.createElement('button');
       stepButton.type = 'button';
       stepButton.className = 'task-step-btn';
@@ -7437,7 +7491,9 @@ initCreateTaskFromTemplate();
     return deptTask.departmentId || deptTask.departmentName || deptTask.userName || '';
   }
   function dashboardDeptReadinessKey(deptTask, deptIndex = 0){
-    const stable = deptTask.assignmentId || deptTask.linkKey || deptTask.taskNo || deptTask.contentTaskId || deptTask.contentType || deptTask.requiredText || deptIdentity(deptTask) || legacyDeptReadinessKey(deptTask) || 'dept';
+    // MZJ FIX: المفتاح الأساسي للتكليف لا يعتمد على نوع المحتوى أو نص المطلوب.
+    // كل نوع محتوى بياخد سكوب مستقل عن طريق dashboardContentTypeReadinessKey فقط.
+    const stable = deptTask.assignmentId || deptTask.linkKey || deptTask.taskNo || deptTask.contentTaskId || deptIdentity(deptTask) || legacyDeptReadinessKey(deptTask) || 'dept';
     return `${stable}::${deptIndex}`;
   }
   function dashboardContentTypeReadinessKey(deptTask, deptIndex = 0, contentType = ''){

@@ -231,6 +231,16 @@ function syncTaskProgress() {
   }
 }
 
+
+
+function mzjTodayISODateSafe() {
+  try {
+    if (typeof todayISODate === 'function') return todayISODate();
+  } catch (error) {}
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 function mzjNormalizeProcedureDeptKey(value) {
   const raw = String(value || '').trim().toLowerCase();
   if (!raw) return 'content';
@@ -1707,7 +1717,7 @@ function mzjSyncDeptStepStateMaps(deptTask, contentType, selectedSteps, deptKeyV
     }
   });
   if (doneDelivery) {
-    deptTask.deliveryDate = deptTask.deliveryDate || ((typeof todayISODate === 'function') ? todayISODate() : now.slice(0, 10));
+    deptTask.deliveryDate = deptTask.deliveryDate || mzjTodayISODateSafe();
   }
   return deptTask;
 }
@@ -8453,7 +8463,7 @@ initCreateTaskFromTemplate();
               mzjSyncDeptStepStateMaps(dept, scopedContentType, selected, block.dataset.deptKey || dept.departmentName || '', actor);
             }
             if (doneDelivery) {
-              const today = todayISODate();
+              const today = mzjTodayISODateSafe();
               if (deptKindFromName(dept.departmentName) === 'publish') dept.inspectionDate = dept.inspectionDate || today;
               else dept.deliveryDate = dept.deliveryDate || today;
             }
@@ -8490,7 +8500,7 @@ initCreateTaskFromTemplate();
             mzjSyncDeptStepStateMaps(dept, scopedContentType, selected, activeTaskDetailsMeta?.deptKey || dept.departmentName || '', actor);
           }
           if (doneDelivery) {
-            const today = todayISODate();
+            const today = mzjTodayISODateSafe();
             if (deptKindFromName(dept.departmentName) === 'publish') dept.inspectionDate = dept.inspectionDate || today;
             else dept.deliveryDate = dept.deliveryDate || today;
           }

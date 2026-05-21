@@ -210,177 +210,20 @@
     </section>
 
     <section class="dashboard-view" data-role-panel="user">
-      <div class="dashboard-board user-board">
-        <article class="board-column workspace-card">
+      <div class="dashboard-board user-board user-content-type-board">
+        <article class="board-column workspace-card user-content-type-board-column">
           <div class="board-head">
-            <h3>قسم التصوير</h3>
-            <span class="column-hint">مهام اليوزر الحالية</span>
+            <h3>أنواع المحتوى</h3>
+            <span class="column-hint">كل تاسك يظهر داخل كارت نوع المحتوى الخاص به</span>
           </div>
-          <div class="board-list department-task-list" id="userShootingTasks">
-            <article class="department-task-card" data-dept-task-card data-completed-steps="">
-              <div class="task-template-top">
-                <strong>بيانات الحملة</strong>
-                <span>نوع الحملة — كود الحملة — تاريخ نزول الحملة</span>
-              </div>
-              <div class="department-task-meta">
-                <span>اسم المسؤول</span>
-                <span>تاريخ الاستلام</span>
-                <span>التاريخ المطلوب</span>
-                <span>تاريخ التسليم</span>
-                <span>وقت التأخير</span>
-              </div>
-              <div class="department-progress-row">
-                <div class="department-progress-box">
-                  <small>اكتمال التاسك</small>
-                  <strong data-task-percent>0%</strong>
-                </div>
-                <div class="department-progress-box">
-                  <small>نسبة الحملة</small>
-                  <strong data-campaign-percent>0%</strong>
-                </div>
-              </div>
-              <div class="mini-progress"><span data-task-bar></span></div>
-              <div class="task-card-actions">
-                <button class="details-btn" type="button"
-                  data-open-task-details
-                  data-dept-key="shooting"
-                  data-dept="قسم التصوير"
-                  data-task-title="تفاصيل تاسك التصوير"
-                  data-required="هنا يظهر المطلوب الخاص بقسم التصوير بعد ربط التاسك بالداتا."
-                  data-steps="التصوير قبل الفلترة|الاعتماد|الاديت|الاعتماد|التسليم و الارفاق">تفاصيل</button>
-              </div>
-            </article>
-          </div>
-        </article>
-
-        <article class="board-column workspace-card">
-          <div class="board-head">
-            <h3>قسم المحتوى</h3>
-            <span class="column-hint">مهام اليوزر الحالية</span>
-          </div>
-          <div class="board-list department-task-list" id="userContentTasks">
-            <article class="department-task-card" data-dept-task-card data-completed-steps="">
-              <div class="task-template-top">
-                <strong>بيانات الحملة</strong>
-                <span>نوع الحملة — كود الحملة — تاريخ نزول الحملة</span>
-              </div>
-              <div class="department-task-meta">
-                <span>اسم المسؤول</span>
-                <span>تاريخ الاستلام</span>
-                <span>التاريخ المطلوب</span>
-                <span>تاريخ التسليم</span>
-                <span>وقت التأخير</span>
-              </div>
-              <div class="department-progress-row">
-                <div class="department-progress-box">
-                  <small>اكتمال التاسك</small>
-                  <strong data-task-percent>0%</strong>
-                </div>
-                <div class="department-progress-box">
-                  <small>نسبة الحملة</small>
-                  <strong data-campaign-percent>0%</strong>
-                </div>
-              </div>
-              <div class="mini-progress"><span data-task-bar></span></div>
-              <div class="task-card-actions">
-                <button class="details-btn" type="button"
-                  data-open-task-details
-                  data-dept-key="content"
-                  data-dept="قسم المحتوى"
-                  data-task-title="تفاصيل تاسك المحتوى"
-                  data-required="هنا يظهر المطلوب الخاص بقسم المحتوى بعد ربط التاسك بالداتا."
-                  data-steps="نموذج المحتوى|الاعتماد|كتابة المحتوى|الاعتماد|التسليم و الارفاق">تفاصيل</button>
-              </div>
-            </article>
-          </div>
-        </article>
-
-        <article class="board-column workspace-card">
-          <div class="board-head">
-            <h3>قسم التصميم</h3>
-            <span class="column-hint">مهام اليوزر الحالية</span>
-          </div>
-          <div class="board-list department-task-list" id="userDesignTasks">
-            <article class="department-task-card" data-dept-task-card data-completed-steps="">
-              <div class="task-template-top">
-                <strong>بيانات الحملة</strong>
-                <span>نوع الحملة — كود الحملة — تاريخ نزول الحملة</span>
-              </div>
-              <div class="department-task-meta">
-                <span>اسم المسؤول</span>
-                <span>تاريخ الاستلام</span>
-                <span>التاريخ المطلوب</span>
-                <span>تاريخ التسليم</span>
-                <span>وقت التأخير</span>
-              </div>
-              <div class="department-progress-row">
-                <div class="department-progress-box">
-                  <small>اكتمال التاسك</small>
-                  <strong data-task-percent>0%</strong>
-                </div>
-                <div class="department-progress-box">
-                  <small>نسبة الحملة</small>
-                  <strong data-campaign-percent>0%</strong>
-                </div>
-              </div>
-              <div class="mini-progress"><span data-task-bar></span></div>
-              <div class="task-card-actions">
-                <button class="details-btn" type="button"
-                  data-open-task-details
-                  data-dept-key="design"
-                  data-dept="قسم التصميم"
-                  data-task-title="تفاصيل تاسك التصميم"
-                  data-required="هنا يظهر المطلوب الخاص بقسم التصميم بعد ربط التاسك بالداتا."
-                  data-steps="النسخة الأولى|الاعتماد|التسليم و الارفاق">تفاصيل</button>
-              </div>
-            </article>
-          </div>
-        </article>
-
-        <article class="board-column workspace-card">
-          <div class="board-head">
-            <h3>قسم المونتاج</h3>
-            <span class="column-hint">مهام اليوزر الحالية</span>
-          </div>
-          <div class="board-list department-task-list" id="userMontageTasks">
-            <article class="department-task-card" data-dept-task-card data-completed-steps="">
-              <div class="task-template-top">
-                <strong>بيانات الحملة</strong>
-                <span>نوع الحملة — كود الحملة — تاريخ نزول الحملة</span>
-              </div>
-              <div class="department-task-meta">
-                <span>اسم المسؤول</span>
-                <span>تاريخ الاستلام</span>
-                <span>التاريخ المطلوب</span>
-                <span>تاريخ التسليم</span>
-                <span>وقت التأخير</span>
-              </div>
-              <div class="department-progress-row">
-                <div class="department-progress-box">
-                  <small>اكتمال التاسك</small>
-                  <strong data-task-percent>0%</strong>
-                </div>
-                <div class="department-progress-box">
-                  <small>نسبة الحملة</small>
-                  <strong data-campaign-percent>0%</strong>
-                </div>
-              </div>
-              <div class="mini-progress"><span data-task-bar></span></div>
-              <div class="task-card-actions">
-                <button class="details-btn" type="button"
-                  data-open-task-details
-                  data-dept-key="montage"
-                  data-dept="قسم المونتاج"
-                  data-task-title="تفاصيل تاسك المونتاج"
-                  data-required="هنا يظهر المطلوب الخاص بقسم المونتاج بعد ربط التاسك بالداتا."
-                  data-steps="اختيار اللقطات المناسبة|تجهيز مشاهد الذكاء الاصطناعي|فويس أوفر|الهوك|الاعتماد|النسخة الأولى|الاعتماد|التسليم و الارفاق">تفاصيل</button>
-              </div>
-            </article>
+          <div class="board-list department-task-list user-content-type-dashboard-list" id="userContentTypeTasks">
+            <p class="task-empty-note">لا توجد تاسكات لأنواع المحتوى حالياً.</p>
           </div>
         </article>
       </div>
     </section>
-  <div class="task-details-modal" id="taskDetailsModal" aria-hidden="true">
+
+    <div class="task-details-modal" id="taskDetailsModal" aria-hidden="true">
     <section class="task-details-dialog" role="dialog" aria-modal="true" aria-labelledby="taskDetailsTitle">
       <div class="task-details-head">
         <div>

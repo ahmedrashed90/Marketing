@@ -8937,3 +8937,45 @@ body[data-page="requiredContent"] .required-content-type-inline{
   .campaign-full-dialog{border-radius:0!important;min-height:100vh!important;}
   .campaign-full-head{border-radius:0!important;}
 }
+
+
+/* MZJ fix: user dashboard grouped by content type */
+.user-content-type-board{
+  grid-template-columns:1fr!important;
+}
+.user-content-type-board-column{
+  width:100%!important;
+  max-width:none!important;
+}
+.user-content-type-dashboard-list{
+  display:grid!important;
+  grid-template-columns:repeat(auto-fit,minmax(330px,1fr))!important;
+  gap:18px!important;
+  align-items:start!important;
+}
+.user-content-type-group-card{
+  min-height:auto!important;
+}
+.content-type-user-task-row{
+  display:grid!important;
+  grid-template-columns:minmax(0,1fr) auto!important;
+  gap:10px!important;
+  align-items:center!important;
+}
+.content-type-user-task-actions{
+  display:flex!important;
+  gap:8px!important;
+  align-items:center!important;
+  flex-wrap:wrap!important;
+  justify-content:flex-end!important;
+}
+.content-type-user-task-actions .receive-task-btn.is-done{
+  background:#3e2420!important;
+  color:#fff!important;
+}
+@media(max-width:760px){
+  .user-content-type-dashboard-list{grid-template-columns:1fr!important;}
+  .content-type-user-task-row{grid-template-columns:1fr!important;}
+  .content-type-user-task-actions{justify-content:stretch!important;}
+  .content-type-user-task-actions button{flex:1!important;}
+}

@@ -1502,7 +1502,12 @@ function openTaskDetails(button) {
     clickedDept.userName, clickedDept.userDisplayName, clickedDept.assigneeName, clickedDept.responsible
   ].map((value) => String(value || '').trim().toLowerCase()).filter(Boolean);
 
-  const relatedAssignments = departmentTasks
+  const singleContentTypeMode = Boolean(
+    deptDataFromButton?.__contentTypeFilter ||
+    button.dataset.contentTypeFilter ||
+    (datasetContentTypes.length === 1 && button.closest?.('.content-type-user-task-row'))
+  );
+  const relatedAssignments = singleContentTypeMode ? [] : departmentTasks
     .map((dept, index) => ({ dept, index }))
     .filter(({ dept }) => {
       if (mzjDetailsDeptKey(dept.departmentName) !== deptKeyValue) return false;
@@ -1515,7 +1520,7 @@ function openTaskDetails(button) {
       return deptValues.some((value) => sameUserValues.includes(value));
     });
 
-  const assignments = relatedAssignments.length ? relatedAssignments : [{ dept: clickedDept, index: clickedDeptIndex }];
+  const assignments = singleContentTypeMode ? [{ dept: clickedDept, index: clickedDeptIndex }] : (relatedAssignments.length ? relatedAssignments : [{ dept: clickedDept, index: clickedDeptIndex }]);
 
   activeTaskDetailsMeta = {
     taskId,
@@ -6617,15 +6622,6 @@ initCreateTaskFromTemplate();
     try {
       const task = await getCalendarTaskById(id);
       activeCalendarTask = task;
-      if (window.MZJOpenTaskInCreateModalForEdit) {
-        if (modal) {
-          modal.classList.remove('is-open');
-          modal.setAttribute('aria-hidden','true');
-          modal.innerHTML = '';
-        }
-        await window.MZJOpenTaskInCreateModalForEdit(task);
-        return;
-      }
       if (!modal) return;
       modal.classList.add('is-open');
       modal.setAttribute('aria-hidden','false');
@@ -7655,6 +7651,14 @@ initCreateTaskFromTemplate();
     };
   }
 
+
+  function dashboardContentTypeReceived(deptTask, contentType) {
+    if (!contentType) return Boolean(deptTask.receivedConfirmed || deptTask.received || deptTask.receivedAt);
+    const map = deptTask.receivedContentTypes || deptTask.contentTypeReceipts || {};
+    const record = map[contentType] || map[String(contentType || '').trim()];
+    return Boolean(record?.receivedConfirmed || record?.received || record?.receivedAt || deptTask.receivedConfirmed || deptTask.received || deptTask.receivedAt);
+  }
+
   function userContentTypeGroupCard(group) {
     const entries = group.entries || [];
     const first = entries[0] || {};
@@ -7674,12 +7678,16 @@ initCreateTaskFromTemplate();
       const key = dashboardDeptReadinessKey(entry.dept, entry.index);
       const selected = readinessStepsForDept(entry.task, entry.dept, entry.index).join(',');
       const dkey = deptKey(entry.dept.departmentName);
+      const received = dashboardContentTypeReceived(entry.dept, group.contentType);
       return `<article class="content-type-user-task-row">
         <div class="content-type-user-task-main">
           <b>${esc(entry.task.campaignName || taskTitle(entry.task) || `تاسك ${rowIndex + 1}`)}</b>
           <small>${esc(cars.length ? cars.join('، ') : departmentTaskShortName(entry.dept))}</small>
         </div>
-        <button class="details-btn" type="button" data-open-task-details data-task-id="${esc(entry.task.id)}" data-dept-index="${esc(entry.index)}" data-readiness-key="${esc(key)}" data-dept-identity="${esc(deptIdentity(entry.dept))}" data-dept-key="${esc(dkey)}" data-dept="${esc(entry.dept.departmentName || 'قسم')}" data-task-title="${esc(taskTitle(entry.task))}" data-required="${esc(formatDepartmentRequirement(filteredDept))}" data-dept-task-json="${esc(encodeURIComponent(JSON.stringify(filteredDept || {})))}" data-selected-cars-json="${esc(rowCarsJson)}" data-selected-content-types-json="${esc(rowContentTypesJson)}" data-steps="${esc(steps)}" data-completed-steps="${esc(selected)}">تفاصيل</button>
+        <div class="content-type-user-task-actions">
+          <button class="details-btn" type="button" data-open-task-details data-task-id="${esc(entry.task.id)}" data-dept-index="${esc(entry.index)}" data-readiness-key="${esc(key)}" data-dept-identity="${esc(deptIdentity(entry.dept))}" data-dept-key="${esc(dkey)}" data-dept="${esc(entry.dept.departmentName || 'قسم')}" data-task-title="${esc(taskTitle(entry.task))}" data-required="${esc(formatDepartmentRequirement(filteredDept))}" data-dept-task-json="${esc(encodeURIComponent(JSON.stringify(filteredDept || {})))}" data-selected-cars-json="${esc(rowCarsJson)}" data-selected-content-types-json="${esc(rowContentTypesJson)}" data-content-type-filter="${esc(group.contentType || '')}" data-steps="${esc(steps)}" data-completed-steps="${esc(selected)}">تفاصيل</button>
+          <button class="soft-btn receive-task-btn ${received ? 'is-done' : ''}" type="button" data-receive-task data-task-id="${esc(entry.task.id)}" data-dept-index="${esc(entry.index)}" data-readiness-key="${esc(key)}" data-dept-identity="${esc(deptIdentity(entry.dept))}" data-content-type="${esc(group.contentType || '')}" ${received ? 'disabled' : ''}>${received ? 'تم الاستلام' : 'تم الاستلام'}</button>
+        </div>
       </article>`;
     }).join('');
     return `<article class="department-task-card dynamic-dashboard-card user-content-type-group-card" data-dept-task-card data-task-id="${esc(firstTask.id || '')}" data-task-type="${esc(firstTask.taskTypeLabel || firstTask.taskType || '')}" data-campaign-code="${esc(firstTask.campaignCode || '')}" data-readiness-key="${esc(first.dept ? dashboardDeptReadinessKey(first.dept, first.index || 0) : '')}" data-legacy-readiness-key="${esc(first.dept ? legacyDeptReadinessKey(first.dept) : '')}" data-dept-identity="${esc(first.dept ? deptIdentity(first.dept) : '')}" data-dept-key="${esc(listKey)}" data-department-share="${esc(100 / Math.max(entries.length, 1))}" data-completed-steps="">
@@ -7715,13 +7723,15 @@ initCreateTaskFromTemplate();
     const readiness = clearList('adminReadinessTasks','لا توجد حملات في جاهزية المطلوب حالياً.');
     const publishing = clearList('adminPublishingTasks','لا توجد حملات جاهزة للنشر حالياً.');
     const archive = clearList('adminArchiveTasks','لا توجد حملات مؤرشفة حالياً.');
-    const userLists = {
+    const userContentTypeList = clearList('userContentTypeTasks','لا توجد تاسكات لأنواع المحتوى حالياً.');
+    const userLists = userContentTypeList ? {} : {
       shooting: clearList('userShootingTasks','لا توجد تاسكات لقسم التصوير حالياً.'),
       content: clearList('userContentTasks','لا توجد تاسكات لقسم المحتوى حالياً.'),
       design: clearList('userDesignTasks','لا توجد تاسكات لقسم التصميم حالياً.'),
       montage: clearList('userMontageTasks','لا توجد تاسكات لقسم المونتاج حالياً.')
     };
     const current = user();
+    const allUserContentTypeGroups = new Map();
     tasks.forEach(task => {
       try {
         const publishDepts = (task.departmentTasks || []).filter((dept) => deptKey(dept.departmentName) === 'publish');
@@ -7750,16 +7760,24 @@ initCreateTaskFromTemplate();
           if (!visible) return;
           const listKey = deptKey(dept.departmentName);
           dashboardContentTypesForDept(dept).forEach((contentType) => {
+            if (userContentTypeList) {
+              const globalKey = String(contentType || 'مطلوب').trim() || 'مطلوب';
+              if (!allUserContentTypeGroups.has(globalKey)) allUserContentTypeGroups.set(globalKey, { listKey: 'content', contentType: globalKey, entries: [] });
+              allUserContentTypeGroups.get(globalKey).entries.push({ task, dept, index: deptIndex });
+              return;
+            }
             const groupKey = `${listKey}::${contentType}`;
             if (!visibleGroups.has(groupKey)) visibleGroups.set(groupKey, { listKey, contentType, entries: [] });
             visibleGroups.get(groupKey).entries.push({ task, dept, index: deptIndex });
           });
         });
-        visibleGroups.forEach((group) => {
-          const targetList = userLists[group.listKey];
-          if (!targetList) return;
-          appendCard(targetList, userContentTypeGroupCard(group));
-        });
+        if (!userContentTypeList) {
+          visibleGroups.forEach((group) => {
+            const targetList = userLists[group.listKey];
+            if (!targetList) return;
+            appendCard(targetList, userContentTypeGroupCard(group));
+          });
+        }
       } catch (error) {
         console.warn('dashboard task card render failed:', task?.id, error);
       }
@@ -7767,7 +7785,12 @@ initCreateTaskFromTemplate();
     if (!tasks.length && required) {
       required.innerHTML = '<article class="task-template-card dashboard-empty-card"><div class="task-empty-note">لا توجد تاسكات محملة حالياً. اضغط تحديث أو تأكد من اتصال Firebase.</div></article>';
     }
-    Object.entries(userLists).forEach(([key,el]) => ensureEmpty(el, 'لا توجد تاسكات حالياً.'));
+    if (userContentTypeList) {
+      allUserContentTypeGroups.forEach((group) => appendCard(userContentTypeList, userContentTypeGroupCard(group)));
+      ensureEmpty(userContentTypeList, 'لا توجد تاسكات لأنواع المحتوى حالياً.');
+    } else {
+      Object.entries(userLists).forEach(([key,el]) => ensureEmpty(el, 'لا توجد تاسكات حالياً.'));
+    }
   };
 
   document.addEventListener('click', function(event){
@@ -7913,11 +7936,33 @@ initCreateTaskFromTemplate();
     const oldText = receive.textContent;
     receive.textContent = 'جاري تأكيد الاستلام...';
 
-    dept.receivedConfirmed = true;
-    dept.received = true;
-    dept.receivedAt = new Date().toISOString();
-    dept.receiveDate = new Date().toISOString().slice(0,10);
-    dept.receivedBy = current?.email || current?.uid || current?.id || current?.name || '';
+    const receivedIso = new Date().toISOString();
+    const receivedDate = receivedIso.slice(0,10);
+    const contentTypeReceipt = String(receive.dataset.contentType || '').trim();
+    if (contentTypeReceipt) {
+      dept.receivedContentTypes = dept.receivedContentTypes || {};
+      dept.receivedContentTypes[contentTypeReceipt] = {
+        receivedConfirmed: true,
+        received: true,
+        receivedAt: receivedIso,
+        receiveDate: receivedDate,
+        receivedBy: current?.email || current?.uid || current?.id || current?.name || ''
+      };
+      const allTypes = dashboardContentTypesForDept(dept).filter(Boolean);
+      if (allTypes.length && allTypes.every((type) => dashboardContentTypeReceived(dept, type))) {
+        dept.receivedConfirmed = true;
+        dept.received = true;
+        dept.receivedAt = receivedIso;
+        dept.receiveDate = receivedDate;
+        dept.receivedBy = current?.email || current?.uid || current?.id || current?.name || '';
+      }
+    } else {
+      dept.receivedConfirmed = true;
+      dept.received = true;
+      dept.receivedAt = receivedIso;
+      dept.receiveDate = receivedDate;
+      dept.receivedBy = current?.email || current?.uid || current?.id || current?.name || '';
+    }
     task.receiptProgress = taskReceiptProgress(task);
     task.receiveProgress = task.receiptProgress;
     task.receiveDoneCount = (task.departmentTasks || []).filter((d) => Boolean(d.receivedConfirmed || d.received || d.receivedAt)).length;

@@ -1435,9 +1435,21 @@ function mzjDetailsDeptIdentity(dept) {
   ].map((value) => String(value || '').trim()).filter(Boolean).join('::');
 }
 
+function mzjContentTypeKeyPart(contentType) {
+  return String(contentType || '').trim().replace(/\s+/g, ' ');
+}
+
+function mzjContentTypeReadinessKey(baseKey, contentType) {
+  const type = mzjContentTypeKeyPart(contentType);
+  return type ? `${baseKey}::contentType::${type}` : baseKey;
+}
+
 function mzjDetailsReadinessKey(deptTask, deptIndex = 0) {
+  if (deptTask?.__contentTypeReadinessKey) return deptTask.__contentTypeReadinessKey;
   const stable = deptTask?.assignmentId || deptTask?.linkKey || deptTask?.taskNo || deptTask?.contentTaskId || deptTask?.contentType || deptTask?.requiredText || mzjDetailsDeptIdentity(deptTask) || mzjDetailsLegacyReadinessKey(deptTask) || 'dept';
-  return `${stable}::${deptIndex}`;
+  const baseKey = `${stable}::${deptIndex}`;
+  const type = deptTask?.__contentTypeFilter || (Array.isArray(deptTask?.__selectedContentTypesFromButton) && deptTask.__selectedContentTypesFromButton.length === 1 ? deptTask.__selectedContentTypesFromButton[0] : '');
+  return mzjContentTypeReadinessKey(baseKey, type);
 }
 
 function mzjDetailsReadinessSteps(task, deptTask, deptIndex = 0) {
@@ -1592,7 +1604,12 @@ function openTaskDetails(button) {
   let clickedDept = clickedIndex >= 0 ? departmentTasks[clickedIndex] : (deptDataFromButton || {});
   if (contentTypeFilterFromButton) {
     clickedDept = mzjForceSingleContentTypeForDetails(clickedDept, contentTypeFilterFromButton);
-    if (deptDataFromButton) deptDataFromButton = mzjForceSingleContentTypeForDetails(deptDataFromButton, contentTypeFilterFromButton);
+    const contentTypeReadinessKey = button.dataset.readinessKey || mzjContentTypeReadinessKey(mzjDetailsReadinessKey({ ...clickedDept, __contentTypeFilter: '', __selectedContentTypesFromButton: [] }, clickedDeptIndex), contentTypeFilterFromButton);
+    clickedDept.__contentTypeReadinessKey = contentTypeReadinessKey;
+    if (deptDataFromButton) {
+      deptDataFromButton = mzjForceSingleContentTypeForDetails(deptDataFromButton, contentTypeFilterFromButton);
+      deptDataFromButton.__contentTypeReadinessKey = contentTypeReadinessKey;
+    }
   }
 
   const sameUserValues = [
@@ -1648,6 +1665,7 @@ function openTaskDetails(button) {
         }
       }
       const detailDeptForMeta = contentTypeFilterFromButton ? mzjForceSingleContentTypeForDetails(mergedDept, contentTypeFilterFromButton) : mergedDept;
+      if (contentTypeFilterFromButton) detailDeptForMeta.__contentTypeReadinessKey = button.dataset.readinessKey || mzjContentTypeReadinessKey(mzjDetailsReadinessKey({ ...mergedDept, __contentTypeFilter: '', __selectedContentTypesFromButton: [] }, index), contentTypeFilterFromButton);
       return {
         deptIdentity: mzjDetailsDeptIdentity(detailDeptForMeta),
         readinessKey: mzjDetailsReadinessKey(detailDeptForMeta, index),
@@ -7411,15 +7429,27 @@ initCreateTaskFromTemplate();
     const stable = deptTask.assignmentId || deptTask.linkKey || deptTask.taskNo || deptTask.contentTaskId || deptTask.contentType || deptTask.requiredText || deptIdentity(deptTask) || legacyDeptReadinessKey(deptTask) || 'dept';
     return `${stable}::${deptIndex}`;
   }
-  function readinessStepsForDept(task, deptTask, deptIndex = 0){
+  function dashboardContentTypeReadinessKey(deptTask, deptIndex = 0, contentType = ''){
+    return mzjContentTypeReadinessKey(dashboardDeptReadinessKey(deptTask, deptIndex), contentType);
+  }
+  function readinessStepsForDept(task, deptTask, deptIndex = 0, contentType = ''){
     const readiness = task.readiness || {};
-    const key = dashboardDeptReadinessKey(deptTask, deptIndex);
+    const baseKey = dashboardDeptReadinessKey(deptTask, deptIndex);
+    const typeKey = contentType ? dashboardContentTypeReadinessKey(deptTask, deptIndex, contentType) : '';
     const legacyKey = legacyDeptReadinessKey(deptTask);
-    const selected = Array.isArray(readiness[key]) ? readiness[key] : (Array.isArray(readiness[legacyKey]) ? readiness[legacyKey] : []);
+    const key = typeKey || baseKey;
+    const selected = Array.isArray(readiness[key]) ? readiness[key] : (Array.isArray(readiness[baseKey]) ? readiness[baseKey] : (Array.isArray(readiness[legacyKey]) ? readiness[legacyKey] : []));
     return selected;
   }
-  function taskDeptProgress(task, deptTask, deptIndex = 0){
-    const selected = readinessStepsForDept(task, deptTask, deptIndex);
+  function taskDeptProgress(task, deptTask, deptIndex = 0, contentType = ''){
+    if (!contentType && !userIsAdmin()) {
+      const types = dashboardContentTypesForDept(deptTask).filter(Boolean);
+      if (types.length > 1) {
+        const total = types.reduce((sum, type) => sum + taskDeptProgress(task, deptTask, deptIndex, type), 0);
+        return Math.round(total / types.length);
+      }
+    }
+    const selected = readinessStepsForDept(task, deptTask, deptIndex, contentType);
     const steps = taskStepsForDept(deptKey(deptTask.departmentName));
     return mzjEffectiveTaskPercentFromIndexes(steps, selected, !userIsAdmin());
   }
@@ -7550,48 +7580,60 @@ initCreateTaskFromTemplate();
   function readinessCard(task){
     const activeDepts = (task.departmentTasks || []).filter((d) => d && d.enabled !== false);
     const depts = activeDepts.filter((d) => deptKey(d.departmentName) !== 'publish');
-    const ready = depts.length ? Math.round(depts.reduce((sum, d, index) => sum + taskDeptProgress(task, d, index), 0) / depts.length) : taskReadiness(task);
-    const deptCount = Math.max(activeDepts.length, 1);
+    const approvalEntries = [];
+    depts.forEach((d) => {
+      const realIndex = activeDepts.indexOf(d);
+      const types = dashboardContentTypesForDept(d).filter(Boolean);
+      const normalizedTypes = types.length ? types : [''];
+      normalizedTypes.forEach((contentType) => approvalEntries.push({ dept: d, realIndex, contentType }));
+    });
+    const ready = approvalEntries.length
+      ? Math.round(approvalEntries.reduce((sum, entry) => sum + dashboardContentTypeProgress(task, entry.dept, entry.realIndex, entry.contentType), 0) / approvalEntries.length)
+      : taskReadiness(task);
+    const deptCount = Math.max(approvalEntries.length || activeDepts.length, 1);
     return `<article class="readiness-card dynamic-dashboard-card compact-readiness-card" data-dash-task-id="${esc(task.id)}">
       <button class="readiness-card-summary" type="button" data-toggle-readiness-details>
         <div class="task-template-top"><strong>${esc(taskTitle(task))}</strong><span>${meta(task)} — جاهزية ${ready}%</span></div>
         <div class="mini-progress"><span style="width:${ready}%"></span></div>
-        <small>اضغط لعرض الأقسام والمحتوى</small>
+        <small>اضغط لعرض أنواع المحتوى والاعتمادات</small>
       </button>
       <div class="readiness-details-panel" data-readiness-details hidden>
         <div class="readiness-grid readiness-dynamic-grid readiness-approval-grid">
-          ${depts.map((d, deptIndex) => {
-            const realIndex = activeDepts.indexOf(d);
+          ${approvalEntries.map((entry) => {
+            const d = entry.dept;
+            const realIndex = entry.realIndex;
+            const contentType = entry.contentType || '';
+            const filteredDept = contentType ? dashboardFilteredDeptByContentType(d, contentType) : d;
             const dkey = deptKey(d.departmentName);
             const steps = encodeTaskSteps(getTaskDetailsSteps(dkey));
-            const key = dashboardDeptReadinessKey(d, realIndex);
-            const selected = readinessStepsForDept(task, d, realIndex).join(',');
+            const key = dashboardContentTypeReadinessKey(d, realIndex, contentType);
+            const selected = readinessStepsForDept(task, d, realIndex, contentType).join(',');
             const departmentShare = Math.round((100 / deptCount) * 100) / 100;
-            const percent = taskDeptProgress(task, d, realIndex);
-            const requirement = formatDepartmentRequirement(d);
-            const readinessItems = normalizeDepartmentContentItems(d);
+            const percent = dashboardContentTypeProgress(task, d, realIndex, contentType);
+            const requirement = formatDepartmentRequirement(filteredDept);
+            const readinessItems = normalizeDepartmentContentItems(filteredDept);
             const readinessCars = mzjUniqueStrings([
-              ...(Array.isArray(d.selectedCars) ? d.selectedCars : []),
-              ...(Array.isArray(d.selectedCarValues) ? d.selectedCarValues : []),
-              ...(Array.isArray(d.requiredDetails?.selectedCars) ? d.requiredDetails.selectedCars : []),
-              ...(Array.isArray(d.requiredDetails?.selectedCarValues) ? d.requiredDetails.selectedCarValues : []),
+              ...(Array.isArray(filteredDept.selectedCars) ? filteredDept.selectedCars : []),
+              ...(Array.isArray(filteredDept.selectedCarValues) ? filteredDept.selectedCarValues : []),
+              ...(Array.isArray(filteredDept.requiredDetails?.selectedCars) ? filteredDept.requiredDetails.selectedCars : []),
+              ...(Array.isArray(filteredDept.requiredDetails?.selectedCarValues) ? filteredDept.requiredDetails.selectedCarValues : []),
               ...readinessItems.map((item) => item.carType),
-              ...mzjSplitMultiValue(d.carType)
+              ...mzjSplitMultiValue(filteredDept.carType)
             ].map((value) => String(value || '').trim()).filter(Boolean));
-            const readinessTypes = mzjUniqueStrings([
-              ...(Array.isArray(d.selectedContentTypes) ? d.selectedContentTypes : []),
-              ...(Array.isArray(d.selectedContentTypeTitles) ? d.selectedContentTypeTitles : []),
-              ...(Array.isArray(d.requiredDetails?.selectedContentTypes) ? d.requiredDetails.selectedContentTypes : []),
-              ...(Array.isArray(d.requiredDetails?.selectedContentTypeTitles) ? d.requiredDetails.selectedContentTypeTitles : []),
+            const readinessTypes = contentType ? [contentType] : mzjUniqueStrings([
+              ...(Array.isArray(filteredDept.selectedContentTypes) ? filteredDept.selectedContentTypes : []),
+              ...(Array.isArray(filteredDept.selectedContentTypeTitles) ? filteredDept.selectedContentTypeTitles : []),
+              ...(Array.isArray(filteredDept.requiredDetails?.selectedContentTypes) ? filteredDept.requiredDetails.selectedContentTypes : []),
+              ...(Array.isArray(filteredDept.requiredDetails?.selectedContentTypeTitles) ? filteredDept.requiredDetails.selectedContentTypes : []),
               ...readinessItems.map((item) => item.contentType),
-              ...mzjSplitMultiValue(d.contentType)
+              ...mzjSplitMultiValue(filteredDept.contentType)
             ].map((value) => String(value || '').trim()).filter(Boolean));
             const readinessCarsJson = encodeURIComponent(JSON.stringify(readinessCars));
             const readinessTypesJson = encodeURIComponent(JSON.stringify(readinessTypes));
             return `<div class="readiness-dept-item" data-dept-task-card data-task-id="${esc(task.id)}" data-task-type="${esc(task.taskTypeLabel || task.taskType || '')}" data-campaign-code="${esc(task.campaignCode || '')}" data-readiness-key="${esc(key)}" data-legacy-readiness-key="${esc(legacyDeptReadinessKey(d))}" data-dept-identity="${esc(deptIdentity(d))}" data-dept-key="${esc(dkey)}" data-department-share="${esc(departmentShare)}" data-group-count="1" data-completed-steps="${esc(selected)}">
-              <button type="button" class="readiness-open-details" data-open-task-details data-task-id="${esc(task.id)}" data-dept-index="${esc(realIndex)}" data-readiness-key="${esc(key)}" data-dept-key="${esc(dkey)}" data-dept="${esc(d.departmentName || 'قسم')}" data-task-title="${esc(taskTitle(task))}" data-required="${esc(requirement)}" data-dept-task-json="${esc(encodeURIComponent(JSON.stringify(d || {})))}" data-selected-cars-json="${esc(readinessCarsJson)}" data-selected-content-types-json="${esc(readinessTypesJson)}" data-steps="${esc(steps)}">
-                <strong>${esc(d.departmentName || 'قسم')}</strong>
-                <b class="dept-task-short-name">${esc(departmentTaskShortName(d))}</b>
+              <button type="button" class="readiness-open-details" data-open-task-details data-task-id="${esc(task.id)}" data-dept-index="${esc(realIndex)}" data-readiness-key="${esc(key)}" data-dept-identity="${esc(deptIdentity(d))}" data-dept-key="${esc(dkey)}" data-dept="${esc(d.departmentName || 'قسم')}" data-task-title="${esc(taskTitle(task))}" data-required="${esc(requirement)}" data-dept-task-json="${esc(encodeURIComponent(JSON.stringify(filteredDept || {})))}" data-selected-cars-json="${esc(readinessCarsJson)}" data-selected-content-types-json="${esc(readinessTypesJson)}" data-content-type-filter="${esc(contentType)}" data-steps="${esc(steps)}" data-completed-steps="${esc(selected)}">
+                <strong>${esc(contentType || d.departmentName || 'قسم')}</strong>
+                <b class="dept-task-short-name">${esc(d.departmentName || departmentTaskShortName(d))}</b>
                 <small>${percent}%</small>
                 <span>${esc(deptAssigneeLabel(d))}</span>
                 <em>تفاصيل واعتماد</em>
@@ -7761,7 +7803,7 @@ initCreateTaskFromTemplate();
 
   function dashboardContentTypeProgress(task, deptTask, deptIndex, contentType) {
     const filtered = contentType ? dashboardFilteredDeptByContentType(deptTask, contentType) : deptTask;
-    const selected = mzjDetailsReadinessSteps(task, filtered, deptIndex);
+    const selected = readinessStepsForDept(task, deptTask, deptIndex, contentType);
     if (selected.length) {
       const steps = taskStepsForDept(deptKey(filtered.departmentName));
       return mzjEffectiveTaskPercentFromIndexes(steps, selected, !userIsAdmin());
@@ -7785,8 +7827,8 @@ initCreateTaskFromTemplate();
       const rowContentTypes = group.contentType ? [group.contentType] : mzjUniqueStrings(normalizeDepartmentContentItems(filteredDept).map((item) => item.contentType));
       const rowCarsJson = encodeURIComponent(JSON.stringify(cars));
       const rowContentTypesJson = encodeURIComponent(JSON.stringify(rowContentTypes));
-      const key = dashboardDeptReadinessKey(entry.dept, entry.index);
-      const selected = readinessStepsForDept(entry.task, entry.dept, entry.index).join(',');
+      const key = dashboardContentTypeReadinessKey(entry.dept, entry.index, group.contentType);
+      const selected = readinessStepsForDept(entry.task, entry.dept, entry.index, group.contentType).join(',');
       const dkey = deptKey(entry.dept.departmentName);
       const received = dashboardContentTypeReceived(entry.dept, group.contentType);
       const rowProgress = dashboardContentTypeProgress(entry.task, entry.dept, entry.index, group.contentType);

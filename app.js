@@ -172,7 +172,7 @@ function syncTaskProgress() {
         value: Number(btn.dataset.stepValue || 0),
         adminOnly: btn.classList.contains('is-approval-step')
       }));
-      const taskPercent = mzjEffectiveTaskPercentFromIndexes(blockSteps, buttonsSelectedIndexes, mzjShouldNormalizeTaskProgressForCurrentUser());
+      const taskPercent = mzjEffectiveTaskPercentFromIndexes(blockSteps, buttonsSelectedIndexes, false);
       const campaignPercent = Math.round(activeButtons.reduce((sum, btn) => sum + Number(btn.dataset.campaignValue || 0), 0));
       const percentNode = block.querySelector('[data-assignment-task-percent]');
       const campaignNode = block.querySelector('[data-assignment-campaign-percent]');
@@ -212,7 +212,7 @@ function syncTaskProgress() {
     value: Number(btn.dataset.stepValue || 0),
     adminOnly: btn.classList.contains('is-approval-step')
   }));
-  const taskPercent = mzjEffectiveTaskPercentFromIndexes(allStepDefs, activeButtons.map((btn) => btn.dataset.stepIndex), mzjShouldNormalizeTaskProgressForCurrentUser());
+  const taskPercent = mzjEffectiveTaskPercentFromIndexes(allStepDefs, activeButtons.map((btn) => btn.dataset.stepIndex), false);
   const campaignPercent = Math.round(activeButtons.reduce((sum, btn) => sum + Number(btn.dataset.campaignValue || 0), 0));
 
   if (modalTaskPercent) modalTaskPercent.textContent = taskPercent + '%';
@@ -1462,7 +1462,10 @@ function mzjDetailsReadinessSteps(task, deptTask, deptIndex = 0) {
   const readiness = task?.readiness || {};
   const key = mzjDetailsReadinessKey(deptTask, deptIndex);
   const legacyKey = mzjDetailsLegacyReadinessKey(deptTask);
-  return Array.isArray(readiness[key]) ? readiness[key] : (Array.isArray(readiness[legacyKey]) ? readiness[legacyKey] : []);
+  const hasContentTypeScope = String(key || '').includes('::contentType::') || Boolean(deptTask?.__contentTypeFilter);
+  if (Array.isArray(readiness[key])) return readiness[key];
+  if (hasContentTypeScope) return [];
+  return Array.isArray(readiness[legacyKey]) ? readiness[legacyKey] : [];
 }
 
 function mzjDetailsReadTasks() {
@@ -7445,8 +7448,8 @@ initCreateTaskFromTemplate();
     const baseKey = dashboardDeptReadinessKey(deptTask, deptIndex);
     const typeKey = contentType ? dashboardContentTypeReadinessKey(deptTask, deptIndex, contentType) : '';
     const legacyKey = legacyDeptReadinessKey(deptTask);
-    const key = typeKey || baseKey;
-    const selected = Array.isArray(readiness[key]) ? readiness[key] : (Array.isArray(readiness[baseKey]) ? readiness[baseKey] : (Array.isArray(readiness[legacyKey]) ? readiness[legacyKey] : []));
+    if (typeKey) return Array.isArray(readiness[typeKey]) ? readiness[typeKey] : [];
+    const selected = Array.isArray(readiness[baseKey]) ? readiness[baseKey] : (Array.isArray(readiness[legacyKey]) ? readiness[legacyKey] : []);
     return selected;
   }
   function taskDeptProgress(task, deptTask, deptIndex = 0, contentType = ''){
@@ -7461,7 +7464,7 @@ initCreateTaskFromTemplate();
     }
     const selected = readinessStepsForDept(task, deptTask, deptIndex, contentType);
     const steps = taskStepsForDept(deptKey(deptTask.departmentName));
-    return mzjEffectiveTaskPercentFromIndexes(steps, selected, !userIsAdmin());
+    return mzjEffectiveTaskPercentFromIndexes(steps, selected, false);
   }
   function taskReadiness(task){
     const depts = (task.departmentTasks || []).filter((d) => d && d.enabled !== false);
@@ -7878,7 +7881,7 @@ initCreateTaskFromTemplate();
     const selected = readinessStepsForDept(task, deptTask, deptIndex, contentType);
     if (selected.length) {
       const steps = taskStepsForDept(deptKey(filtered.departmentName || deptTask.departmentName));
-      return mzjEffectiveTaskPercentFromIndexes(steps, selected, !userIsAdmin());
+      return mzjEffectiveTaskPercentFromIndexes(steps, selected, false);
     }
     return taskDeptProgress(task, deptTask, deptIndex);
   }
@@ -8095,6 +8098,10 @@ initCreateTaskFromTemplate();
           const legacyKey = block.dataset.legacyReadinessKey || '';
           const selected = Array.from(block.querySelectorAll('.task-step-btn.is-done')).map((btn) => Number(btn.dataset.stepIndex)).filter((value) => !Number.isNaN(value));
           if (legacyKey && legacyKey !== key) delete task.readiness[legacyKey];
+          if (key && String(key).includes('::contentType::')) {
+            const baseKey = key.split('::contentType::')[0];
+            if (baseKey && baseKey !== key && Array.isArray(task.readiness[baseKey])) delete task.readiness[baseKey];
+          }
           if (key) task.readiness[key] = selected;
           const dept = (task.departmentTasks || []).find((d, index) => {
             const base = String(dashboardDeptReadinessKey(d, index));
@@ -8112,6 +8119,10 @@ initCreateTaskFromTemplate();
         const key = activeTaskCard.dataset.readinessKey || '';
         const legacyKey = activeTaskDetailsMeta?.legacyReadinessKey || '';
         if (legacyKey && legacyKey !== key) delete task.readiness[legacyKey];
+        if (key && String(key).includes('::contentType::')) {
+          const baseKey = key.split('::contentType::')[0];
+          if (baseKey && baseKey !== key && Array.isArray(task.readiness[baseKey])) delete task.readiness[baseKey];
+        }
         task.readiness[key] = (activeTaskCard.dataset.completedSteps || '').split(',').filter(Boolean).map(Number);
         const dept = (task.departmentTasks || []).find((d, index) => {
           const base = String(dashboardDeptReadinessKey(d, index));

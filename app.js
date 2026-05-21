@@ -1381,6 +1381,12 @@ async function saveTaskAttachmentToFirebase(meta, fileRecord) {
 
   const data = snap.data() || {};
   const departmentTasks = Array.isArray(data.departmentTasks) ? data.departmentTasks : [];
+  const nextReadiness = { ...(data.readiness || {}) };
+  const markMetaKeys = Array.isArray(meta.relatedAssignments) && meta.relatedAssignments.length ? meta.relatedAssignments : [{ readinessKey: meta.readinessKey, deptData: meta.deptData, deptIndex: meta.deptIndex }];
+  markMetaKeys.forEach((item) => {
+    const scopedKey = item?.readinessKey || (item?.deptData ? mzjDetailsReadinessKey(item.deptData, item.deptIndex || 0) : '');
+    if (scopedKey) mzjMarkDeliveryStepInReadinessMap(nextReadiness, scopedKey, item?.deptData || meta.deptData || {});
+  });
   const updatedDepartments = departmentTasks.map((dept) => {
     const sameDept = rawDeptIdentity(dept) === String(meta.deptIdentity || '');
     if (!sameDept) return dept;
@@ -1403,6 +1409,7 @@ async function saveTaskAttachmentToFirebase(meta, fileRecord) {
 
   await docRef.set({
     departmentTasks: updatedDepartments,
+    readiness: nextReadiness,
     updatedAt: new Date().toISOString()
   }, { merge: true });
 
@@ -1492,6 +1499,64 @@ function mzjContentTypeReadinessKey(baseKey, contentType) {
   return type ? `${baseKey}::contentType::${type}` : baseKey;
 }
 
+function mzjNormalizeContentTypeComparable(value) {
+  return String(value || '')
+    .replace(/[\u064B-\u065F\u0670]/g, '')
+    .replace(/[أإآ]/g, 'ا')
+    .replace(/ى/g, 'ي')
+    .replace(/ة/g, 'ه')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+}
+
+function mzjUniqueStepIndexes(values) {
+  return Array.from(new Set((values || [])
+    .map((value) => Number(value))
+    .filter((value) => !Number.isNaN(value))))
+    .sort((a, b) => a - b);
+}
+
+function mzjCollectReadinessStepsForScopedKey(readiness, scopedKey, contentType) {
+  const source = readiness || {};
+  const key = String(scopedKey || '');
+  const collected = [];
+  const add = (arr) => {
+    if (Array.isArray(arr)) arr.forEach((value) => collected.push(value));
+  };
+  add(source[key]);
+
+  if (key.includes('::contentType::')) {
+    const baseKey = key.split('::contentType::')[0];
+    const requestedType = mzjNormalizeContentTypeComparable(contentType || key.split('::contentType::').slice(1).join('::contentType::'));
+    Object.keys(source).forEach((candidateKey) => {
+      if (!candidateKey.startsWith(baseKey + '::contentType::')) return;
+      const candidateType = mzjNormalizeContentTypeComparable(candidateKey.split('::contentType::').slice(1).join('::contentType::'));
+      if (requestedType && candidateType === requestedType) add(source[candidateKey]);
+    });
+  }
+
+  return mzjUniqueStepIndexes(collected);
+}
+
+function mzjDeliveryStepIndexForDept(deptTask) {
+  const steps = taskStepsForDept(mzjDetailsDeptKey(deptTask?.departmentName || ''));
+  const found = steps.findIndex((step) => String(step.label || '').includes('التسليم') || String(step.label || '').includes('الارفاق') || String(step.label || '').includes('الإرفاق'));
+  return found >= 0 ? found : Math.max(steps.length - 1, 0);
+}
+
+function mzjMarkDeliveryStepInReadinessMap(readiness, key, deptTask) {
+  const next = readiness || {};
+  const scopedKey = String(key || mzjDetailsReadinessKey(deptTask || {}, 0) || '');
+  if (!scopedKey) return next;
+  const existing = mzjCollectReadinessStepsForScopedKey(next, scopedKey, deptTask?.__contentTypeFilter || deptTask?.contentType || '');
+  const deliveryIndex = mzjDeliveryStepIndexForDept(deptTask || {});
+  if (!existing.includes(deliveryIndex)) existing.push(deliveryIndex);
+  next[scopedKey] = mzjUniqueStepIndexes(existing);
+  return next;
+}
+
+
 function mzjDetailsReadinessKey(deptTask, deptIndex = 0) {
   if (deptTask?.__contentTypeReadinessKey) return deptTask.__contentTypeReadinessKey;
   // MZJ FIX: المفتاح الأساسي لا يستخدم نوع المحتوى أو نص المطلوب، حتى لا يتغير بين الكارت والتفاصيل.
@@ -1507,9 +1572,11 @@ function mzjDetailsReadinessSteps(task, deptTask, deptIndex = 0) {
   const key = mzjDetailsReadinessKey(deptTask, deptIndex);
   const legacyKey = mzjDetailsLegacyReadinessKey(deptTask);
   const hasContentTypeScope = String(key || '').includes('::contentType::') || Boolean(deptTask?.__contentTypeFilter);
-  if (Array.isArray(readiness[key])) return readiness[key];
-  if (hasContentTypeScope) return [];
-  return Array.isArray(readiness[legacyKey]) ? readiness[legacyKey] : [];
+  if (hasContentTypeScope) {
+    return mzjCollectReadinessStepsForScopedKey(readiness, key, deptTask?.__contentTypeFilter || deptTask?.contentType || '');
+  }
+  if (Array.isArray(readiness[key])) return mzjUniqueStepIndexes(readiness[key]);
+  return Array.isArray(readiness[legacyKey]) ? mzjUniqueStepIndexes(readiness[legacyKey]) : [];
 }
 
 function mzjDetailsReadTasks() {
@@ -7498,9 +7565,9 @@ initCreateTaskFromTemplate();
     const baseKey = dashboardDeptReadinessKey(deptTask, deptIndex);
     const typeKey = contentType ? dashboardContentTypeReadinessKey(deptTask, deptIndex, contentType) : '';
     const legacyKey = legacyDeptReadinessKey(deptTask);
-    if (typeKey) return Array.isArray(readiness[typeKey]) ? readiness[typeKey] : [];
+    if (typeKey) return mzjCollectReadinessStepsForScopedKey(readiness, typeKey, contentType);
     const selected = Array.isArray(readiness[baseKey]) ? readiness[baseKey] : (Array.isArray(readiness[legacyKey]) ? readiness[legacyKey] : []);
-    return selected;
+    return mzjUniqueStepIndexes(selected);
   }
   function taskDeptProgress(task, deptTask, deptIndex = 0, contentType = ''){
     // لو التكليف فيه أكتر من نوع محتوى، نحسب كل نوع محتوى كتاسك مستقل.

@@ -167,14 +167,10 @@ function syncTaskProgress() {
       const buttons = Array.from(block.querySelectorAll('.task-step-btn'));
       const activeButtons = buttons.filter((btn) => btn.classList.contains('is-done'));
       const buttonsSelectedIndexes = activeButtons.map((btn) => btn.dataset.stepIndex);
-      const blockSteps = buttons.map((btn) => ({
-        label: btn.querySelector('span')?.textContent || '',
-        value: Number(btn.dataset.stepValue || 0),
-        adminOnly: btn.classList.contains('is-approval-step')
-      }));
-      const rawTaskPercent = mzjEffectiveTaskPercentFromIndexes(blockSteps, buttonsSelectedIndexes, false);
+      const canonicalSteps = taskStepsForDept(block.dataset.deptKey || activeTaskDetailsMeta?.deptKey || 'content');
+      const rawTaskPercent = mzjEffectiveTaskPercentFromIndexes(canonicalSteps, buttonsSelectedIndexes, false);
       const contentTypeCount = Math.max(Number(block.dataset.contentTypeCount || 1), 1);
-      const taskPercent = Math.round(rawTaskPercent / contentTypeCount);
+      const taskPercent = Math.min(100, Math.round(rawTaskPercent / contentTypeCount));
       const campaignPercent = Math.round(activeButtons.reduce((sum, btn) => sum + Number(btn.dataset.campaignValue || 0), 0));
       const percentNode = block.querySelector('[data-assignment-task-percent]');
       const campaignNode = block.querySelector('[data-assignment-campaign-percent]');
@@ -209,12 +205,9 @@ function syncTaskProgress() {
 
   const allButtons = Array.from(taskStepButtons.querySelectorAll('.task-step-btn'));
   const activeButtons = allButtons.filter((btn) => btn.classList.contains('is-done'));
-  const allStepDefs = allButtons.map((btn) => ({
-    label: btn.querySelector('span')?.textContent || '',
-    value: Number(btn.dataset.stepValue || 0),
-    adminOnly: btn.classList.contains('is-approval-step')
-  }));
-  const taskPercent = mzjEffectiveTaskPercentFromIndexes(allStepDefs, activeButtons.map((btn) => btn.dataset.stepIndex), false);
+  const allStepDefs = taskStepsForDept(activeTaskDetailsMeta?.deptKey || 'content');
+  const singleContentTypeCount = Math.max(Number(taskStepButtons.querySelector('[data-assignment-step-block]')?.dataset.contentTypeCount || 1), 1);
+  const taskPercent = Math.min(100, Math.round(mzjEffectiveTaskPercentFromIndexes(allStepDefs, activeButtons.map((btn) => btn.dataset.stepIndex), false) / singleContentTypeCount));
   const campaignPercent = Math.round(activeButtons.reduce((sum, btn) => sum + Number(btn.dataset.campaignValue || 0), 0));
 
   if (modalTaskPercent) modalTaskPercent.textContent = taskPercent + '%';
@@ -1809,7 +1802,7 @@ taskStepButtons.innerHTML = '';
   }
   const deptCampaignShare = activeTaskCard ? Number(activeTaskCard.dataset.departmentShare || 0) : 0;
   const baseDeptForContentTypeCount = departmentTasks[clickedDeptIndex] || clickedDept || deptDataFromButton || {};
-  const totalContentTypesForTask = mzjTaskContentTypeCountForProgress(fullTask || {}, baseDeptForContentTypeCount, clickedDeptIndex);
+  const totalContentTypesForTask = Math.max(Number(button.dataset.contentTypeCount || 0) || mzjTaskContentTypeCountForProgress(fullTask || {}, baseDeptForContentTypeCount, clickedDeptIndex), 1);
   const totalAssignments = Math.max(assignments.length, 1);
 
   assignments.forEach(({ dept, index: deptIndex }, assignmentIndex) => {
@@ -1826,6 +1819,7 @@ taskStepButtons.innerHTML = '';
     block.dataset.deptIndex = String(deptIndex);
     block.dataset.deptIdentity = mzjDetailsDeptIdentity(dept);
     block.dataset.contentTypeCount = String(totalContentTypesForTask);
+    block.dataset.deptKey = String(deptKeyValue || 'content');
 
     const assignmentTitle = dept.taskName || dept.requiredTaskName || dept.contentType || dept.deliverable || dept.taskNo || 'تكليف مطلوب';
 
@@ -7707,7 +7701,7 @@ initCreateTaskFromTemplate();
             const readinessCarsJson = encodeURIComponent(JSON.stringify(readinessCars));
             const readinessTypesJson = encodeURIComponent(JSON.stringify(readinessTypes));
             return `<div class="readiness-dept-item" data-dept-task-card data-task-id="${esc(task.id)}" data-task-type="${esc(task.taskTypeLabel || task.taskType || '')}" data-campaign-code="${esc(task.campaignCode || '')}" data-readiness-key="${esc(key)}" data-legacy-readiness-key="${esc(legacyDeptReadinessKey(d))}" data-dept-identity="${esc(deptIdentity(d))}" data-dept-key="${esc(dkey)}" data-department-share="${esc(departmentShare)}" data-group-count="1" data-completed-steps="${esc(selected)}">
-              <button type="button" class="readiness-open-details" data-open-task-details data-task-id="${esc(task.id)}" data-dept-index="${esc(realIndex)}" data-readiness-key="${esc(key)}" data-dept-identity="${esc(deptIdentity(d))}" data-dept-key="${esc(dkey)}" data-dept="${esc(d.departmentName || 'قسم')}" data-task-title="${esc(taskTitle(task))}" data-required="${esc(requirement)}" data-dept-task-json="${esc(encodeURIComponent(JSON.stringify(filteredDept || {})))}" data-selected-cars-json="${esc(readinessCarsJson)}" data-selected-content-types-json="${esc(readinessTypesJson)}" data-content-type-filter="${esc(contentType)}" data-steps="${esc(steps)}" data-completed-steps="${esc(selected)}">
+              <button type="button" class="readiness-open-details" data-open-task-details data-task-id="${esc(task.id)}" data-dept-index="${esc(realIndex)}" data-readiness-key="${esc(key)}" data-dept-identity="${esc(deptIdentity(d))}" data-dept-key="${esc(dkey)}" data-dept="${esc(d.departmentName || 'قسم')}" data-task-title="${esc(taskTitle(task))}" data-required="${esc(requirement)}" data-dept-task-json="${esc(encodeURIComponent(JSON.stringify(filteredDept || {})))}" data-selected-cars-json="${esc(readinessCarsJson)}" data-selected-content-types-json="${esc(readinessTypesJson)}" data-content-type-filter="${esc(contentType)}" data-content-type-count="${esc(Math.max(dashboardContentTypesForDept(d).filter(Boolean).length || 1, 1))}" data-steps="${esc(steps)}" data-completed-steps="${esc(selected)}">
                 <strong>${esc(contentType || d.departmentName || 'قسم')}</strong>
                 <b class="dept-task-short-name">${esc(d.departmentName || departmentTaskShortName(d))}</b>
                 <small>${percent}%</small>
@@ -7933,13 +7927,11 @@ initCreateTaskFromTemplate();
   }
 
   function dashboardContentTypeProgress(task, deptTask, deptIndex, contentType) {
+    // نسبة نوع المحتوى نفسه فقط: لا نرجع لتقدم التكليف العام حتى لا يأثر نوع على نوع آخر.
     const filtered = contentType ? dashboardFilteredDeptByContentType(deptTask, contentType) : deptTask;
     const selected = readinessStepsForDept(task, deptTask, deptIndex, contentType);
-    if (selected.length) {
-      const steps = taskStepsForDept(deptKey(filtered.departmentName || deptTask.departmentName));
-      return mzjEffectiveTaskPercentFromIndexes(steps, selected, false);
-    }
-    return taskDeptProgress(task, deptTask, deptIndex);
+    const steps = taskStepsForDept(deptKey(filtered.departmentName || deptTask.departmentName));
+    return mzjEffectiveTaskPercentFromIndexes(steps, selected, false);
   }
 
   function userContentTypeGroupCard(group) {
@@ -7963,15 +7955,16 @@ initCreateTaskFromTemplate();
       const dkey = deptKey(entry.dept.departmentName);
       const received = dashboardContentTypeReceived(entry.dept, group.contentType);
       const rowProgress = dashboardContentTypeProgress(entry.task, entry.dept, entry.index, group.contentType);
-      const rowCampaignPercent = Math.round(rowProgress / Math.max((entry.task.departmentTasks || []).length, 1));
+      const rowTypeCount = Math.max(dashboardContentTypesForDept(entry.dept).filter(Boolean).length || 1, 1);
+      const rowCampaignPercent = Math.round(rowProgress / rowTypeCount);
       return `<article class="content-type-user-task-row">
         <div class="content-type-user-task-main">
           <b>${esc(entry.task.campaignName || taskTitle(entry.task) || `تاسك ${rowIndex + 1}`)}</b>
           <small>${esc(cars.length ? cars.join('، ') : departmentTaskShortName(entry.dept))}</small>
         </div>
         <div class="content-type-user-task-actions">
-          <button class="details-btn user-task-action-btn" type="button" data-open-task-details data-task-id="${esc(entry.task.id)}" data-dept-index="${esc(entry.index)}" data-readiness-key="${esc(key)}" data-dept-identity="${esc(deptIdentity(entry.dept))}" data-dept-key="${esc(dkey)}" data-dept="${esc(entry.dept.departmentName || 'قسم')}" data-task-title="${esc(taskTitle(entry.task))}" data-required="${esc(formatDepartmentRequirement(filteredDept))}" data-dept-task-json="${esc(encodeURIComponent(JSON.stringify(filteredDept || {})))}" data-selected-cars-json="${esc(rowCarsJson)}" data-selected-content-types-json="${esc(rowContentTypesJson)}" data-content-type-filter="${esc(group.contentType || '')}" data-steps="${esc(steps)}" data-completed-steps="${esc(selected)}">تفاصيل</button>
-          <button class="soft-btn receive-task-btn user-task-action-btn ${received ? 'is-done' : ''}" type="button" data-receive-task data-task-id="${esc(entry.task.id)}" data-dept-index="${esc(entry.index)}" data-readiness-key="${esc(key)}" data-dept-identity="${esc(deptIdentity(entry.dept))}" data-content-type="${esc(group.contentType || '')}" ${received ? 'disabled' : ''}>${received ? 'تم الاستلام' : 'تم الاستلام'}</button>
+          <button class="details-btn user-task-action-btn" type="button" data-open-task-details data-task-id="${esc(entry.task.id)}" data-dept-index="${esc(entry.index)}" data-readiness-key="${esc(key)}" data-dept-identity="${esc(deptIdentity(entry.dept))}" data-dept-key="${esc(dkey)}" data-dept="${esc(entry.dept.departmentName || 'قسم')}" data-task-title="${esc(taskTitle(entry.task))}" data-required="${esc(formatDepartmentRequirement(filteredDept))}" data-dept-task-json="${esc(encodeURIComponent(JSON.stringify(filteredDept || {})))}" data-selected-cars-json="${esc(rowCarsJson)}" data-selected-content-types-json="${esc(rowContentTypesJson)}" data-content-type-filter="${esc(group.contentType || '')}" data-content-type-count="${esc(rowTypeCount)}" data-steps="${esc(steps)}" data-completed-steps="${esc(selected)}">تفاصيل</button>
+          <button class="soft-btn receive-task-btn user-task-action-btn ${received ? 'is-done is-received-confirmed' : ''}" type="button" data-receive-task data-task-id="${esc(entry.task.id)}" data-dept-index="${esc(entry.index)}" data-readiness-key="${esc(key)}" data-dept-identity="${esc(deptIdentity(entry.dept))}" data-content-type="${esc(group.contentType || '')}" ${received ? 'disabled' : ''}>${received ? '✓ تم الاستلام' : 'تم الاستلام'}</button>
         </div>
         <div class="content-type-task-progress">
           <div class="department-progress-box"><small>متوسط اكتمال التاسكات</small><strong>${rowProgress}%</strong></div>
@@ -8237,6 +8230,7 @@ initCreateTaskFromTemplate();
     receive.disabled = true;
     const oldText = receive.textContent;
     receive.textContent = 'جاري تأكيد الاستلام...';
+    receive.classList.add('is-receiving');
 
     const receivedIso = new Date().toISOString();
     const receivedDate = receivedIso.slice(0,10);
@@ -8272,9 +8266,13 @@ initCreateTaskFromTemplate();
 
     try {
       await saveTaskToFirestore(task);
+      receive.classList.remove('is-receiving');
+      receive.classList.add('is-done', 'is-received-confirmed');
+      receive.textContent = '✓ تم الاستلام';
       window.renderDashboardTasks();
     } catch (error) {
       receive.disabled = false;
+      receive.classList.remove('is-receiving');
       receive.textContent = oldText || 'تأكيد استلام التاسك';
       alert('فشل تأكيد الاستلام في Firebase: ' + (error?.message || error?.code || error));
     }

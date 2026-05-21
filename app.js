@@ -7442,7 +7442,9 @@ initCreateTaskFromTemplate();
     return selected;
   }
   function taskDeptProgress(task, deptTask, deptIndex = 0, contentType = ''){
-    if (!contentType && !userIsAdmin()) {
+    // لو التكليف فيه أكتر من نوع محتوى، نحسب كل نوع محتوى كتاسك مستقل.
+    // ده مهم للأدمن واليوزر: اليوزر يخلص نوعه، والأدمن يعتمد نفس النوع منفصل.
+    if (!contentType) {
       const types = dashboardContentTypesForDept(deptTask).filter(Boolean);
       if (types.length > 1) {
         const total = types.reduce((sum, type) => sum + taskDeptProgress(task, deptTask, deptIndex, type), 0);
@@ -7462,8 +7464,15 @@ initCreateTaskFromTemplate();
   function taskReceiptProgress(task){
     const depts = (task.departmentTasks || []).filter((d) => d && d.enabled !== false);
     if (!depts.length) return 0;
-    const done = depts.filter((d) => Boolean(d.receivedConfirmed || d.received || d.receivedAt)).length;
-    return Math.round((done / depts.length) * 100);
+    const units = [];
+    depts.forEach((d) => {
+      const types = dashboardContentTypesForDept(d).filter(Boolean);
+      if (types.length > 1) types.forEach((type) => units.push({ dept: d, type }));
+      else units.push({ dept: d, type: types[0] || '' });
+    });
+    if (!units.length) return 0;
+    const done = units.filter((unit) => unit.type ? dashboardContentTypeReceived(unit.dept, unit.type) : Boolean(unit.dept.receivedConfirmed || unit.dept.received || unit.dept.receivedAt)).length;
+    return Math.round((done / units.length) * 100);
   }
 
   function dashboardTodayISO(){
@@ -7591,13 +7600,13 @@ initCreateTaskFromTemplate();
       ? Math.round(approvalEntries.reduce((sum, entry) => sum + dashboardContentTypeProgress(task, entry.dept, entry.realIndex, entry.contentType), 0) / approvalEntries.length)
       : taskReadiness(task);
     const deptCount = Math.max(approvalEntries.length || activeDepts.length, 1);
-    return `<article class="readiness-card dynamic-dashboard-card compact-readiness-card" data-dash-task-id="${esc(task.id)}">
+    return `<article class="readiness-card dynamic-dashboard-card compact-readiness-card is-open" data-dash-task-id="${esc(task.id)}">
       <button class="readiness-card-summary" type="button" data-toggle-readiness-details>
         <div class="task-template-top"><strong>${esc(taskTitle(task))}</strong><span>${meta(task)} — جاهزية ${ready}%</span></div>
         <div class="mini-progress"><span style="width:${ready}%"></span></div>
-        <small>اضغط لعرض أنواع المحتوى والاعتمادات</small>
+        <small>أنواع المحتوى ظاهرة كتاسكات اعتماد منفصلة</small>
       </button>
-      <div class="readiness-details-panel" data-readiness-details hidden>
+      <div class="readiness-details-panel" data-readiness-details>
         <div class="readiness-grid readiness-dynamic-grid readiness-approval-grid">
           ${approvalEntries.map((entry) => {
             const d = entry.dept;
@@ -7675,7 +7684,7 @@ initCreateTaskFromTemplate();
   }
 
   function safeDashboardCard(task, title, hint){
-    return `<article class="readiness-card dynamic-dashboard-card compact-readiness-card" data-dash-task-id="${esc(task.id)}">
+    return `<article class="readiness-card dynamic-dashboard-card compact-readiness-card is-open" data-dash-task-id="${esc(task.id)}">
       <button class="readiness-card-summary" type="button">
         <div class="task-template-top"><strong>${esc(taskTitle(task))}</strong><span>${meta(task)}</span></div>
         <div class="mini-progress"><span style="width:${taskReadiness(task)}%"></span></div>
@@ -7764,29 +7773,84 @@ initCreateTaskFromTemplate();
 
 
   function dashboardContentTypesForDept(deptTask) {
+    const values = [];
+    const push = (value) => {
+      if (value === undefined || value === null) return;
+      if (Array.isArray(value)) { value.forEach(push); return; }
+      if (typeof value === 'object') {
+        push(value.contentType || value.contentTypeTitle || value.title || value.name || value.deliverable || value.value || value.label);
+        return;
+      }
+      const text = String(value || '').trim();
+      if (!text || text === '—' || text === '-') return;
+      mzjSplitMultiValue(text).forEach((part) => {
+        const clean = String(part || '').replace(/^(نوع\s+المحتوى|نوع\s+المحتوي)\s*:?/i, '').trim();
+        if (clean && clean !== '—' && clean !== '-') values.push(clean);
+      });
+    };
     const items = normalizeDepartmentContentItems(deptTask);
-    const types = mzjUniqueStrings(items.map((item) => item.contentType));
-    return types.length ? types : [departmentTaskShortName(deptTask) || 'مطلوب'];
+    items.forEach((item) => push(item.contentType || item.title || item.name || item.deliverable));
+    push(deptTask?.__selectedContentTypesFromButton);
+    push(deptTask?.selectedContentTypes);
+    push(deptTask?.selectedContentTypeTitles);
+    push(deptTask?.contentTypes);
+    push(deptTask?.contentType);
+    push(deptTask?.requiredDetails?.selectedContentTypes);
+    push(deptTask?.requiredDetails?.selectedContentTypeTitles);
+    push(deptTask?.requiredDetails?.contentTypes);
+    push(deptTask?.requiredDetails?.contentType);
+    const clean = mzjUniqueStrings(values).filter((type) => !/^مطلوب\s*\d+/i.test(type));
+    return clean.length ? clean : [departmentTaskShortName(deptTask) || 'مطلوب'];
   }
 
   function dashboardFilteredDeptByContentType(deptTask, contentType) {
-    const items = normalizeDepartmentContentItems(deptTask).filter((item) => String(item.contentType || '').trim() === String(contentType || '').trim());
-    const filteredItems = items.length ? items : normalizeDepartmentContentItems(deptTask);
-    const cars = mzjUniqueStrings(filteredItems.map((item) => item.carType));
+    const type = String(contentType || '').trim();
+    const allItems = normalizeDepartmentContentItems(deptTask);
+    const items = type ? allItems.filter((item) => String(item.contentType || item.title || item.name || '').trim() === type) : allItems;
+    const filteredItems = items.length ? items : (type ? [] : allItems);
+    const cars = mzjUniqueStrings(filteredItems.map((item) => item.carType || item.car || item.vehicle).filter(Boolean));
+    const quantityMap = Object.assign({}, deptTask?.contentTypeQuantities || {}, deptTask?.selectedContentTypeQuantities || {}, deptTask?.requiredDetails?.contentTypeQuantities || {}, deptTask?.requiredDetails?.selectedContentTypeQuantities || {});
+    filteredItems.forEach((item) => {
+      const title = String(item.contentType || item.title || item.name || '').trim();
+      const qty = String(item.quantity || item.qty || item.count || item.requiredCount || item.requiredQuantity || '').trim();
+      if (title && qty && !quantityMap[title]) quantityMap[title] = qty;
+    });
+    const selectedTypes = type ? [type] : mzjUniqueStrings(filteredItems.map((item) => item.contentType || item.title || item.name).filter(Boolean));
     return {
       ...deptTask,
-      __contentTypeFilter: contentType,
-      contentType,
-      selectedContentTypes: contentType ? [contentType] : mzjUniqueStrings(filteredItems.map((item) => item.contentType)),
+      __contentTypeFilter: type,
+      __selectedContentTypesFromButton: selectedTypes,
+      contentType: type || selectedTypes.join('، '),
+      contentTypes: selectedTypes,
+      selectedContentTypes: selectedTypes,
+      selectedContentTypeTitles: selectedTypes,
       selectedCars: cars,
+      selectedCarValues: cars,
+      __selectedCarsFromButton: cars,
       carType: cars.join('، '),
+      contentTypeQuantities: type && quantityMap[type] ? { [type]: quantityMap[type] } : quantityMap,
+      selectedContentTypeQuantities: type && quantityMap[type] ? { [type]: quantityMap[type] } : quantityMap,
+      requiredDetails: {
+        ...(deptTask.requiredDetails || {}),
+        __selectedContentTypesFromButton: selectedTypes,
+        selectedContentTypes: selectedTypes,
+        selectedContentTypeTitles: selectedTypes,
+        contentType: type || selectedTypes.join('، '),
+        selectedCars: cars,
+        selectedCarValues: cars,
+        contentTypeQuantities: type && quantityMap[type] ? { [type]: quantityMap[type] } : quantityMap,
+        selectedContentTypeQuantities: type && quantityMap[type] ? { [type]: quantityMap[type] } : quantityMap,
+        items: filteredItems,
+        deliverables: filteredItems
+      },
       contentItems: filteredItems,
-      photoItems: deptKey(deptTask.departmentName) === 'shooting' ? filteredItems : (Array.isArray(deptTask.photoItems) ? deptTask.photoItems : []),
+      photoItems: deptKey(deptTask.departmentName) === 'shooting' ? filteredItems : (Array.isArray(deptTask.photoItems) ? deptTask.photoItems.filter((item) => !type || String(item.contentType || item.title || '').trim() === type) : []),
       selectedDeliverables: filteredItems.map((item) => ({
-        title: item.contentType || contentType || 'مطلوب',
-        contentType: item.contentType || contentType || '',
+        title: item.contentType || type || 'مطلوب',
+        contentType: item.contentType || type || '',
         carType: item.carType || '',
         requiredText: item.requiredText || '',
+        quantity: item.quantity || item.qty || item.count || quantityMap[type] || '',
         details: [item.carType ? `السيارة: ${item.carType}` : '', item.requiredText || ''].filter(Boolean).join(' — '),
         printSize: item.printSize || ''
       }))

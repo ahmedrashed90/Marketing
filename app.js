@@ -746,6 +746,18 @@ function renderTaskDetailsSummary(deptTask, deptKeyValue) {
     ]);
   }
 
+  const forcedContentType = String(safeTask?.__contentTypeFilter || (Array.isArray(safeTask?.__selectedContentTypesFromButton) && safeTask.__selectedContentTypesFromButton.length === 1 ? safeTask.__selectedContentTypesFromButton[0] : '') || '').trim();
+  if (forcedContentType) {
+    contentTypes = [forcedContentType];
+    const forcedItems = items.filter((item) => String(item?.contentType || item?.title || item?.name || '').trim() === forcedContentType);
+    if (forcedItems.length) {
+      cars = cleanSelection([
+        safeTask?.__selectedCarsFromButton,
+        forcedItems.map((item) => item?.carType || item?.car || item?.vehicle)
+      ]);
+    }
+  }
+
   const quantityMap = Object.assign({},
     safeTask?.contentTypeQuantities || {},
     safeTask?.selectedContentTypeQuantities || {},
@@ -7735,15 +7747,22 @@ initCreateTaskFromTemplate();
       const selected = readinessStepsForDept(entry.task, entry.dept, entry.index).join(',');
       const dkey = deptKey(entry.dept.departmentName);
       const received = dashboardContentTypeReceived(entry.dept, group.contentType);
+      const rowProgress = taskDeptProgress(entry.task, entry.dept, entry.index);
+      const rowCampaignPercent = Math.round(rowProgress / Math.max((entry.task.departmentTasks || []).length, 1));
       return `<article class="content-type-user-task-row">
         <div class="content-type-user-task-main">
           <b>${esc(entry.task.campaignName || taskTitle(entry.task) || `تاسك ${rowIndex + 1}`)}</b>
           <small>${esc(cars.length ? cars.join('، ') : departmentTaskShortName(entry.dept))}</small>
         </div>
         <div class="content-type-user-task-actions">
-          <button class="details-btn" type="button" data-open-task-details data-task-id="${esc(entry.task.id)}" data-dept-index="${esc(entry.index)}" data-readiness-key="${esc(key)}" data-dept-identity="${esc(deptIdentity(entry.dept))}" data-dept-key="${esc(dkey)}" data-dept="${esc(entry.dept.departmentName || 'قسم')}" data-task-title="${esc(taskTitle(entry.task))}" data-required="${esc(formatDepartmentRequirement(filteredDept))}" data-dept-task-json="${esc(encodeURIComponent(JSON.stringify(filteredDept || {})))}" data-selected-cars-json="${esc(rowCarsJson)}" data-selected-content-types-json="${esc(rowContentTypesJson)}" data-content-type-filter="${esc(group.contentType || '')}" data-steps="${esc(steps)}" data-completed-steps="${esc(selected)}">تفاصيل</button>
-          <button class="soft-btn receive-task-btn ${received ? 'is-done' : ''}" type="button" data-receive-task data-task-id="${esc(entry.task.id)}" data-dept-index="${esc(entry.index)}" data-readiness-key="${esc(key)}" data-dept-identity="${esc(deptIdentity(entry.dept))}" data-content-type="${esc(group.contentType || '')}" ${received ? 'disabled' : ''}>${received ? 'تم الاستلام' : 'تم الاستلام'}</button>
+          <button class="details-btn user-task-action-btn" type="button" data-open-task-details data-task-id="${esc(entry.task.id)}" data-dept-index="${esc(entry.index)}" data-readiness-key="${esc(key)}" data-dept-identity="${esc(deptIdentity(entry.dept))}" data-dept-key="${esc(dkey)}" data-dept="${esc(entry.dept.departmentName || 'قسم')}" data-task-title="${esc(taskTitle(entry.task))}" data-required="${esc(formatDepartmentRequirement(filteredDept))}" data-dept-task-json="${esc(encodeURIComponent(JSON.stringify(filteredDept || {})))}" data-selected-cars-json="${esc(rowCarsJson)}" data-selected-content-types-json="${esc(rowContentTypesJson)}" data-content-type-filter="${esc(group.contentType || '')}" data-steps="${esc(steps)}" data-completed-steps="${esc(selected)}">تفاصيل</button>
+          <button class="soft-btn receive-task-btn user-task-action-btn ${received ? 'is-done' : ''}" type="button" data-receive-task data-task-id="${esc(entry.task.id)}" data-dept-index="${esc(entry.index)}" data-readiness-key="${esc(key)}" data-dept-identity="${esc(deptIdentity(entry.dept))}" data-content-type="${esc(group.contentType || '')}" ${received ? 'disabled' : ''}>${received ? 'تم الاستلام' : 'تم الاستلام'}</button>
         </div>
+        <div class="content-type-task-progress">
+          <div class="department-progress-box"><small>متوسط اكتمال التاسكات</small><strong>${rowProgress}%</strong></div>
+          <div class="department-progress-box"><small>متوسط مساهمة الحملات</small><strong>${rowCampaignPercent}%</strong></div>
+        </div>
+        <div class="mini-progress content-type-task-bar"><span style="width:${rowProgress}%"></span></div>
       </article>`;
     }).join('');
     return `<article class="department-task-card dynamic-dashboard-card user-content-type-group-card" data-dept-task-card data-task-id="${esc(firstTask.id || '')}" data-task-type="${esc(firstTask.taskTypeLabel || firstTask.taskType || '')}" data-campaign-code="${esc(firstTask.campaignCode || '')}" data-readiness-key="${esc(first.dept ? dashboardDeptReadinessKey(first.dept, first.index || 0) : '')}" data-legacy-readiness-key="${esc(first.dept ? legacyDeptReadinessKey(first.dept) : '')}" data-dept-identity="${esc(first.dept ? deptIdentity(first.dept) : '')}" data-dept-key="${esc(listKey)}" data-department-share="${esc(100 / Math.max(entries.length, 1))}" data-completed-steps="">
@@ -7752,8 +7771,6 @@ initCreateTaskFromTemplate();
         <span class="user-task-short-name">${esc(entries.length)} تاسك</span>
       </div>
       <div class="content-type-user-task-list">${taskRows}</div>
-      <div class="department-progress-row"><div class="department-progress-box"><small>متوسط اكتمال التاسكات</small><strong data-task-percent>${p}%</strong></div><div class="department-progress-box"><small>متوسط مساهمة الحملات</small><strong data-campaign-percent>${campaignPercent}%</strong></div></div>
-      <div class="mini-progress"><span data-task-bar style="width:${p}%"></span></div>
     </article>`;
   }
 

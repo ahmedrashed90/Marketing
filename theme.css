@@ -9035,3 +9035,109 @@ body[data-page="requiredContent"] .required-content-type-inline{
     max-width:86vw!important;
   }
 }
+
+
+/* MZJ polish: content-type kanban task cards as one clean unit */
+.user-content-type-dashboard-list{
+  gap:22px!important;
+  padding:10px 6px 20px!important;
+}
+.user-content-type-dashboard-list .user-content-type-group-card{
+  flex:0 0 410px!important;
+  max-width:410px!important;
+  min-height:unset!important;
+  border-radius:24px!important;
+  padding:18px!important;
+  background:rgba(255,250,246,.92)!important;
+  border:1px solid rgba(62,36,32,.10)!important;
+  box-shadow:0 16px 34px rgba(62,36,32,.08)!important;
+}
+.user-content-type-group-card .content-type-group-head{
+  position:static!important;
+  background:transparent!important;
+  border-bottom:1px dashed rgba(62,36,32,.14)!important;
+  margin-bottom:10px!important;
+}
+.content-type-user-task-list{
+  gap:14px!important;
+}
+.content-type-user-task-row{
+  display:grid!important;
+  grid-template-columns:1fr!important;
+  gap:13px!important;
+  padding:16px!important;
+  min-height:unset!important;
+  border-radius:22px!important;
+  background:#fff!important;
+  border:1px solid rgba(62,36,32,.12)!important;
+  box-shadow:0 10px 24px rgba(62,36,32,.06)!important;
+}
+.content-type-user-task-main{
+  border-bottom:1px dashed rgba(62,36,32,.12)!important;
+  padding-bottom:10px!important;
+}
+.content-type-user-task-main b{
+  font-size:16px!important;
+  color:#3e2420!important;
+}
+.content-type-user-task-main small{
+  white-space:normal!important;
+  line-height:1.7!important;
+}
+.content-type-user-task-actions{
+  display:grid!important;
+  grid-template-columns:1fr 1fr!important;
+  gap:10px!important;
+  justify-content:stretch!important;
+  align-items:stretch!important;
+}
+.content-type-user-task-actions .details-btn,
+.content-type-user-task-actions .receive-task-btn,
+.content-type-user-task-actions .user-task-action-btn{
+  min-width:0!important;
+  width:100%!important;
+  min-height:44px!important;
+  border-radius:16px!important;
+  border:0!important;
+  padding:10px 14px!important;
+  font-size:14px!important;
+  font-weight:900!important;
+  background:#ead0bd!important;
+  color:#3e2420!important;
+  box-shadow:0 8px 18px rgba(62,36,32,.09)!important;
+}
+.content-type-user-task-actions .details-btn:hover,
+.content-type-user-task-actions .receive-task-btn:hover{
+  background:#3e2420!important;
+  color:#fff!important;
+}
+.content-type-user-task-actions .receive-task-btn.is-done{
+  background:#ead0bd!important;
+  color:#3e2420!important;
+  opacity:1!important;
+}
+.content-type-task-progress{
+  display:grid!important;
+  grid-template-columns:1fr 1fr!important;
+  gap:10px!important;
+}
+.content-type-task-progress .department-progress-box{
+  margin:0!important;
+  min-height:62px!important;
+  border-radius:16px!important;
+  background:#fffaf6!important;
+  border:1px solid rgba(62,36,32,.08)!important;
+}
+.content-type-task-bar{
+  margin-top:0!important;
+}
+@media(max-width:760px){
+  .user-content-type-dashboard-list .user-content-type-group-card{
+    flex-basis:88vw!important;
+    max-width:88vw!important;
+  }
+  .content-type-user-task-actions,
+  .content-type-task-progress{
+    grid-template-columns:1fr!important;
+  }
+}
